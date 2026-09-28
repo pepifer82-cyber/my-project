@@ -5,158 +5,270 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A&T Printer Control</title>
 <style>
-body{font-family:system-ui;margin:0;background:#f5f7fa;color:#0f172a}.wrap{max-width:1200px;margin:auto;padding:24px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:18px;margin-bottom:18px;box-shadow:0 2px 10px #00000008}.row{display:flex;gap:12px;flex-wrap:wrap}.stat{flex:1;min-width:180px}.muted{color:#64748b}.danger{color:#b91c1c}.ok{color:#047857}button{border:0;border-radius:9px;padding:9px 12px;cursor:pointer}.primary{background:#2563eb;color:#fff}.good{background:#10b981;color:#fff}.warn{background:#f59e0b;color:#fff}.secondary{background:#e2e8f0;color:#0f172a}input{padding:10px;border:1px solid #cbd5e1;border-radius:8px;width:100%;box-sizing:border-box}table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:9px;border-bottom:1px solid #e2e8f0;font-size:14px}.hidden{display:none}.pill{padding:4px 8px;border-radius:999px;background:#e2e8f0;font-size:12px}.msg{display:block;margin-top:10px;min-height:22px}.auth-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+:root{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#0f172a;background:#f5f7fa}
+*{box-sizing:border-box}body{margin:0}.wrap{max-width:1400px;margin:auto;padding:20px}.card{background:#fff;border:1px solid #e2e8f0;border-radius:14px;padding:16px;margin-bottom:16px;box-shadow:0 2px 10px #00000008}.row{display:flex;gap:12px;flex-wrap:wrap}.stat{flex:1;min-width:170px}.muted{color:#64748b}.danger{color:#b91c1c}.ok{color:#047857}.hidden{display:none!important}button{border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font-weight:600}.primary{background:#2563eb;color:#fff}.good{background:#10b981;color:#fff}.warn{background:#f59e0b;color:#fff}.secondary{background:#e2e8f0;color:#0f172a}.dangerBtn{background:#dc2626;color:#fff}input,select{padding:10px;border:1px solid #cbd5e1;border-radius:8px;width:100%}.tabs{display:flex;gap:8px;overflow:auto;padding-bottom:8px}.tab{background:#e2e8f0;white-space:nowrap}.tab.active{background:#2563eb;color:#fff}.subtabs{display:flex;gap:8px;flex-wrap:wrap;margin:12px 0}.subtab.active{background:#0f172a;color:#fff}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;padding:9px;border-bottom:1px solid #e2e8f0;font-size:14px;vertical-align:top}.pill{padding:4px 8px;border-radius:999px;background:#e2e8f0;font-size:12px}.project-head{display:flex;justify-content:space-between;gap:16px;align-items:flex-start;flex-wrap:wrap}.serial-box{background:#f8fafc;border:1px dashed #cbd5e1;border-radius:10px;padding:10px;min-width:320px}.modal-back{position:fixed;inset:0;background:#0008;display:flex;align-items:center;justify-content:center;padding:18px;z-index:10}.modal{max-width:520px;width:100%;background:white;border-radius:14px;padding:20px}.metric{font-size:28px;font-weight:800}.empty{padding:30px;text-align:center;color:#64748b}
 </style>
 </head>
 <body>
 <div class="wrap">
 <h1>A&T Printer Control</h1>
+
 <div id="auth" class="card">
   <div class="row">
-    <div style="flex:1;min-width:220px"><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
-    <div style="flex:1;min-width:220px"><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password"></div>
+    <div style="flex:1;min-width:240px"><label for="email">Email</label><input id="email" type="email" autocomplete="username"></div>
+    <div style="flex:1;min-width:240px"><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password"></div>
   </div>
-  <div class="auth-actions" style="margin-top:12px">
+  <div style="margin-top:12px">
     <button id="loginBtn" class="primary" type="button">Ingresar</button>
     <button id="signupBtn" class="secondary" type="button">Crear cuenta</button>
-    <button id="testBtn" class="secondary" type="button">Probar conexión</button>
   </div>
-  <span id="authMsg" class="msg muted"></span>
+  <div id="authMsg" class="muted" style="margin-top:10px;min-height:22px"></div>
 </div>
 
 <div id="app" class="hidden">
-  <div class="card"><button id="logoutBtn" type="button">Cerrar sesión</button> <span id="who" class="muted"></span></div>
-  <div id="bootstrap" class="card hidden"><b>Cuenta sin acceso al proyecto.</b><p id="bootstrapText">La cuenta existe, pero todavía no tiene acceso al proyecto.</p></div>
-  <div class="row">
-    <div class="card stat"><div class="muted">Agentes</div><h2 id="agents">0</h2></div>
-    <div class="card stat"><div class="muted">Online</div><h2 id="online">0</h2></div>
-    <div class="card stat"><div class="muted">Impresoras</div><h2 id="printers">0</h2></div>
-    <div class="card stat"><div class="muted">Última actualización</div><h2 id="last">—</h2></div>
+  <div class="card project-head">
+    <div>
+      <button id="logoutBtn" class="secondary" type="button">Cerrar sesión</button>
+      <span id="who" class="muted"></span>
+    </div>
+    <button id="newProjectBtn" class="primary" type="button">+ Nuevo proyecto</button>
   </div>
-  <div class="card"><h2>Agentes</h2><table><thead><tr><th>Agente</th><th>Equipo</th><th>Versión</th><th>Estado</th><th>Último contacto</th><th>Acciones</th></tr></thead><tbody id="agentBody"></tbody></table></div>
-  <div class="card"><h2>Impresoras</h2><table><thead><tr><th>Nombre</th><th>Fabricante</th><th>Modelo</th><th>IP</th><th>Estado</th><th>Contador</th><th>Tóner</th></tr></thead><tbody id="printerBody"></tbody></table></div>
+
+  <div class="card">
+    <h2>Proyectos</h2>
+    <div id="projectTabs" class="tabs"></div>
+    <div id="projectEmpty" class="empty hidden">No hay proyectos disponibles.</div>
+  </div>
+
+  <div id="projectPanel" class="hidden">
+    <div class="card project-head">
+      <div>
+        <h2 id="projectName" style="margin:0 0 6px"></h2>
+        <div id="projectMeta" class="muted"></div>
+      </div>
+      <div class="serial-box">
+        <div class="muted" style="font-size:12px">Serial del proyecto</div>
+        <div id="serialValue" style="font-family:ui-monospace,monospace;font-weight:800;margin:6px 0"></div>
+        <div class="row">
+          <button id="copySerialBtn" class="secondary" type="button">Copiar serial</button>
+          <button id="newSerialBtn" class="warn" type="button">Generar otro serial</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="subtabs">
+      <button class="subtab active" data-view="resumen" type="button">Resumen</button>
+      <button class="subtab" data-view="inventario" type="button">Inventario</button>
+      <button class="subtab" data-view="tinta" type="button">Cantidad de tinta</button>
+      <button class="subtab" data-view="desconectadas" type="button">Desconectadas</button>
+      <button class="subtab" data-view="agentes" type="button">Agentes</button>
+    </div>
+
+    <div id="view-resumen">
+      <div class="row">
+        <div class="card stat"><div class="muted">Impresoras</div><div id="mPrinters" class="metric">0</div></div>
+        <div class="card stat"><div class="muted">Conectadas</div><div id="mOnline" class="metric">0</div></div>
+        <div class="card stat"><div class="muted">Desconectadas</div><div id="mOffline" class="metric">0</div></div>
+        <div class="card stat"><div class="muted">Agentes</div><div id="mAgents" class="metric">0</div></div>
+      </div>
+      <div class="card"><h3>Estado general</h3><div id="summaryText" class="muted"></div></div>
+    </div>
+
+    <div id="view-inventario" class="hidden">
+      <div class="card">
+        <h3>Inventario de impresoras</h3>
+        <div class="table-wrap"><table><thead><tr><th>Nombre</th><th>Fabricante</th><th>Modelo</th><th>Conexión</th><th>IP / Puerto</th><th>Serie</th><th>Estado</th><th>Contador</th><th>Agente</th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="view-tinta" class="hidden">
+      <div class="card">
+        <h3>Niveles de tinta / tóner</h3>
+        <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>K Negro</th><th>C Cian</th><th>M Magenta</th><th>Y Amarillo</th><th>Lectura</th><th>Error SNMP</th></tr></thead><tbody id="tonerBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="view-desconectadas" class="hidden">
+      <div class="card">
+        <h3>Impresoras desconectadas</h3>
+        <div id="offlineNote" class="muted" style="margin-bottom:10px"></div>
+        <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Estado</th><th>Último contacto</th><th>Agente</th><th>IP</th></tr></thead><tbody id="offlineBody"></tbody></table></div>
+      </div>
+    </div>
+
+    <div id="view-agentes" class="hidden">
+      <div class="card">
+        <h3>Agentes del proyecto</h3>
+        <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
+      </div>
+    </div>
+  </div>
 </div>
+
+<div id="projectModal" class="modal-back hidden">
+  <div class="modal">
+    <h2>Nuevo proyecto</h2>
+    <p class="muted">Cada proyecto tendrá su propio serial de activación para el agente.</p>
+    <label for="projectNameInput">Nombre del proyecto</label>
+    <input id="projectNameInput" maxlength="120" placeholder="Ej.: Cliente ABC">
+    <div class="row" style="margin-top:14px;justify-content:flex-end">
+      <button id="cancelProjectBtn" class="secondary" type="button">Cancelar</button>
+      <button id="createProjectBtn" class="primary" type="button">Crear proyecto</button>
+    </div>
+    <div id="projectMsg" class="muted" style="margin-top:10px;min-height:20px"></div>
+  </div>
 </div>
 
 <script>
 'use strict';
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
-const ACCESS_KEY='atpc_access_token';
-const REFRESH_KEY='atpc_refresh_token';
-let projectId=null;
+const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
+let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[];
 
 const $=id=>document.getElementById(id);
-function setMsg(text,cls='muted'){ $('authMsg').textContent=text; $('authMsg').className='msg '+cls; }
-function setBusy(b){ $('loginBtn').disabled=b; $('signupBtn').disabled=b; $('testBtn').disabled=b; }
-function token(){return localStorage.getItem(ACCESS_KEY)||'';}
-function saveSession(s){if(s?.access_token)localStorage.setItem(ACCESS_KEY,s.access_token);if(s?.refresh_token)localStorage.setItem(REFRESH_KEY,s.refresh_token);}
-function clearSession(){localStorage.removeItem(ACCESS_KEY);localStorage.removeItem(REFRESH_KEY);projectId=null;}
+const token=()=>localStorage.getItem(ACCESS_KEY)||'';
+function saveSession(s){if(s&&s.access_token)localStorage.setItem(ACCESS_KEY,s.access_token);if(s&&s.refresh_token)localStorage.setItem(REFRESH_KEY,s.refresh_token);}
+function clearSession(){localStorage.removeItem(ACCESS_KEY);localStorage.removeItem(REFRESH_KEY);currentProjectId=null;}
+function msg(text,cls){$('authMsg').textContent=text||'';$('authMsg').className=cls||'muted';}
+function busy(b){$('loginBtn').disabled=b;$('signupBtn').disabled=b;}
 
 async function api(path,opts={}){
-  const controller=new AbortController();
-  const timer=setTimeout(()=>controller.abort(),12000);
-  try{
-    const headers=Object.assign({'apikey':SUPABASE_KEY,'Content-Type':'application/json'},opts.headers||{});
-    if(token()) headers.Authorization='Bearer '+token();
-    const res=await fetch(SUPABASE_URL+path,{...opts,headers,signal:controller.signal});
-    const text=await res.text();
-    let data=null; try{data=text?JSON.parse(text):null;}catch{}
-    if(!res.ok){
-      const message=data?.msg||data?.message||data?.error_description||data?.error||text||('HTTP '+res.status);
-      const err=new Error(message); err.status=res.status; throw err;
-    }
-    return data;
-  }catch(e){
-    if(e.name==='AbortError') throw new Error('Supabase no respondió a tiempo. Revisá Internet o el bloqueador del navegador.');
-    throw e;
-  }finally{clearTimeout(timer);}
-}
-
-async function testConnection(){
-  setBusy(true); setMsg('Probando conexión con Supabase...');
-  try{
-    await api('/auth/v1/settings',{method:'GET'});
-    setMsg('Conexión con Supabase OK. El problema no es GitHub Pages.','ok');
-  }catch(e){setMsg('Error de conexión: '+e.message,'danger');}
-  finally{setBusy(false);}
+  const headers=Object.assign({'apikey':SUPABASE_KEY,'Content-Type':'application/json'},opts.headers||{});
+  if(token())headers.Authorization='Bearer '+token();
+  const res=await fetch(SUPABASE_URL+path,Object.assign({},opts,{headers}));
+  const body=await res.text();
+  let data=null;try{data=body?JSON.parse(body):null}catch{}
+  if(!res.ok)throw new Error(data?.message||data?.msg||data?.error_description||data?.error||body||('HTTP '+res.status));
+  return data;
 }
 
 async function login(){
-  const email=$('email').value.trim(), password=$('password').value;
-  if(!email||!password){setMsg('Ingresá correo y contraseña.','danger');return;}
-  setBusy(true); setMsg('Ingresando...');
-  try{
-    const s=await api('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});
-    saveSession(s); setMsg('Acceso correcto. Cargando panel...','ok'); await load();
-  }catch(e){setMsg('No se pudo ingresar: '+e.message,'danger');}
-  finally{setBusy(false);}
+  const email=$('email').value.trim(),password=$('password').value;
+  if(!email||!password){msg('Ingresá correo y contraseña.','danger');return}
+  busy(true);msg('Ingresando...');
+  try{const s=await api('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});saveSession(s);await loadApp();msg('Acceso correcto.','ok')}
+  catch(e){msg('No se pudo ingresar: '+e.message,'danger')}finally{busy(false)}
 }
-
 async function signup(){
-  const email=$('email').value.trim(), password=$('password').value;
-  if(!email||!password){setMsg('Ingresá correo y contraseña para crear la cuenta.','danger');return;}
-  if(password.length<6){setMsg('La contraseña debe tener al menos 6 caracteres.','danger');return;}
-  setBusy(true); setMsg('Creando cuenta...');
+  const email=$('email').value.trim(),password=$('password').value;
+  if(!email||!password){msg('Ingresá correo y contraseña.','danger');return}
+  if(password.length<6){msg('La contraseña debe tener al menos 6 caracteres.','danger');return}
+  busy(true);msg('Creando cuenta...');
+  try{const s=await api('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password})});if(s&&s.access_token){saveSession(s);await loadApp()}else msg('Cuenta creada. Confirmá el correo si Supabase lo solicita y luego ingresá.','ok')}
+  catch(e){msg('No se pudo crear la cuenta: '+e.message,'danger')}finally{busy(false)}
+}
+async function logout(){try{await api('/auth/v1/logout',{method:'POST'})}catch{}clearSession();location.reload()}
+
+async function loadApp(){
+  if(!token())return;
   try{
-    const s=await api('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password})});
-    if(s?.access_token){saveSession(s);setMsg('Cuenta creada. Cargando panel...','ok');await load();}
-    else setMsg('Cuenta creada. Revisá el correo si Supabase solicita confirmación y luego ingresá.','ok');
-  }catch(e){setMsg('No se pudo crear la cuenta: '+e.message,'danger');}
-  finally{setBusy(false);}
+    currentUser=await api('/auth/v1/user',{method:'GET'});
+    $('auth').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=currentUser.email||'';
+    await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
+    await loadProjects();
+  }catch(e){clearSession();$('auth').classList.remove('hidden');$('app').classList.add('hidden');msg('Sesión inválida: '+e.message,'danger')}
 }
 
-async function logout(){try{await api('/auth/v1/logout',{method:'POST'});}catch{}clearSession();location.reload();}
+async function loadProjects(selectId){
+  projects=await api('/rest/v1/control_projects?select=id,name,active,created_at&active=eq.true&order=created_at.asc');
+  projects=Array.isArray(projects)?projects:[];
+  const serials=await api('/rest/v1/control_project_serials?select=project_id,serial,serial_last4,active&active=eq.true');
+  serialByProject=new Map((serials||[]).map(x=>[x.project_id,x]));
+  renderProjectTabs();
+  if(!projects.length){$('projectPanel').classList.add('hidden');$('projectEmpty').classList.remove('hidden');return}
+  $('projectEmpty').classList.add('hidden');
+  const target=selectId||currentProjectId||projects[0].id;
+  openProject(target);
+}
 
-async function load(){
-  if(!token()){ $('auth').classList.remove('hidden'); $('app').classList.add('hidden'); return; }
+function renderProjectTabs(){
+  $('projectTabs').innerHTML=projects.map(p=>'<button class="tab '+(p.id===currentProjectId?'active':'')+'" data-project="'+p.id+'" type="button">'+escapeHtml(p.name)+'</button>').join('');
+  document.querySelectorAll('.tab[data-project]').forEach(b=>b.addEventListener('click',()=>openProject(b.dataset.project)));
+}
+function openProject(id){
+  const p=projects.find(x=>x.id===id);if(!p)return;
+  currentProjectId=id;currentView='resumen';
+  $('projectPanel').classList.remove('hidden');$('projectName').textContent=p.name;
+  $('projectMeta').textContent='Proyecto activo · ID '+id;
+  const s=serialByProject.get(id);
+  $('serialValue').textContent=s?s.serial:'Serial principal configurado anteriormente · terminación '+(s?.serial_last4||'no disponible');
+  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b.dataset.view==='resumen'));
+  showView('resumen');renderProjectTabs();loadProjectData();
+}
+function showView(view){
+  currentView=view;
+  ['resumen','inventario','tinta','desconectadas','agentes'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
+  document.querySelectorAll('.subtab').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+}
+
+async function loadProjectData(){
+  if(!currentProjectId)return;
+  const q='?select=*&project_id=eq.'+encodeURIComponent(currentProjectId)+'&order=last_seen_at.desc.nullslast';
+  rows=await api('/rest/v1/control_printer_dashboard'+q);
+  rows=Array.isArray(rows)?rows:[];
+  agentRows=await api('/rest/v1/printer_agents?select=id,agent_code,machine_name,windows_user,app_version,active,last_seen_at&project_id=eq.'+encodeURIComponent(currentProjectId)+'&order=last_seen_at.desc.nullslast');
+  agentRows=Array.isArray(agentRows)?agentRows:[];
+  renderAll();
+}
+
+function ageMinutes(value){if(!value)return Infinity;return (Date.now()-new Date(value).getTime())/60000}
+function printerState(r){if(r.enabled===false)return 'disabled';return ageMinutes(r.last_seen_at)<=15?'online':'offline'}
+function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at);return m<=3?'online':m<=15?'stale':'offline'}
+function lastContact(r){return r.last_seen_at?new Date(r.last_seen_at).toLocaleString():'Nunca'}
+function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+function escapeHtml(v){return esc(v)}
+
+function renderAll(){
+  const offline=rows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');
+  const online=rows.filter(r=>!offline.includes(r));
+  $('mPrinters').textContent=rows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
+  $('summaryText').textContent=rows.length?'El proyecto tiene '+rows.length+' impresora(s), '+online.length+' conectada(s) y '+offline.length+' desconectada(s).':'Todavía no hay impresoras registradas para este proyecto.';
+  $('inventoryBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.display_name)+'</td><td>'+esc(r.manufacturer)+'</td><td>'+esc(r.model)+'</td><td>'+esc(r.connection_type)+'</td><td>'+esc(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+esc(r.serial_number||'—')+'</td><td><span class="pill">'+esc(printerState(r))+'</span></td><td>'+esc(r.page_count??'—')+'</td><td>'+esc(r.agent_code||r.machine_name||'—')+'</td></tr>').join(''):'<tr><td colspan="9" class="empty">Sin impresoras registradas.</td></tr>';
+  $('tonerBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+esc(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+esc(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+esc(r.reading_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
+  $('offlineNote').textContent='Se consideran desconectadas las impresoras sin contacto durante más de 15 minutos.';
+  $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+esc(r.display_name)+'</td><td>'+esc(r.last_status||'sin respuesta')+'</td><td>'+esc(lastContact(r))+'</td><td>'+esc(r.agent_code||r.machine_name||'—')+'</td><td>'+esc(r.ip_address||'—')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">No hay impresoras desconectadas.</td></tr>';
+  $('agentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td>'+esc(a.agent_code)+'</td><td>'+esc(a.machine_name)+'</td><td>'+esc(a.windows_user)+'</td><td>'+esc(a.app_version)+'</td><td><span class="pill">'+esc(agentState(a))+'</span></td><td>'+esc(a.last_seen_at?new Date(a.last_seen_at).toLocaleString():'Nunca')+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">No hay agentes registrados.</td></tr>';
+}
+function pct(v){return v==null?'—':Math.round(Number(v))+'%'}
+
+async function createProject(){
+  const name=$('projectNameInput').value.trim();
+  if(!name){$('projectMsg').textContent='Escribí un nombre.';return}
+  $('createProjectBtn').disabled=true;$('projectMsg').textContent='Creando proyecto...';
   try{
-    const user=await api('/auth/v1/user',{method:'GET'});
-    $('auth').classList.add('hidden'); $('app').classList.remove('hidden'); $('who').textContent=user?.email||'';
-    $('bootstrap').classList.add('hidden');
-    try{await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'});}catch(e){console.warn('bootstrap',e.message);}
-    const m=await api('/rest/v1/control_project_members?select=project_id,role,active&user_id=eq.'+encodeURIComponent(user.id)+'&active=eq.true&limit=1',{method:'GET'});
-    if(!Array.isArray(m)||!m.length){
-      $('bootstrap').classList.remove('hidden'); $('bootstrapText').textContent='La cuenta está autenticada pero no tiene acceso al proyecto. Volvé a ingresar una vez.';
-      return;
-    }
-    projectId=m[0].project_id; await refresh();
-  }catch(e){
-    clearSession(); $('auth').classList.remove('hidden'); $('app').classList.add('hidden'); setMsg('Sesión inválida: '+e.message,'danger');
-  }
+    const result=await api('/rest/v1/rpc/control_create_project',{method:'POST',body:JSON.stringify({p_name:name})});
+    const p=Array.isArray(result)?result[0]:result;
+    $('projectModal').classList.add('hidden');$('projectNameInput').value='';$('projectMsg').textContent='';
+    await loadProjects(p&&p.project_id);
+    if(p&&p.serial)alert('Proyecto creado. Serial del agente:\n\n'+p.serial+'\n\nGuardalo: lo necesitarás para configurar el agente.');
+  }catch(e){$('projectMsg').textContent='Error: '+e.message}finally{$('createProjectBtn').disabled=false}
 }
-
-function status(a){
-  const seen=a.last_seen_at?new Date(a.last_seen_at).getTime():0, age=(Date.now()-seen)/60000;
-  return !a.active?'disabled':age<=3?'online':age<=15?'stale':'offline';
-}
-function esc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]));}
-async function refresh(){
-  if(!projectId)return;
+async function generateSerial(){
+  if(!currentProjectId)return;
+  if(!confirm('Esto generará un serial adicional. Los seriales anteriores seguirán funcionando. ¿Continuar?'))return;
   try{
-    const [agents,printers]=await Promise.all([
-      api('/rest/v1/control_agents?select=*&project_id=eq.'+encodeURIComponent(projectId)+'&order=last_seen_at.desc.nullslast'),
-      api('/rest/v1/control_printers?select=*&project_id=eq.'+encodeURIComponent(projectId)+'&order=last_seen_at.desc.nullslast')
-    ]);
-    const a=Array.isArray(agents)?agents:[], p=Array.isArray(printers)?printers:[];
-    $('agents').textContent=a.length; $('online').textContent=a.filter(x=>status(x)==='online').length; $('printers').textContent=p.length; $('last').textContent=new Date().toLocaleTimeString();
-    $('agentBody').innerHTML=a.map(x=>'<tr><td><b>'+esc(x.agent_code)+'</b></td><td>'+esc(x.machine_name)+'</td><td>'+esc(x.app_version)+'</td><td><span class="pill">'+status(x)+'</span></td><td>'+(x.last_seen_at?new Date(x.last_seen_at).toLocaleString():'—')+'</td><td><button class="primary" onclick="cmd(\''+x.id+'\',\'sync_now\')">Sincronizar</button> <button class="good" onclick="cmd(\''+x.id+'\',\'rescan\')">Reescanear</button> <button class="warn" onclick="pause(\''+x.id+'\','+(status(x)==='disabled'||status(x)==='offline'?'false':'true')+')">'+(status(x)==='offline'?'Activar':'Pausar')+'</button></td></tr>').join('');
-    $('printerBody').innerHTML=p.map(x=>'<tr><td>'+esc(x.display_name)+'</td><td>'+esc(x.manufacturer)+'</td><td>'+esc(x.model)+'</td><td>'+esc(x.ip_address)+'</td><td>'+esc(x.last_status)+'</td><td>'+esc(x.page_count)+'</td><td>'+esc([x.toner_black_percent!=null?'K '+Math.round(x.toner_black_percent)+'%':'',x.toner_cyan_percent!=null?'C '+Math.round(x.toner_cyan_percent)+'%':'',x.toner_magenta_percent!=null?'M '+Math.round(x.toner_magenta_percent)+'%':'',x.toner_yellow_percent!=null?'Y '+Math.round(x.toner_yellow_percent)+'%':''].filter(Boolean).join(' '))+'</td></tr>').join('');
-  }catch(e){$('last').textContent='Error'; console.error(e);}
+    const result=await api('/rest/v1/rpc/control_issue_serial',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});
+    const s=Array.isArray(result)?result[0]:result;
+    serialByProject.set(currentProjectId,{project_id:currentProjectId,serial:s.serial,serial_last4:s.serial_last4,active:true});
+    $('serialValue').textContent=s.serial;
+    alert('Nuevo serial generado:\n\n'+s.serial+'\n\nPodés pegarlo en Configuración del A&T Printer Agent.');
+  }catch(e){alert('No se pudo generar: '+e.message)}
 }
-async function cmd(agentId,command,payload={}){
-  try{await api('/rest/v1/control_agent_commands',{method:'POST',headers:{'Prefer':'return=minimal'},body:JSON.stringify({project_id:projectId,agent_id:agentId,command,payload})});alert('Comando enviado');refresh();}
-  catch(e){alert('Error: '+e.message);}
+async function copySerial(){
+  const s=serialByProject.get(currentProjectId);if(!s?.serial){alert('Este proyecto no tiene un serial nuevo visible.');return}
+  await navigator.clipboard.writeText(s.serial);alert('Serial copiado.');
 }
-async function pause(id,on){await cmd(id,on?'disable':'enable');}
 
-$('loginBtn').addEventListener('click',login);
-$('signupBtn').addEventListener('click',signup);
-$('testBtn').addEventListener('click',testConnection);
-$('logoutBtn').addEventListener('click',logout);
-$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login();});
-load();
-setInterval(refresh,10000);
+$('loginBtn').addEventListener('click',login);$('signupBtn').addEventListener('click',signup);$('logoutBtn').addEventListener('click',logout);
+$('newProjectBtn').addEventListener('click',()=>{$('projectModal').classList.remove('hidden');$('projectNameInput').focus()});
+$('cancelProjectBtn').addEventListener('click',()=>{$('projectModal').classList.add('hidden')});
+$('createProjectBtn').addEventListener('click',createProject);
+$('copySerialBtn').addEventListener('click',copySerial);$('newSerialBtn').addEventListener('click',generateSerial);
+$('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+document.querySelectorAll('.subtab').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
+loadApp();
+setInterval(()=>{if(currentProjectId)loadProjectData().catch(()=>{})},30000);
 </script>
 </body>
 </html>
