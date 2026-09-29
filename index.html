@@ -293,7 +293,7 @@ async function loadProjectData(){
   }catch(e){}
 }
 function ageMinutes(v){if(!v)return Infinity;return (Date.now()-new Date(v).getTime())/60000}
-function printerState(r){if(r.enabled===false)return 'disabled';return ageMinutes(r.last_seen_at)<=15?'online':'offline'}
+function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const s=String(r.reading_status||r.last_status||'').toLowerCase();if(s.includes('offline')||s.includes('descon'))return 'offline';return ageMinutes(r.last_seen_at)<=15?'online':'offline'}
 function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at);return m<=3?'online':m<=15?'stale':'offline'}
 function statePill(state){const label={online:'Conectada',offline:'Desconectada',stale:'Sincronizando',disabled:'Deshabilitada'}[state]||state;return '<span class="pill '+state+'">'+escapeHtml(label)+'</span>'}
 function lastContact(v){return v?new Date(v).toLocaleString():'Nunca'}
@@ -315,15 +315,17 @@ async function savePrinterMeta(){
   const city=$('editCity').value.trim();
   $('savePrinterBtn').disabled=true;$('printerMsg').textContent='Guardando...';
   try{
-    await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
-      method:'PATCH',
+    const result=await api('/rest/v1/rpc/control_update_printer_meta',{
+      method:'POST',
       headers:{'Prefer':'return=representation'},
-      body:JSON.stringify({description,city})
+      body:JSON.stringify({p_printer_id:id,p_description:description,p_city:city})
     });
+    const updated=Array.isArray(result)?result[0]:result;
+    if(!updated?.id)throw new Error('Supabase no devolvió la impresora actualizada.');
     const r=rows.find(x=>x.printer_id===id);
-    if(r){r.description=description;r.city=city}
+    if(r){r.description=updated.description;r.city=updated.city;r.updated_at=updated.updated_at}
     closePrinterEditor();renderAll();
-  }catch(e){$('printerMsg').textContent='Error: '+e.message}
+  }catch(e){$('printerMsg').textContent='No se pudo guardar: '+e.message}
   finally{$('savePrinterBtn').disabled=false}
 }
 async function setRetired(id,retired){
@@ -334,24 +336,17 @@ async function setRetired(id,retired){
     : '¿Restaurar esta impresora al control activo?');
   if(!ok)return;
   try{
-    const changed=await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
-      method:'PATCH',
+    const result=await api('/rest/v1/rpc/control_set_printer_retired',{
+      method:'POST',
       headers:{'Prefer':'return=representation'},
-      body:JSON.stringify({retired,retired_at:retired?new Date().toISOString():null})
+      body:JSON.stringify({p_printer_id:id,p_retired:retired})
     });
-    if(!Array.isArray(changed)||!changed.length)throw new Error('No se pudo actualizar la impresora. Revisá que tengas permisos sobre este proyecto.');
-  }catch(e){
-    // fallback with correct REST route if the first route was rejected
-    try{
-      const changed=await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
-        method:'PATCH',
-        headers:{'Prefer':'return=representation'},
-        body:JSON.stringify({retired,retired_at:retired?new Date().toISOString():null})
-      });
-      if(!Array.isArray(changed)||!changed.length)throw new Error('Sin cambios realizados.');
-    }catch(e2){alert('No se pudo '+action+': '+e2.message);return}
-  }
-  r.retired=retired;r.retired_at=retired?new Date().toISOString():null;renderAll();
+    const updated=Array.isArray(result)?result[0]:result;
+    if(!updated?.id)throw new Error('Supabase no devolvió cambios.');
+    Object.assign(r,{retired:updated.retired,retired_at:updated.retired_at,updated_at:updated.updated_at});
+    renderAll();
+    if(currentView==='retiradas' || currentView==='inventario') await loadProjectData();
+  }catch(e){alert('No se pudo '+action+': '+e.message)}
 }
 function renderAll(){
   const activeRows=rows.filter(r=>r.retired!==true);
