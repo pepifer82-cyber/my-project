@@ -313,11 +313,55 @@ async function loadProjectData(){
   if(!currentProjectId)return;
   try{
     const q='?select=*&project_id=eq.'+encodeURIComponent(currentProjectId)+'&order=last_seen_at.desc.nullslast';
-    rows=await api('/rest/v1/control_printer_dashboard'+q);rows=Array.isArray(rows)?rows:[];
+    rows=await api('/rest/v1/control_printer_dashboard'+q);rows=Array.isArray(rows)?rows.filter(isRealPrinter):[];
     agentRows=await api('/rest/v1/printer_agents?select=id,agent_code,machine_name,windows_user,app_version,active,last_seen_at&project_id=eq.'+encodeURIComponent(currentProjectId)+'&order=last_seen_at.desc.nullslast');agentRows=Array.isArray(agentRows)?agentRows:[];
     renderAll();
   }catch(e){}
 }
+function isRealPrinter(r){
+  const text=[
+    r?.display_name,r?.printer_name,r?.name,r?.manufacturer,r?.model,
+    r?.driver,r?.driver_name,r?.connection_type,r?.windows_port,r?.usb_port,
+    r?.port_name,r?.device_type
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  const virtualPrinterMarkers=[
+    'microsoft print to pdf',
+    'microsoft xps document writer',
+    'xps document writer',
+    'microsoft xps',
+    'print to pdf',
+    'pdf printer',
+    'pdfcreator',
+    'cute pdf',
+    'cutepdf',
+    'doPDF',
+    'dopdf',
+    'primopdf',
+    'bullzip',
+    'nitro pdf',
+    'adobe pdf',
+    'foxit pdf',
+    'onenote',
+    'send to onenote',
+    'fax',
+    'fax printer',
+    'virtual printer',
+    'virtual pdf',
+    'software printer',
+    'document writer'
+  ];
+
+  if(virtualPrinterMarkers.some(marker=>text.includes(marker.toLowerCase()))) return false;
+
+  const manufacturer=String(r?.manufacturer||'').toLowerCase();
+  const name=String(r?.display_name||r?.printer_name||r?.name||'').toLowerCase();
+
+  if(manufacturer==='microsoft' && /(pdf|xps|fax|onenote|document writer)/i.test(name+' '+text)) return false;
+
+  return true;
+}
+
 function ageMinutes(v){if(!v)return Infinity;return (Date.now()-new Date(v).getTime())/60000}
 function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const s=String(r.reading_status||r.last_status||'').toLowerCase();if(s.includes('offline')||s.includes('descon'))return 'offline';return ageMinutes(r.last_seen_at)<=15?'online':'offline'}
 function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at);return m<=3?'online':m<=15?'stale':'offline'}
@@ -469,7 +513,7 @@ async function loadCounterHistory(showMessage=true){
         p_to:dates.to
       })
     });
-    counterRows=Array.isArray(result)?result:[];
+    counterRows=Array.isArray(result)?result.filter(isRealPrinter):[];
     renderCounterRows();
     if(showMessage){
       const withCount=counterRows.filter(r=>r.page_count!=null).length;
