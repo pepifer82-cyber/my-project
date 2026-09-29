@@ -42,7 +42,7 @@ button{border:0;cursor:pointer}
 .hero h1{margin:0;font-size:27px;letter-spacing:-.02em}.hero p{margin:7px 0 0;color:#c7d9ed;font-size:13px}
 .serial-panel{position:relative;z-index:1;min-width:330px;max-width:420px;background:#ffffff12;border:1px solid #ffffff1e;border-radius:17px;padding:13px 14px;backdrop-filter:blur(10px)}
 .serial-label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#a9c4df;font-weight:800}.serial-value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;margin:7px 0;word-break:break-all}.serial-actions{display:flex;gap:8px;flex-wrap:wrap}.serial-btn{padding:9px 11px;border-radius:10px;font-weight:800}.copy{background:#fff;color:#163457}.new{background:#1e9ee7;color:#fff}.serial-hint{font-size:11px;color:#aac2da;margin-top:8px}
-.launcher{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.launcher{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
 .app-btn{background:#ffffffd9;border:1px solid #ffffffb5;border-radius:18px;padding:14px 12px;text-align:left;box-shadow:0 10px 28px #23456b10;transition:.18s ease;min-width:0}
 .app-btn:hover{transform:translateY(-2px);box-shadow:0 15px 32px #23456b18}
 .app-btn.active{border-color:#bcd6ff;box-shadow:0 12px 30px #2878ff20,inset 0 0 0 1px #d9e8ff;background:linear-gradient(180deg,#fff,#f4f8ff)}
@@ -129,6 +129,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;
       <button class="app-btn" data-view="tinta" type="button"><div class="app-icon">◉</div><div class="app-title">Tóner</div><div class="app-sub">Niveles de tinta</div></button>
       <button class="app-btn" data-view="desconectadas" type="button"><div class="app-icon">!</div><div class="app-title">Desconectadas</div><div class="app-sub">Atención requerida</div></button>
       <button class="app-btn" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
+      <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button>
     </section>
 
     <section class="kpis">
@@ -147,7 +148,7 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;
     </section>
 
     <section id="view-inventario" class="content-card hidden">
-      <div class="content-head"><div><h3>Inventario de impresoras</h3><small>Todos los equipos reportados por los agentes.</small></div></div>
+      <div class="content-head"><div><h3>Impresoras en control</h3><small>Solo equipos actualmente administrados por el proyecto.</small></div></div>
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Fabricante</th><th>Modelo</th><th>Conexión</th><th>IP / Puerto</th><th>Serie</th><th>Estado</th><th>Contador</th><th>Agente</th><th></th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
     </section>
 
@@ -164,6 +165,11 @@ table{width:100%;border-collapse:collapse;min-width:850px}th,td{text-align:left;
     <section id="view-agentes" class="content-card hidden">
       <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos que envían información a la nube.</small></div></div>
       <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
+    </section>
+
+    <section id="view-retiradas" class="content-card hidden">
+      <div class="content-head"><div><h3>Impresoras retiradas</h3><small>Se conservan los datos y el historial, pero no aparecen en el control activo.</small></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Estado anterior</th><th>Último contacto</th><th>Agente</th><th>IP</th><th>Retirada</th><th></th></tr></thead><tbody id="retiredBody"></tbody></table></div>
     </section>
   </main>
 </div>
@@ -267,7 +273,7 @@ function openProject(id){
 }
 function showView(view){
   currentView=view;
-  ['resumen','inventario','tinta','desconectadas','agentes'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
+  ['resumen','inventario','tinta','desconectadas','agentes','retiradas'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
   document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
 }
 async function loadProjectData(){
@@ -313,15 +319,43 @@ async function savePrinterMeta(){
   }catch(e){$('printerMsg').textContent='Error: '+e.message}
   finally{$('savePrinterBtn').disabled=false}
 }
+async function setRetired(id,retired){
+  const r=rows.find(x=>x.printer_id===id);if(!r)return;
+  const action=retired?'retirar':'restaurar';
+  const ok=confirm(retired
+    ? '¿Retirar esta impresora del control? Se conservarán sus datos e historial y quedará en la pestaña Retiradas.'
+    : '¿Restaurar esta impresora al control activo?');
+  if(!ok)return;
+  try{
+    await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
+      method:'PATCH',
+      headers:{'Prefer':'return=minimal'},
+      body:JSON.stringify({retired,retired_at:retired?new Date().toISOString():null})
+    });
+  }catch(e){
+    // fallback with correct REST route if the first route was rejected
+    try{
+      await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
+        method:'PATCH',
+        headers:{'Prefer':'return=minimal'},
+        body:JSON.stringify({retired,retired_at:retired?new Date().toISOString():null})
+      });
+    }catch(e2){alert('No se pudo '+action+': '+e2.message);return}
+  }
+  r.retired=retired;r.retired_at=retired?new Date().toISOString():null;renderAll();
+}
 function renderAll(){
-  const offline=rows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');const online=rows.filter(r=>!offline.includes(r));
-  $('mPrinters').textContent=rows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
+  const activeRows=rows.filter(r=>r.retired!==true);
+  const retiredRows=rows.filter(r=>r.retired===true);
+  const offline=activeRows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');const online=activeRows.filter(r=>!offline.includes(r));
+  $('mPrinters').textContent=activeRows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
   $('summaryText').textContent=rows.length?'La flota tiene '+rows.length+' impresora(s): '+online.length+' conectada(s) y '+offline.length+' desconectada(s).':'Todavía no hay impresoras registradas para este proyecto.';
   const latest=[...rows].map(r=>r.reading_at||r.last_seen_at).filter(Boolean).sort().pop();$('lastSyncText').textContent=latest?new Date(latest).toLocaleString():'Sin lecturas todavía';
-  $('inventoryBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.page_count??'—')+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button></td></tr>').join(''):'<tr><td colspan="12" class="empty">Sin impresoras registradas.</td></tr>';
-  $('tonerBody').innerHTML=rows.length?rows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
+  $('inventoryBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.page_count??'—')+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="12" class="empty">No hay impresoras en control.</td></tr>';
+  $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Se consideran desconectadas las impresoras sin contacto durante más de 15 minutos.';
-  $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>';
+  $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
+  $('retiredBody').innerHTML=retiredRows.length?retiredRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.last_status||'—')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.retired_at?new Date(r.retired_at).toLocaleString():'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',false)">Restaurar</button></td></tr>').join(''):'<tr><td colspan="9" class="empty">No hay impresoras retiradas.</td></tr>';
   $('agentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td>'+escapeHtml(a.agent_code)+'</td><td>'+escapeHtml(a.machine_name)+'</td><td>'+escapeHtml(a.windows_user)+'</td><td>'+escapeHtml(a.app_version)+'</td><td>'+statePill(agentState(a))+'</td><td>'+escapeHtml(lastContact(a.last_seen_at))+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">No hay agentes registrados.</td></tr>';
 }
 async function createProject(){
