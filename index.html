@@ -12,38 +12,36 @@
   font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 }
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;background:
-  radial-gradient(circle at 85% 8%,#cfe9ff 0,transparent 28%),
-  radial-gradient(circle at 20% 90%,#dcecff 0,transparent 32%),var(--bg);color:var(--text)}
-body:before{content:"";position:fixed;inset:0;pointer-events:none;opacity:.26;background-image:linear-gradient(#a8c2df22 1px,transparent 1px),linear-gradient(90deg,#a8c2df22 1px,transparent 1px);background-size:36px 36px}
+html,body{margin:0;min-height:100%;background:#f3f6fa;color:var(--text)}
+body:before{display:none}
 button,input{font:inherit}
 button{border:0;cursor:pointer}
 .hidden{display:none!important}
-.app-shell{display:flex;min-height:100vh;padding:18px;gap:18px}
-.sidebar{width:268px;flex:0 0 268px;background:#ffffffd9;border:1px solid #ffffffaa;border-radius:24px;box-shadow:var(--shadow);backdrop-filter:blur(18px);display:flex;flex-direction:column;padding:18px;position:sticky;top:18px;height:calc(100vh - 36px)}
+.app-shell{display:flex;min-height:100vh;padding:12px;gap:12px}
+.sidebar{width:255px;flex:0 0 255px;background:#fff;border:1px solid #dfe6ef;border-radius:12px;box-shadow:0 8px 24px #24405d12;backdrop-filter:none;display:flex;flex-direction:column;padding:14px;position:sticky;top:12px;height:calc(100vh - 24px)}
 .brand{display:flex;align-items:center;gap:11px;padding:4px 6px 20px}
 .brand-mark{width:42px;height:42px;border-radius:13px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:grid;place-items:center;color:#fff;font-weight:900;box-shadow:0 10px 25px #2878ff33}
 .brand-title{font-weight:900;letter-spacing:.2px}.brand-sub{font-size:11px;color:var(--muted);margin-top:2px}
 .side-section{font-size:11px;text-transform:uppercase;letter-spacing:.13em;font-weight:800;color:#8193a9;margin:9px 7px}
-.project-list{overflow:auto;flex:1;padding:4px}
+.project-list{overflow:auto;flex:1;padding:4px}.project-search{width:100%;margin:0 0 8px;padding:9px 10px;border:1px solid #cfdbe8;border-radius:8px;outline:none;background:#fff}.project-search:focus{border-color:#7eb1ff;box-shadow:0 0 0 3px #2878ff10}
 .project-item{width:100%;display:flex;align-items:center;gap:10px;text-align:left;padding:12px 11px;border-radius:14px;background:transparent;color:var(--text);margin:4px 0}
 .project-item:hover{background:#edf5ff}.project-item.active{background:linear-gradient(90deg,#e7f0ff,#f6fbff);box-shadow:inset 3px 0 0 var(--blue);font-weight:800}
 .project-dot{width:9px;height:9px;border-radius:50%;background:#b9c7d8;box-shadow:0 0 0 4px #b9c7d820}.project-item.active .project-dot{background:var(--blue);box-shadow:0 0 0 4px #2878ff18}
 .project-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-bottom{border-top:1px solid var(--line);padding-top:14px;margin-top:10px}
-.side-action{width:100%;padding:12px;border-radius:13px;background:#f0f6ff;color:#1d4ed8;font-weight:800}.side-action:hover{background:#e4efff}
+.side-action{width:100%;padding:11px;border-radius:9px;background:#edf5ff;color:#1d4ed8;font-weight:800;border:1px solid #d7e6fb}.side-action:hover{background:#e4efff}
 .main{min-width:0;flex:1;display:flex;flex-direction:column;gap:14px}
-.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#ffffffcc;border:1px solid #ffffffaa;border-radius:20px;padding:12px 15px;box-shadow:0 10px 35px #23456b12;backdrop-filter:blur(16px)}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #dfe6ef;border-radius:10px;padding:10px 12px;box-shadow:0 10px 35px #23456b12;backdrop-filter:blur(16px)}
 .top-left,.top-right{display:flex;align-items:center;gap:10px}.crumb{font-weight:800}.cloud-status{font-size:12px;color:#16745e;background:#e8fbf5;border:1px solid #ccefe4;padding:6px 9px;border-radius:999px}.cloud-status i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px}
-.user-pill{padding:8px 11px;border-radius:12px;background:#f4f7fb;color:#52647a;font-size:13px}
+.user-pill{padding:8px 10px;border-radius:9px;background:#f4f7fb;color:#52647a;font-size:13px}.refresh-btn{padding:8px 10px;border-radius:9px;background:#eef5ff;color:#245fbf;font-weight:800;border:1px solid #d6e5f8}
 .logout{padding:9px 11px;border-radius:11px;background:#eaf0f7;color:#26394e;font-weight:700}.logout:hover{background:#e1e9f3}
-.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;background:linear-gradient(135deg,#0d1b2e,#123966 58%,#125d8f);color:#fff;border-radius:24px;padding:23px 24px;box-shadow:0 18px 44px #0d1b2e22;overflow:hidden;position:relative}
+.hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;background:linear-gradient(135deg,#10233b,#155b88);color:#fff;border-radius:12px;padding:18px 19px;box-shadow:0 18px 44px #0d1b2e22;overflow:hidden;position:relative}
 .hero:after{content:"";position:absolute;width:300px;height:300px;border-radius:50%;right:-70px;top:-135px;background:#54b8ff1a;box-shadow:0 0 100px #4eb9ff2b}
 .hero h1{margin:0;font-size:27px;letter-spacing:-.02em}.hero p{margin:7px 0 0;color:#c7d9ed;font-size:13px}
 .serial-panel{position:relative;z-index:1;min-width:330px;max-width:420px;background:#ffffff12;border:1px solid #ffffff1e;border-radius:17px;padding:13px 14px;backdrop-filter:blur(10px)}
 .serial-label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#a9c4df;font-weight:800}.serial-value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;margin:7px 0;word-break:break-all}.serial-actions{display:flex;gap:8px;flex-wrap:wrap}.serial-btn{padding:9px 11px;border-radius:10px;font-weight:800}.copy{background:#fff;color:#163457}.new{background:#1e9ee7;color:#fff}.serial-hint{font-size:11px;color:#aac2da;margin-top:8px}
 .launcher{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
-.app-btn{background:#ffffffd9;border:1px solid #ffffffb5;border-radius:18px;padding:14px 12px;text-align:left;box-shadow:0 10px 28px #23456b10;transition:.18s ease;min-width:0}
+.app-btn{background:#fff;border:1px solid #dfe6ef;border-radius:10px;padding:12px 11px;text-align:left;box-shadow:0 10px 28px #23456b10;transition:.18s ease;min-width:0}
 .app-btn:hover{transform:translateY(-2px);box-shadow:0 15px 32px #23456b18}
 .app-btn.active{border-color:#bcd6ff;box-shadow:0 12px 30px #2878ff20,inset 0 0 0 1px #d9e8ff;background:linear-gradient(180deg,#fff,#f4f8ff)}
 .app-icon{width:35px;height:35px;border-radius:11px;display:grid;place-items:center;background:#edf5ff;color:#2167db;font-weight:900;font-size:17px;margin-bottom:10px}.app-btn.active .app-icon{background:linear-gradient(135deg,#2878ff,#29b4ef);color:#fff}
@@ -52,12 +50,12 @@ button{border:0;cursor:pointer}
 .kpi{background:#ffffffd9;border:1px solid #ffffffb5;border-radius:17px;padding:15px;box-shadow:0 10px 28px #23456b0c}
 .kpi-top{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}.kpi-dot{width:8px;height:8px;border-radius:50%;background:#cad5e2}.kpi:nth-child(2) .kpi-dot{background:var(--green)}.kpi:nth-child(3) .kpi-dot{background:var(--red)}.kpi:nth-child(4) .kpi-dot{background:var(--blue)}
 .metric{font-size:30px;font-weight:900;letter-spacing:-.04em;margin-top:5px}
-.content-card{background:#ffffffdf;border:1px solid #ffffffb5;border-radius:21px;box-shadow:0 10px 30px #23456b0b;padding:17px;min-height:280px}
-.content-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.content-head h2,.content-head h3{margin:0}.content-head small{color:var(--muted)}
+.content-card{background:#fff;border:1px solid #dfe6ef;border-radius:12px;box-shadow:0 10px 30px #23456b0b;padding:17px;min-height:280px}
+.content-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.content-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.toolbar-input{height:36px;padding:7px 10px;border:1px solid #cfdbe8;border-radius:8px;min-width:220px;outline:none;background:#fff}.toolbar-input:focus{border-color:#7eb1ff;box-shadow:0 0 0 3px #2878ff10}.toolbar-btn{height:36px;padding:0 12px;border-radius:8px;background:#eef4fb;color:#23466b;font-weight:800;border:1px solid #d3dfec}.toolbar-btn.primary{background:#2878ff;color:#fff;border-color:#2878ff}.content-head h2,.content-head h3{margin:0}.content-head small{color:var(--muted)}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
-table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left;padding:14px 16px;border-bottom:1px solid #e9eef5;font-size:13px;vertical-align:top}td:nth-child(1){min-width:180px}td:nth-child(2){min-width:210px}td:nth-child(3){min-width:150px}th{white-space:nowrap}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#72849a;background:#f7faff;position:sticky;top:0}tr:last-child td{border-bottom:0}.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f7;color:#52647a}.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#94a3b8}.pill.online{background:#e9fbf4;color:#16815e}.pill.online:before{background:#20ad7a}.pill.offline{background:#fff0f1;color:#be4b5b}.pill.offline:before{background:#e45867}.pill.stale{background:#fff7e7;color:#a36b11}.pill.stale:before{background:#f2a51d}
+table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left;padding:14px 16px;border-bottom:1px solid #e9eef5;font-size:13px;vertical-align:top}td:nth-child(1){min-width:180px}td:nth-child(2){min-width:210px}td:nth-child(3){min-width:150px}th{white-space:nowrap}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#62758c;background:#eef3f8;position:sticky;top:0}tr:last-child td{border-bottom:0}.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f7;color:#52647a}.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#94a3b8}.pill.online{background:#e9fbf4;color:#16815e}.pill.online:before{background:#20ad7a}.pill.offline{background:#fff0f1;color:#be4b5b}.pill.offline:before{background:#e45867}.pill.stale{background:#fff7e7;color:#a36b11}.pill.stale:before{background:#f2a51d}
 .empty{padding:42px 15px;text-align:center;color:var(--muted)}
-.icon-btn{padding:7px 9px;border-radius:9px;background:#edf4ff;color:#1d63d4;font-weight:800;border:1px solid #d8e7fb}
+.icon-btn{padding:7px 9px;border-radius:8px;background:#edf4ff;color:#1d63d4;font-weight:800;border:1px solid #d8e7fb;white-space:nowrap}
 .icon-btn:hover{background:#e3efff}
 .summary-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px}.insight{border:1px solid var(--line);border-radius:15px;padding:15px;background:#f8fbff}.insight strong{display:block;font-size:18px}.insight span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
 .modal-back{position:fixed;inset:0;background:#0d1b2e85;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20;backdrop-filter:blur(7px)}
@@ -65,7 +63,7 @@ table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left
 .auth-wrap{min-height:100vh;display:grid;place-items:center;padding:22px;position:relative}.auth-card{width:min(470px,100%);background:#ffffffe8;border:1px solid #ffffffb5;border-radius:27px;box-shadow:0 30px 90px #23456b1a;backdrop-filter:blur(18px);padding:26px}.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:25px}.auth-brand .brand-mark{width:48px;height:48px}.auth-card h1{font-size:28px;margin:0}.auth-card p{margin:5px 0 0;color:var(--muted);font-size:13px}.auth-fields{display:grid;gap:11px;margin-top:18px}.auth-fields label{font-size:12px;font-weight:800;color:#52647a}.auth-fields input{margin-top:6px;width:100%;padding:12px 13px;border:1px solid #cdd9e7;border-radius:12px;outline:none}.auth-actions{display:flex;gap:8px;margin-top:14px}.auth-actions button{flex:1}.auth-msg{min-height:22px;margin-top:11px;font-size:13px}.ok{color:#13805e}.danger{color:#b63e4e}.muted{color:var(--muted)}
 @media(max-width:1180px){.launcher{grid-template-columns:repeat(3,minmax(0,1fr))}.serial-panel{min-width:300px}.summary-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app-shell{padding:10px;gap:10px}.sidebar{width:220px;flex-basis:220px;top:10px;height:calc(100vh - 20px)}.hero{align-items:stretch;flex-direction:column}.serial-panel{max-width:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-@media(max-width:700px){.app-shell{display:block}.sidebar{position:static;width:auto;height:auto;margin-bottom:10px}.project-list{max-height:180px}.topbar{flex-wrap:wrap}.launcher{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:700px){.app-shell{display:block}.sidebar{position:static;width:auto;height:auto;margin-bottom:10px}.project-list{max-height:180px}.toolbar-input{min-width:0;flex:1}.content-tools{width:100%}.topbar{flex-wrap:wrap}.launcher{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>
 </head>
 <body>
@@ -94,6 +92,7 @@ table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left
       <div><div class="brand-title">Printer Control</div><div class="brand-sub">Cloud monitoring</div></div>
     </div>
     <div class="side-section">Proyectos</div>
+    <input id="projectSearch" class="project-search" type="search" placeholder="Buscar proyecto">
     <div id="projectList" class="project-list"></div>
     <div id="projectEmpty" class="empty hidden">No hay proyectos.</div>
     <div class="side-bottom">
@@ -104,7 +103,7 @@ table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left
   <main class="main">
     <div class="topbar">
       <div class="top-left"><div class="crumb" id="topProjectName">Panel</div><div class="cloud-status"><i></i>Conectado a la nube</div></div>
-      <div class="top-right"><div id="who" class="user-pill"></div><button id="logoutBtn" class="logout" type="button">Cerrar sesión</button></div>
+      <div class="top-right"><button id="refreshBtn" class="refresh-btn" type="button">↻ Actualizar</button><div id="who" class="user-pill"></div><button id="logoutBtn" class="logout" type="button">Cerrar sesión</button></div>
     </div>
 
     <section class="hero">
@@ -140,7 +139,7 @@ table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left
     </section>
 
     <section id="view-resumen" class="content-card">
-      <div class="content-head"><div><h2>Centro de control</h2><small>Estado de la flota del proyecto seleccionado.</small></div></div>
+      <div class="content-head"><div><h2>Centro de control</h2><small>Estado de la flota del proyecto seleccionado.</small></div><div class="content-tools"><button id="exportExcelBtn" class="toolbar-btn primary" type="button">▣ Excel</button></div></div>
       <div class="summary-grid">
         <div class="insight"><strong id="summaryText">Cargando información…</strong><span>La plataforma actualiza la información automáticamente cada 30 segundos.</span></div>
         <div class="insight"><strong id="lastSyncText">—</strong><span>Última lectura recibida del agente.</span></div>
@@ -148,27 +147,27 @@ table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left
     </section>
 
     <section id="view-inventario" class="content-card hidden">
-      <div class="content-head"><div><h3>Impresoras en control</h3><small>Solo equipos actualmente administrados por el proyecto.</small></div></div>
-      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Fabricante</th><th>Modelo</th><th>Conexión</th><th>IP / Puerto</th><th>Serie</th><th>Estado</th><th>Contador</th><th>Agente</th><th></th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
+      <div class="content-head"><div><h3>Impresoras en control</h3><small>Solo equipos actualmente administrados por el proyecto.</small></div><div class="content-tools"><input id="inventorySearch" class="toolbar-input" type="search" placeholder="Buscar impresora, IP, serie..."><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Fabricante</th><th>Modelo</th><th>Conexión</th><th>IP / Puerto</th><th>Serie</th><th>Estado</th><th>Agente</th><th></th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
     </section>
 
     <section id="view-tinta" class="content-card hidden">
-      <div class="content-head"><div><h3>Niveles de tinta / tóner</h3><small>Lecturas disponibles de cada impresora.</small></div></div>
+      <div class="content-head"><div><h3>Niveles de tinta / tóner</h3><small>Lecturas disponibles de cada impresora.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>K Negro</th><th>C Cian</th><th>M Magenta</th><th>Y Amarillo</th><th>Lectura</th><th>Error</th></tr></thead><tbody id="tonerBody"></tbody></table></div>
     </section>
 
     <section id="view-desconectadas" class="content-card hidden">
-      <div class="content-head"><div><h3>Impresoras desconectadas</h3><small id="offlineNote"></small></div></div>
+      <div class="content-head"><div><h3>Impresoras desconectadas</h3><small id="offlineNote"></small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Estado</th><th>Último contacto</th><th>Agente</th><th>IP</th><th>Ciudad</th><th></th></tr></thead><tbody id="offlineBody"></tbody></table></div>
     </section>
 
     <section id="view-agentes" class="content-card hidden">
-      <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos que envían información a la nube.</small></div></div>
+      <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos que envían información a la nube.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
     </section>
 
     <section id="view-retiradas" class="content-card hidden">
-      <div class="content-head"><div><h3>Impresoras retiradas</h3><small>Se conservan los datos y el historial, pero no aparecen en el control activo.</small></div></div>
+      <div class="content-head"><div><h3>Impresoras retiradas</h3><small>Se conservan los datos y el historial, pero no aparecen en el control activo.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Estado anterior</th><th>Último contacto</th><th>Agente</th><th>IP</th><th>Retirada</th><th></th></tr></thead><tbody id="retiredBody"></tbody></table></div>
     </section>
   </main>
@@ -206,12 +205,13 @@ table{width:100%;border-collapse:collapse;min-width:1250px}th,td{text-align:left
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script>
 'use strict';
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
-let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[];
+let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='';
 const $=id=>document.getElementById(id);
 const token=()=>localStorage.getItem(ACCESS_KEY)||'';
 function saveSession(s){if(s?.access_token)localStorage.setItem(ACCESS_KEY,s.access_token);if(s?.refresh_token)localStorage.setItem(REFRESH_KEY,s.refresh_token)}
@@ -261,8 +261,11 @@ async function loadProjects(selectId){
   openProject(selectId||currentProjectId||projects[0].id);
 }
 function renderProjectList(){
-  $('projectList').innerHTML=projects.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+p.id+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('');
+  const term=projectSearch.trim().toLowerCase();
+  const visible=term?projects.filter(p=>String(p.name||'').toLowerCase().includes(term)):projects;
+  $('projectList').innerHTML=visible.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+p.id+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('');
   document.querySelectorAll('.project-item').forEach(b=>b.addEventListener('click',()=>openProject(b.dataset.project)));
+  if(!visible.length){$('projectList').innerHTML='<div class="empty" style="padding:25px 8px">No coincide ningún proyecto.</div>';}
 }
 function openProject(id){
   const p=projects.find(x=>x.id===id);if(!p)return;
@@ -274,7 +277,11 @@ function openProject(id){
 function showView(view){
   currentView=view;
   ['resumen','inventario','tinta','desconectadas','agentes','retiradas'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
-  document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
+$('inventorySearch').addEventListener('input',e=>{inventorySearch=e.target.value;renderAll()});
+$('refreshBtn').addEventListener('click',()=>loadProjectData());
+$('exportExcelBtn').addEventListener('click',exportProjectExcel);
+document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
 }
 async function loadProjectData(){
   if(!currentProjectId)return;
@@ -353,7 +360,11 @@ function renderAll(){
   $('mPrinters').textContent=activeRows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
   $('summaryText').textContent=activeRows.length?'La flota activa tiene '+activeRows.length+' impresora(s): '+online.length+' conectada(s) y '+offline.length+' desconectada(s).':(retiredRows.length?'No hay impresoras en control activo. Hay '+retiredRows.length+' retirada(s) guardada(s).':'Todavía no hay impresoras registradas para este proyecto.');
   const latest=[...activeRows].map(r=>r.reading_at||r.last_seen_at).filter(Boolean).sort().pop();$('lastSyncText').textContent=latest?new Date(latest).toLocaleString():'Sin lecturas todavía';
-  $('inventoryBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.page_count??'—')+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="12" class="empty">No hay impresoras en control.</td></tr>';
+  const invTerm=inventorySearch.trim().toLowerCase();
+  const visibleInventory=invTerm?activeRows.filter(r=>[
+    r.display_name,r.description,r.city,r.manufacturer,r.model,r.connection_type,r.ip_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
+  ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
+  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
   $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Se consideran desconectadas las impresoras sin contacto durante más de 15 minutos.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
@@ -376,6 +387,93 @@ async function generateSerial(){
     serialByProject.set(currentProjectId,{project_id:currentProjectId,serial:s.serial,serial_last4:s.serial_last4,active:true});$('serialValue').textContent=s.serial;await loadProjects(currentProjectId);
     alert('Nuevo serial generado:\n\n'+s.serial+'\n\nPegalo en Configuración del A&T Printer Agent.');
   }catch(e){alert('No se pudo generar: '+e.message)}
+}
+
+function fitColumns(ws){
+  const range=XLSX.utils.decode_range(ws['!ref']||'A1:A1');
+  const widths=[];
+  for(let C=range.s.c;C<=range.e.c;C++){
+    let max=10;
+    for(let R=range.s.r;R<=range.e.r;R++){
+      const cell=ws[XLSX.utils.encode_cell({r:R,c:C})];
+      const value=cell?.v==null?'':String(cell.v);
+      if(value.length>max)max=value.length;
+    }
+    widths[C]={wch:Math.min(max+2,42)};
+  }
+  ws['!cols']=widths;
+}
+function exportProjectExcel(){
+  if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
+  if(!currentProjectId){alert('Seleccioná un proyecto primero.');return}
+  const p=projects.find(x=>x.id===currentProjectId);
+  const activeRows=rows.filter(r=>r.retired!==true);
+  const retiredRows=rows.filter(r=>r.retired===true);
+  const offline=activeRows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');
+  const wb=XLSX.utils.book_new();
+  const inventory=activeRows.map(r=>({
+    Impresora:r.display_name||'',
+    Descripción:r.description||'',
+    Ciudad:r.city||'',
+    Fabricante:r.manufacturer||'',
+    Modelo:r.model||'',
+    Conexión:r.connection_type||'',
+    'IP / Puerto':r.ip_address||r.windows_port||r.usb_port||'',
+    Serie:r.serial_number||'',
+    Estado:printerState(r)==='online'?'Conectada':printerState(r)==='offline'?'Desconectada':'Deshabilitada',
+    Agente:r.agent_code||r.machine_name||''
+  }));
+  const toner=activeRows.map(r=>({
+    Impresora:r.display_name||'',
+    'K Negro':r.toner_black_percent==null?'':Math.round(Number(r.toner_black_percent))+'%',
+    'C Cian':r.toner_cyan_percent==null?'':Math.round(Number(r.toner_cyan_percent))+'%',
+    'M Magenta':r.toner_magenta_percent==null?'':Math.round(Number(r.toner_magenta_percent))+'%',
+    'Y Amarillo':r.toner_yellow_percent==null?'':Math.round(Number(r.toner_yellow_percent))+'%',
+    Lectura:r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'',
+    Error:r.reading_error||r.snmp_error||''
+  }));
+  const disconnected=offline.map(r=>({
+    Impresora:r.display_name||'',
+    Descripción:r.description||'',
+    Estado:'Desconectada',
+    'Último contacto':lastContact(r.last_seen_at),
+    Agente:r.agent_code||r.machine_name||'',
+    IP:r.ip_address||'',
+    Ciudad:r.city||''
+  }));
+  const agents=agentRows.map(a=>({
+    Agente:a.agent_code||'',
+    Equipo:a.machine_name||'',
+    'Usuario Windows':a.windows_user||'',
+    Versión:a.app_version||'',
+    Estado:agentState(a)==='online'?'Conectado':agentState(a)==='stale'?'Sincronizando':agentState(a)==='offline'?'Desconectado':'Deshabilitado',
+    'Último contacto':lastContact(a.last_seen_at)
+  }));
+  const retired=retiredRows.map(r=>({
+    Impresora:r.display_name||'',
+    Descripción:r.description||'',
+    Ciudad:r.city||'',
+    'Estado anterior':r.last_status||'',
+    'Último contacto':lastContact(r.last_seen_at),
+    Agente:r.agent_code||r.machine_name||'',
+    IP:r.ip_address||'',
+    Retirada:r.retired_at?new Date(r.retired_at).toLocaleString():''
+  }));
+  const sheets=[
+    ['Inventario',inventory],
+    ['Tóner',toner],
+    ['Desconectadas',disconnected],
+    ['Agentes',agents],
+    ['Retiradas',retired]
+  ];
+  sheets.forEach(([name,data])=>{
+    const ws=XLSX.utils.json_to_sheet(data);
+    fitColumns(ws);
+    XLSX.utils.book_append_sheet(wb,ws,name);
+  });
+  const safeName=String(p?.name||'proyecto').replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'proyecto';
+  const stamp=new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb,'AT_Printer_Control_'+safeName+'_'+stamp+'.xlsx');
 }
 async function copySerial(){
   const s=serialByProject.get(currentProjectId);if(!s?.serial){alert('Este proyecto no tiene un serial visible.');return}
