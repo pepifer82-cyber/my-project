@@ -310,7 +310,7 @@ async function savePrinterMeta(){
   try{
     await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
       method:'PATCH',
-      headers:{'Prefer':'return=minimal'},
+      headers:{'Prefer':'return=representation'},
       body:JSON.stringify({description,city})
     });
     const r=rows.find(x=>x.printer_id===id);
@@ -327,19 +327,21 @@ async function setRetired(id,retired){
     : '¿Restaurar esta impresora al control activo?');
   if(!ok)return;
   try{
-    await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
+    const changed=await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
       method:'PATCH',
-      headers:{'Prefer':'return=minimal'},
+      headers:{'Prefer':'return=representation'},
       body:JSON.stringify({retired,retired_at:retired?new Date().toISOString():null})
     });
+    if(!Array.isArray(changed)||!changed.length)throw new Error('No se pudo actualizar la impresora. Revisá que tengas permisos sobre este proyecto.');
   }catch(e){
     // fallback with correct REST route if the first route was rejected
     try{
-      await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
+      const changed=await api('/rest/v1/monitored_printers?id=eq.'+encodeURIComponent(id),{
         method:'PATCH',
-        headers:{'Prefer':'return=minimal'},
+        headers:{'Prefer':'return=representation'},
         body:JSON.stringify({retired,retired_at:retired?new Date().toISOString():null})
       });
+      if(!Array.isArray(changed)||!changed.length)throw new Error('Sin cambios realizados.');
     }catch(e2){alert('No se pudo '+action+': '+e2.message);return}
   }
   r.retired=retired;r.retired_at=retired?new Date().toISOString():null;renderAll();
