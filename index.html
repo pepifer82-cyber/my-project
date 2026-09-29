@@ -128,6 +128,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       <button class="app-btn" data-view="tinta" type="button"><div class="app-icon">◉</div><div class="app-title">Tóner</div><div class="app-sub">Niveles de tinta</div></button>
       <button class="app-btn" data-view="desconectadas" type="button"><div class="app-icon">!</div><div class="app-title">Desconectadas</div><div class="app-sub">Atención requerida</div></button>
       <button class="app-btn" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
+      <button class="app-btn" data-view="contadores" type="button"><div class="app-icon">#</div><div class="app-title">Contadores</div><div class="app-sub">Historial por fechas</div></button>
       <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button>
     </section>
 
@@ -164,6 +165,28 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     <section id="view-agentes" class="content-card hidden">
       <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos que envían información a la nube.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
+    </section>
+
+    <section id="view-contadores" class="content-card hidden">
+      <div class="content-head">
+        <div><h3>Contadores por fechas</h3><small>Consulta el historial de lecturas y descarga el detalle a Excel.</small></div>
+      </div>
+      <div class="content-tools" style="margin-bottom:12px;align-items:end">
+        <div style="flex:0 0 180px;min-width:160px">
+          <label style="display:block;font-size:11px;font-weight:800;color:#62758c;margin-bottom:5px">Desde</label>
+          <input id="counterFrom" class="toolbar-input" type="date" style="width:100%;min-width:0">
+        </div>
+        <div style="flex:0 0 180px;min-width:160px">
+          <label style="display:block;font-size:11px;font-weight:800;color:#62758c;margin-bottom:5px">Hasta</label>
+          <input id="counterTo" class="toolbar-input" type="date" style="width:100%;min-width:0">
+        </div>
+        <button id="counterQueryBtn" class="toolbar-btn" type="button">Consultar</button>
+        <button id="counterExcelBtn" class="toolbar-btn primary" type="button">▣ Excel</button>
+      </div>
+      <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
+      <div class="table-wrap"><table><thead><tr>
+        <th>Fecha / hora</th><th>Impresora</th><th>Ciudad</th><th>Serie</th><th>Contador</th><th>Anterior</th><th>Páginas</th><th>Estado</th><th>Agente</th>
+      </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
     <section id="view-retiradas" class="content-card hidden">
@@ -211,7 +234,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
-let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='';
+let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',counterRows=[];
 const $=id=>document.getElementById(id);
 const token=()=>localStorage.getItem(ACCESS_KEY)||'';
 function saveSession(s){if(s?.access_token)localStorage.setItem(ACCESS_KEY,s.access_token);if(s?.refresh_token)localStorage.setItem(REFRESH_KEY,s.refresh_token)}
@@ -272,12 +295,15 @@ function openProject(id){
   currentProjectId=id;currentView='resumen';
   $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id;
   const s=serialByProject.get(id);$('serialValue').textContent=s?.serial||'Sin serial visible';
+  setDefaultCounterDates();
   showView('resumen');renderProjectList();loadProjectData();
 }
 function showView(view){
   currentView=view;
-  ['resumen','inventario','tinta','desconectadas','agentes','retiradas'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
-  $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
+  ['resumen','inventario','tinta','desconectadas','agentes','contadores','retiradas'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
+  $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
+$('counterExcelBtn').addEventListener('click',exportCountersExcel);
+$('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
 $('inventorySearch').addEventListener('input',e=>{inventorySearch=e.target.value;renderAll()});
 $('refreshBtn').addEventListener('click',()=>loadProjectData());
 $('exportExcelBtn').addEventListener('click',exportProjectExcel);
@@ -397,6 +423,146 @@ function fitColumns(ws){
     widths[C]={wch:Math.min(max+2,42)};
   }
   ws['!cols']=widths;
+}
+
+function isoDateLocal(d){
+  const x=new Date(d);
+  const y=x.getFullYear();
+  const m=String(x.getMonth()+1).padStart(2,'0');
+  const day=String(x.getDate()).padStart(2,'0');
+  return y+'-'+m+'-'+day;
+}
+function setDefaultCounterDates(){
+  const now=new Date();
+  const first=new Date(now.getFullYear(),now.getMonth(),1);
+  const from=$('counterFrom'),to=$('counterTo');
+  if(from&&!from.value)from.value=isoDateLocal(first);
+  if(to&&!to.value)to.value=isoDateLocal(now);
+}
+function validateCounterDates(){
+  const from=$('counterFrom')?.value||'';
+  const to=$('counterTo')?.value||'';
+  if(!from||!to){alert('Seleccioná la fecha inicial y final.');return null}
+  if(to<from){alert('La fecha final no puede ser menor que la inicial.');return null}
+  return {from,to};
+}
+function counterStatus(r){
+  const s=String(r.status||'').toLowerCase();
+  if(s.includes('offline')||s.includes('descon'))return 'Desconectada';
+  if(s.includes('print')||s.includes('busy'))return 'Imprimiendo';
+  if(s.includes('idle'))return 'En espera';
+  return r.status||'—';
+}
+async function loadCounterHistory(showMessage=true){
+  if(!currentProjectId)return [];
+  const dates=validateCounterDates();
+  if(!dates)return [];
+  const msg=$('counterMsg');
+  if(showMessage)msg.textContent='Consultando contadores...';
+  try{
+    const result=await api('/rest/v1/rpc/control_get_counter_history',{
+      method:'POST',
+      headers:{'Prefer':'return=representation'},
+      body:JSON.stringify({
+        p_project_id:currentProjectId,
+        p_from:dates.from,
+        p_to:dates.to
+      })
+    });
+    counterRows=Array.isArray(result)?result:[];
+    renderCounterRows();
+    if(showMessage){
+      const withCount=counterRows.filter(r=>r.page_count!=null).length;
+      msg.textContent=counterRows.length
+        ? ('Encontradas '+counterRows.length+' lecturas. '+withCount+' con contador informado.')
+        : 'No hay lecturas en el período seleccionado.';
+    }
+    return counterRows;
+  }catch(e){
+    counterRows=[];
+    renderCounterRows();
+    msg.textContent='No se pudo consultar: '+e.message;
+    return [];
+  }
+}
+function renderCounterRows(){
+  const body=$('counterBody');
+  if(!body)return;
+  if(!counterRows.length){
+    body.innerHTML='<tr><td colspan="9" class="empty">No hay lecturas para el período.</td></tr>';
+    return;
+  }
+  body.innerHTML=counterRows.map(r=>{
+    const pages=r.pages_printed==null?'—':Number(r.pages_printed).toLocaleString();
+    return '<tr>'+
+      '<td>'+escapeHtml(r.reading_at?new Date(r.reading_at).toLocaleString():'—')+'</td>'+
+      '<td>'+escapeHtml(r.printer||'—')+'</td>'+
+      '<td>'+escapeHtml(r.city||'—')+'</td>'+
+      '<td>'+escapeHtml(r.serial_number||'—')+'</td>'+
+      '<td>'+escapeHtml(r.page_count==null?'—':Number(r.page_count).toLocaleString())+'</td>'+
+      '<td>'+escapeHtml(r.previous_page_count==null?'—':Number(r.previous_page_count).toLocaleString())+'</td>'+
+      '<td>'+escapeHtml(pages)+'</td>'+
+      '<td>'+escapeHtml(counterStatus(r))+'</td>'+
+      '<td>'+escapeHtml(r.agent||'—')+'</td>'+
+    '</tr>';
+  }).join('');
+}
+async function exportCountersExcel(){
+  if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel.');return}
+  const dates=validateCounterDates();
+  if(!dates)return;
+  const data=await loadCounterHistory(false);
+  if(!data.length){alert('No hay lecturas de contadores en ese período.');return}
+  const p=projects.find(x=>x.id===currentProjectId);
+  const detail=data.map(r=>({
+    Fecha:new Date(r.reading_at).toLocaleDateString('es-PY'),
+    'Hora':new Date(r.reading_at).toLocaleTimeString('es-PY'),
+    Impresora:r.printer||'',
+    Ciudad:r.city||'',
+    Fabricante:r.manufacturer||'',
+    Modelo:r.model||'',
+    Serie:r.serial_number||'',
+    Contador:r.page_count==null?'':Number(r.page_count),
+    'Contador anterior':r.previous_page_count==null?'':Number(r.previous_page_count),
+    'Páginas del período':r.pages_printed==null?'':Number(r.pages_printed),
+    Estado:counterStatus(r),
+    Agente:r.agent||''
+  }));
+  const byPrinter=new Map();
+  data.forEach(r=>{
+    if(!byPrinter.has(r.printer_id))byPrinter.set(r.printer_id,[]);
+    byPrinter.get(r.printer_id).push(r);
+  });
+  const summary=[];
+  for(const [printerId,list] of byPrinter.entries()){
+    const numeric=list.filter(x=>x.page_count!=null);
+    const first=numeric[0]?.page_count;
+    const last=numeric[numeric.length-1]?.page_count;
+    let printed='';
+    if(first!=null&&last!=null&&Number(last)>=Number(first))printed=Number(last)-Number(first);
+    const lastRow=list[list.length-1];
+    summary.push({
+      Impresora:lastRow.printer||'',
+      Ciudad:lastRow.city||'',
+      Fabricante:lastRow.manufacturer||'',
+      Modelo:lastRow.model||'',
+      Serie:lastRow.serial_number||'',
+      'Contador inicial':first==null?'':Number(first),
+      'Contador final':last==null?'':Number(last),
+      'Páginas calculadas':printed,
+      'Lecturas':list.length,
+      'Última lectura':lastRow.reading_at?new Date(lastRow.reading_at).toLocaleString('es-PY'):''
+    });
+  }
+  summary.sort((a,b)=>String(a.Impresora).localeCompare(String(b.Impresora),'es'));
+  const wb=XLSX.utils.book_new();
+  const ws1=XLSX.utils.json_to_sheet(detail);
+  const ws2=XLSX.utils.json_to_sheet(summary);
+  fitColumns(ws1);fitColumns(ws2);
+  XLSX.utils.book_append_sheet(wb,ws1,'Contadores');
+  XLSX.utils.book_append_sheet(wb,ws2,'Resumen');
+  const safeName=String(p?.name||'proyecto').replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'proyecto';
+  XLSX.writeFile(wb,'AT_Printer_Contadores_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx');
 }
 function exportProjectExcel(){
   if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
