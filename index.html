@@ -468,21 +468,6 @@ function printerIdentityKey(r){
   return 'other:'+agent+'|'+family+'|'+String(r?.display_name||'').trim().toLowerCase();
 }
 
-function sameNetworkFamily(a,b){
-  const aConn=String(a?.connection_type||'').toLowerCase();
-  const bConn=String(b?.connection_type||'').toLowerCase();
-  const aWsd=/^WSD-/i.test(String(a?.windows_port||a?.ip_address||'').trim());
-  const bWsd=/^WSD-/i.test(String(b?.windows_port||b?.ip_address||'').trim());
-  if(!(aWsd||bWsd||aConn.includes('ip')||bConn.includes('ip')))return false;
-
-  const aa=String(a?.agent_code||a?.agent_id||'').trim().toLowerCase();
-  const bb=String(b?.agent_code||b?.agent_id||'').trim().toLowerCase();
-  if(aa&&bb&&aa!==bb)return false;
-
-  const fa=printerFamilyKey(a);
-  const fb=printerFamilyKey(b);
-  return !!fa && fa===fb;
-}
 
 function sameNetworkFamily(a,b){
   const aConn=String(a?.connection_type||'').toLowerCase();
