@@ -788,13 +788,26 @@ async function loadCounterHistory(showMessage=true){
         p_to:dates.to
       })
     });
-    counterRows=Array.isArray(result)?result.filter(isRealPrinter):[];
+    const history=Array.isArray(result)?result.filter(isRealPrinter):[];
+
+    // Solo mostramos impresoras que siguen activas en el proyecto.
+    // Los equipos retirados conservan su historial en Supabase, pero no
+    // aparecen en Contadores ni en la exportación.
+    const activeSource=rows.filter(r=>r.retired!==true && isRealPrinter(r));
+    const canonicalActive=dedupePrinterRows(activeSource);
+    const activeIds=new Set(canonicalActive.map(r=>String(r.printer_id)));
+
+    counterRows=history.filter(r=>activeIds.has(String(r.printer_id)));
     renderCounterRows();
+
     if(showMessage){
-      const withCount=counterRows.filter(r=>r.page_count!=null).length;
-      msg.textContent=counterRows.length
-        ? ('Encontradas '+counterRows.length+' lecturas. '+withCount+' con contador informado.')
-        : 'No hay lecturas en el período seleccionado.';
+      const uniqueCount=new Set(counterRows.map(r=>String(r.printer_id))).size;
+      const withCount=new Set(
+        counterRows.filter(r=>r.page_count!=null).map(r=>String(r.printer_id))
+      ).size;
+      msg.textContent=uniqueCount
+        ? ('Encontradas '+uniqueCount+' impresora(s) activas. '+withCount+' con contador informado.')
+        : 'No hay lecturas de impresoras activas en el período seleccionado.';
     }
     return counterRows;
   }catch(e){
@@ -808,7 +821,7 @@ function renderCounterRows(){
   const body=$('counterBody');
   if(!body)return;
   if(!counterRows.length){
-    body.innerHTML='<tr><td colspan="9" class="empty">No hay lecturas para el período.</td></tr>';
+    body.innerHTML='<tr><td colspan="9" class="empty">No hay lecturas de impresoras activas para el período.</td></tr>';
     return;
   }
 
