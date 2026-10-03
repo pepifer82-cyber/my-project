@@ -398,36 +398,66 @@ async function savePrinterMeta(){
   }catch(e){$('printerMsg').textContent='No se pudo guardar: '+e.message}
   finally{$('savePrinterBtn').disabled=false}
 }
-async function savePrinterInline(id,field,value,el){
-  const r=rows.find(x=>x.printer_id===id);
+async function savePrinterInline(el){
+  if(!el||el.dataset.saving==='1')return;
+  const id=el.dataset.printerId;
+  const field=el.dataset.field;
+  if(!id||!field)return;
+
+  const r=rows.find(x=>String(x.printer_id)===String(id));
   if(!r)return;
-  const clean=String(value??'').trim();
+
+  const clean=String(el.value??'').trim();
   const old=String(r[field]??'').trim();
   if(clean===old)return;
 
-  el.disabled=true;
   el.dataset.saving='1';
+  el.disabled=true;
+  const previousValues={
+    description:String(r.description??''),
+    city:String(r.city??'')
+  };
+
   try{
-    const payload={p_printer_id:id,p_description:field==='description'?clean:String(r.description??'').trim(),p_city:field==='city'?clean:String(r.city??'').trim()};
+    const payload={
+      p_printer_id:id,
+      p_description:field==='description'?clean:previousValues.description.trim(),
+      p_city:field==='city'?clean:previousValues.city.trim()
+    };
+
     const result=await api('/rest/v1/rpc/control_update_printer_meta',{
       method:'POST',
       headers:{'Prefer':'return=representation'},
       body:JSON.stringify(payload)
     });
+
     const updated=Array.isArray(result)?result[0]:result;
-    if(!updated?.id)throw new Error('No se pudo guardar.');
-    r.description=updated.description;
-    r.city=updated.city;
-    r.updated_at=updated.updated_at;
-    el.value=field==='description'?(r.description||''):(r.city||'');
+    if(!updated?.id)throw new Error('Supabase no devolvió la impresora actualizada.');
+
+    // Actualiza todas las filas que pertenezcan al mismo equipo
+    // para que el dato no vuelva a desaparecer al refrescar la vista.
+    rows.forEach(x=>{
+      if(String(x.printer_id)===String(id)){
+        x.description=updated.description;
+        x.city=updated.city;
+        x.updated_at=updated.updated_at;
+      }
+    });
+
+    el.value=field==='description'
+      ?String(updated.description??'')
+      :String(updated.city??'');
+
   }catch(e){
-    el.value=old;
-    alert('No se pudo guardar: '+e.message);
+    el.value=field==='description'?previousValues.description:previousValues.city;
+    alert('No se pudo guardar '+(field==='description'?'la descripción':'la ciudad')+': '+e.message);
   }finally{
     el.disabled=false;
     delete el.dataset.saving;
   }
 }
+
+
 async function setRetired(id,retired){
   const r=rows.find(x=>x.printer_id===id);if(!r)return;
   const action=retired?'retirar':'restaurar';
@@ -628,7 +658,7 @@ function renderAll(){
   const visibleInventory=invTerm?activeRows.filter(r=>[
     r.display_name,r.description,r.city,r.manufacturer,r.model,r.connection_type,r.ip_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
   ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
-  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" onchange="savePrinterInline('+JSON.stringify(r.printer_id)+',&quot;description&quot;,this.value,this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" onchange="savePrinterInline('+JSON.stringify(r.printer_id)+',&quot;city&quot;,this.value,this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
+  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
   $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Se consideran desconectadas las impresoras sin contacto durante más de 15 minutos.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
