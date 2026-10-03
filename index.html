@@ -253,8 +253,31 @@ async function login(){
   const email=$('email').value.trim(),password=$('password').value;
   if(!email||!password){authMsg('Ingresá correo y contraseña.','danger');return}
   $('loginBtn').disabled=true;$('signupBtn').disabled=true;authMsg('Ingresando...');
-  try{const s=await api('/auth/v1/token?grant_type=password',{method:'POST',body:JSON.stringify({email,password})});saveSession(s);await loadApp();authMsg('Acceso correcto.','ok')}
-  catch(e){authMsg('No se pudo ingresar: '+e.message,'danger')}finally{$('loginBtn').disabled=false;$('signupBtn').disabled=false}
+
+  // Elimina una sesión vieja antes de iniciar otra para evitar
+  // que un refresh token vencido interfiera con el acceso actual.
+  localStorage.removeItem(ACCESS_KEY);
+  localStorage.removeItem(REFRESH_KEY);
+
+  try{
+    const s=await api('/auth/v1/token?grant_type=password',{
+      method:'POST',
+      body:JSON.stringify({email,password})
+    });
+    if(!s?.access_token||!s?.refresh_token)throw new Error('Supabase no devolvió una sesión válida.');
+    saveSession(s);
+
+    const ok=await loadApp();
+    if(ok)authMsg('Acceso correcto.','ok');
+  }catch(e){
+    clearSession();
+    $('auth').classList.remove('hidden');
+    $('app').classList.add('hidden');
+    authMsg('No se pudo ingresar: '+e.message,'danger');
+  }finally{
+    $('loginBtn').disabled=false;
+    $('signupBtn').disabled=false;
+  }
 }
 async function signup(){
   const email=$('email').value.trim(),password=$('password').value;
@@ -266,13 +289,36 @@ async function signup(){
 }
 async function logout(){try{await api('/auth/v1/logout',{method:'POST'})}catch{}clearSession();location.reload()}
 async function loadApp(){
-  if(!token())return;
+  if(!token())return false;
+
+  // La validez de la sesión se comprueba aquí. Solo un error de Auth
+  // debe devolver al usuario a la pantalla de ingreso.
   try{
     currentUser=await api('/auth/v1/user',{method:'GET'});
-    $('auth').classList.add('hidden');$('app').classList.remove('hidden');$('who').textContent=currentUser.email||'';
+  }catch(e){
+    clearSession();
+    $('auth').classList.remove('hidden');
+    $('app').classList.add('hidden');
+    authMsg('Sesión inválida: '+e.message,'danger');
+    return false;
+  }
+
+  $('auth').classList.add('hidden');
+  $('app').classList.remove('hidden');
+  $('who').textContent=currentUser.email||'';
+
+  // Estas operaciones pertenecen a la carga del panel, no al login.
+  // Un error aquí no debe borrar una sesión válida.
+  try{
     await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
     await loadProjects();
-  }catch(e){clearSession();$('auth').classList.remove('hidden');$('app').classList.add('hidden');authMsg('Sesión inválida: '+e.message,'danger')}
+    return true;
+  }catch(e){
+    $('summaryText').textContent='No se pudo cargar el proyecto.';
+    $('lastSyncText').textContent='Revisá la conexión y actualizá el panel.';
+    console.error('A&T Printer Control - error cargando panel:',e);
+    return true;
+  }
 }
 async function loadProjects(selectId){
   projects=await api('/rest/v1/control_projects?select=id,name,active,created_at&active=eq.true&order=created_at.asc');projects=Array.isArray(projects)?projects:[];
