@@ -418,8 +418,18 @@ async function setRetired(id,retired){
     if(currentView==='retiradas' || currentView==='inventario') await loadProjectData();
   }catch(e){alert('No se pudo '+action+': '+e.message)}
 }
+function hasRealIp(r){
+  const ip=String(r?.ip_address||'').trim();
+  if(!ip)return false;
+  if(/^WSD-/i.test(ip))return false;
+  const ipv4=/^(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)(\.(25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)){3}$/;
+  return ipv4.test(ip)||ip.includes(':');
+}
+
 function renderAll(){
-  const activeRows=rows.filter(r=>r.retired!==true);
+  // En Printer Control solo mostramos impresoras que tienen una IP real.
+  // Los equipos USB/WSD sin IP quedan fuera de las vistas activas.
+  const activeRows=rows.filter(r=>r.retired!==true && hasRealIp(r));
   const retiredRows=rows.filter(r=>r.retired===true);
   const offline=activeRows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');const online=activeRows.filter(r=>!offline.includes(r));
   $('mPrinters').textContent=activeRows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
