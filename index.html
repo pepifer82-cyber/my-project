@@ -866,59 +866,73 @@ async function exportCountersExcel(){
   if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel.');return}
   const dates=validateCounterDates();
   if(!dates)return;
+
   const data=await loadCounterHistory(false);
-  if(!data.length){alert('No hay lecturas de contadores en ese período.');return}
+  if(!data.length){alert('No hay lecturas de contadores de impresoras activas en ese período.');return}
+
   const p=projects.find(x=>x.id===currentProjectId);
-  const detail=data.map(r=>({
-    Fecha:new Date(r.reading_at).toLocaleDateString('es-PY'),
-    'Hora':new Date(r.reading_at).toLocaleTimeString('es-PY'),
-    Impresora:r.printer||'',
-    Ciudad:r.city||'',
-    Fabricante:r.manufacturer||'',
-    Modelo:r.model||'',
-    Serie:r.serial_number||'',
-    Contador:r.page_count==null?'':Number(r.page_count),
-    'Contador anterior':r.previous_page_count==null?'':Number(r.previous_page_count),
-    'Páginas del período':r.pages_printed==null?'':Number(r.pages_printed),
-    Estado:counterStatus(r),
-    Agente:r.agent||''
-  }));
+
+  // El reporte se presenta con UNA sola fila por impresora.
+  // El historial minuto a minuto permanece guardado en Supabase.
   const byPrinter=new Map();
+
   data.forEach(r=>{
-    if(!byPrinter.has(r.printer_id))byPrinter.set(r.printer_id,[]);
-    byPrinter.get(r.printer_id).push(r);
+    const id=String(r.printer_id||r.serial_number||r.printer||'');
+    if(!id)return;
+    if(!byPrinter.has(id))byPrinter.set(id,[]);
+    byPrinter.get(id).push(r);
   });
-  const summary=[];
-  for(const [printerId,list] of byPrinter.entries()){
+
+  const report=[];
+  for(const list of byPrinter.values()){
+    list.sort((a,b)=>new Date(a.reading_at||0)-new Date(b.reading_at||0));
+
     const numeric=list.filter(x=>x.page_count!=null);
     const first=numeric[0]?.page_count;
     const last=numeric[numeric.length-1]?.page_count;
+
     let printed='';
-    if(first!=null&&last!=null&&Number(last)>=Number(first))printed=Number(last)-Number(first);
+    if(first!=null&&last!=null&&Number(last)>=Number(first)){
+      printed=Number(last)-Number(first);
+    }
+
     const lastRow=list[list.length-1];
-    summary.push({
-      Impresora:lastRow.printer||'',
+    const printerName=lastRow.printer||lastRow.model||'';
+
+    report.push({
+      Impresora:printerName,
       Ciudad:lastRow.city||'',
       Fabricante:lastRow.manufacturer||'',
       Modelo:lastRow.model||'',
       Serie:lastRow.serial_number||'',
       'Contador inicial':first==null?'':Number(first),
       'Contador final':last==null?'':Number(last),
-      'Páginas calculadas':printed,
-      'Lecturas':list.length,
-      'Última lectura':lastRow.reading_at?new Date(lastRow.reading_at).toLocaleString('es-PY'):''
+      'Páginas del período':printed,
+      'Última lectura':lastRow.reading_at?new Date(lastRow.reading_at).toLocaleString('es-PY'):'',
+      Estado:counterStatus(lastRow),
+      Agente:lastRow.agent||''
     });
   }
-  summary.sort((a,b)=>String(a.Impresora).localeCompare(String(b.Impresora),'es'));
+
+  report.sort((a,b)=>String(a.Impresora).localeCompare(String(b.Impresora),'es'));
+
   const wb=XLSX.utils.book_new();
-  const ws1=XLSX.utils.json_to_sheet(detail);
-  const ws2=XLSX.utils.json_to_sheet(summary);
-  fitColumns(ws1);fitColumns(ws2);
-  XLSX.utils.book_append_sheet(wb,ws1,'Contadores');
-  XLSX.utils.book_append_sheet(wb,ws2,'Resumen');
-  const safeName=String(p?.name||'proyecto').replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'proyecto';
-  XLSX.writeFile(wb,'AT_Printer_Contadores_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx');
+  const ws=XLSX.utils.json_to_sheet(report);
+  fitColumns(ws);
+  XLSX.utils.book_append_sheet(wb,ws,'Contadores');
+
+  const safeName=String(p?.name||'proyecto')
+    .replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_')
+    .replace(/^_+|_+$/g,'')
+    .slice(0,60)||'proyecto';
+
+  XLSX.writeFile(
+    wb,
+    'AT_Printer_Contadores_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx'
+  );
 }
+
+
 function exportProjectExcel(){
   if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
   if(!currentProjectId){alert('Seleccioná un proyecto primero.');return}
