@@ -426,56 +426,133 @@ function hasRealIp(r){
   return ipv4.test(ip)||ip.includes(':');
 }
 
-function normalizePrinterIdentity(r){
+function realIpOf(r){
+  const ip=String(r?.ip_address||'').trim();
+  return hasRealIp(r)?ip:'';
+}
+
+function printerFamilyKey(r){
+  const raw=[
+    r?.manufacturer,r?.model,r?.display_name,r?.printer_name,r?.windows_printer_name
+  ].filter(Boolean).join(' ').toLowerCase();
+
+  // Normaliza lo suficiente para reconocer que "M428f-M429f", 
+  // "M428f-M429f PCL-6 (V4) (Red)" y "M428fdw" 
+  // pertenecen a la misma familia física.
+  const nums=[...raw.matchAll(/m\s*([0-9]{3,4})/g)].map(m=>m[1]);
+  if(nums.length)return 'family:'+nums.sort().join('-');
+
+  const compact=raw.replace(/[^a-z0-9]+/g,'');
+  return compact?'text:'+compact.slice(0,80):'';
+}
+
+function printerIdentityKey(r){
+  const ip=realIpOf(r);
+  if(ip)return 'ip:'+ip.toLowerCase();
+
   const serial=String(r?.serial_number||'').trim().toLowerCase();
   if(serial)return 'serial:'+serial;
 
-  const windowsName=String(r?.windows_printer_name||'').trim().toLowerCase();
-  if(windowsName)return 'windows:'+windowsName;
+  const connection=String(r?.connection_type||'').trim().toLowerCase();
+  const agent=String(r?.agent_code||r?.agent_id||'').trim().toLowerCase();
+  const family=printerFamilyKey(r);
 
-  const display=String(r?.display_name||'').trim().toLowerCase();
-  const manufacturer=String(r?.manufacturer||'').trim().toLowerCase();
-  const model=String(r?.model||'').trim().toLowerCase();
-  if(display)return 'display:'+display;
-  if(model||manufacturer)return 'model:'+(manufacturer+'|'+model);
+  // USB sin IP se mantiene como equipo independiente.
+  if(connection.includes('usb')){
+    const usb=String(r?.usb_port||r?.windows_port||r?.display_name||'').trim().toLowerCase();
+    return 'usb:'+agent+'|'+usb;
+  }
 
-  const ip=String(r?.ip_address||'').trim().toLowerCase();
-  return ip?'ip:'+ip:'id:'+String(r?.printer_id||'');
+  // WSD / red sin IP puede ser un duplicado de una ficha de red
+  // que sí tiene la IP real; por eso se resuelve después en dedupePrinterRows().
+  return 'other:'+agent+'|'+family+'|'+String(r?.display_name||'').trim().toLowerCase();
+}
+
+function sameNetworkFamily(a,b){
+  const aConn=String(a?.connection_type||'').toLowerCase();
+  const bConn=String(b?.connection_type||'').toLowerCase();
+  const aWsd=/^WSD-/i.test(String(a?.windows_port||a?.ip_address||'').trim());
+  const bWsd=/^WSD-/i.test(String(b?.windows_port||b?.ip_address||'').trim());
+  if(!(aWsd||bWsd||aConn.includes('ip')||bConn.includes('ip')))return false;
+
+  const aa=String(a?.agent_code||a?.agent_id||'').trim().toLowerCase();
+  const bb=String(b?.agent_code||b?.agent_id||'').trim().toLowerCase();
+  if(aa&&bb&&aa!==bb)return false;
+
+  const fa=printerFamilyKey(a);
+  const fb=printerFamilyKey(b);
+  return !!fa && fa===fb;
 }
 
 function dedupePrinterRows(source){
-  const groups=new Map();
-  (Array.isArray(source)?source:[]).forEach(r=>{
-    const key=normalizePrinterIdentity(r);
-    const list=groups.get(key)||[];
-    list.push(r);
-    groups.set(key,list);
-  });
+  const input=Array.isArray(source)?source.filter(Boolean):[];
+  const used=new Set();
+  const result=[];
 
-  return [...groups.values()].map(list=>{
-    // Cuando el mismo equipo aparece por USB y por IP, preferimos
-    // la ficha que tenga IP, pero conservamos los datos faltantes del otro registro.
-    const sorted=[...list].sort((a,b)=>{
-      const aIp=hasRealIp(a)?1:0;
-      const bIp=hasRealIp(b)?1:0;
-      if(aIp!==bIp)return bIp-aIp;
+  for(let i=0;i<input.length;i++){
+    if(used.has(i))continue;
 
-      const aSeen=new Date(a?.last_seen_at||0).getTime();
-      const bSeen=new Date(b?.last_seen_at||0).getTime();
-      return bSeen-aSeen;
+    const group=[i];
+    const base=input[i];
+
+    // 1) Misma IP = misma impresora.
+    const baseIp=realIpOf(base).toLowerCase();
+    if(baseIp){
+      for(let j=i+1;j<input.length;j++){
+        if(used.has(j))continue;
+        const jip=realIpOf(input[j]).toLowerCase();
+        if(jip && jip===baseIp)group.push(j);
+      }
+    }
+
+    // 2) Un WSD/sin-IP que coincide con la misma familia de red
+    //    se considera la misma impresora que la ficha con IP.
+    const hasIpInGroup=group.some(idx=>!!realIpOf(input[idx]));
+    if(hasIpInGroup){
+      for(let j=i+1;j<input.length;j++){
+        if(used.has(j)||group.includes(j))continue;
+        const candidate=input[j];
+        if(!realIpOf(candidate) && sameNetworkFamily(base,candidate)){
+          group.push(j);
+        }
+      }
+    }
+
+    const records=group.map(idx=>input[idx]);
+
+    // Ficha principal: IP real > serie > datos completos > fecha reciente.
+    records.sort((a,b)=>{
+      const score=r=>{
+        let s=0;
+        if(realIpOf(r))s+=1000;
+        if(String(r?.serial_number||'').trim())s+=300;
+        if(String(r?.model||'').trim())s+=100;
+        if(String(r?.manufacturer||'').trim())s+=50;
+        if(String(r?.display_name||'').trim())s+=20;
+        s+=Math.min(new Date(r?.last_seen_at||0).getTime()/1e12,10);
+        return s;
+      };
+      return score(b)-score(a);
     });
 
-    const merged={...sorted[0]};
-    for(const r of sorted.slice(1)){
-      Object.keys(r||{}).forEach(k=>{
-        const current=merged[k];
-        if((current==null || current==='') && r[k]!=null && r[k]!==''){
+    const merged={...records[0]};
+    for(const r of records.slice(1)){
+      for(const k of Object.keys(r||{})){
+        if((merged[k]==null||merged[k]==='') && r[k]!=null && r[k]!==''){
           merged[k]=r[k];
         }
-      });
+      }
     }
-    return merged;
-  });
+
+    // Si la ficha principal es la de IP, nunca dejamos que el WSD
+    // vuelva a reemplazar la dirección visible.
+    if(realIpOf(records[0]))merged.ip_address=realIpOf(records[0]);
+
+    result.push(merged);
+    group.forEach(idx=>used.add(idx));
+  }
+
+  return result;
 }
 
 function renderAll(){
