@@ -56,7 +56,7 @@ button{border:0;cursor:pointer}
 table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left;padding:14px 16px;border-bottom:1px solid #e9eef5;font-size:13px;vertical-align:top}td:nth-child(1){min-width:180px}td:nth-child(2){min-width:210px}td:nth-child(3){min-width:150px}th{white-space:nowrap}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#62758c;background:#eef3f8;position:sticky;top:0}tr:last-child td{border-bottom:0}.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f7;color:#52647a}.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#94a3b8}.pill.online{background:#e9fbf4;color:#16815e}.pill.online:before{background:#20ad7a}.pill.offline{background:#fff0f1;color:#be4b5b}.pill.offline:before{background:#e45867}.pill.stale{background:#fff7e7;color:#a36b11}.pill.stale:before{background:#f2a51d}
 .empty{padding:42px 15px;text-align:center;color:var(--muted)}
 .icon-btn{padding:7px 9px;border-radius:8px;background:#edf4ff;color:#1d63d4;font-weight:800;border:1px solid #d8e7fb;white-space:nowrap}
-.icon-btn:hover{background:#e3efff}
+.icon-btn:hover{background:#e3efff}.inline-edit{width:100%;min-width:120px;padding:7px 8px;border:1px solid transparent;border-radius:8px;background:transparent;color:inherit;outline:none}.inline-edit:hover{border-color:#cfdbe8;background:#f8fbff}.inline-edit:focus{border-color:#7eb1ff;background:#fff;box-shadow:0 0 0 3px #2878ff10}
 .summary-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px}.insight{border:1px solid var(--line);border-radius:15px;padding:15px;background:#f8fbff}.insight strong{display:block;font-size:18px}.insight span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
 .modal-back{position:fixed;inset:0;background:#0d1b2e85;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20;backdrop-filter:blur(7px)}
 .modal{width:min(520px,100%);background:#fff;border-radius:22px;padding:22px;box-shadow:0 30px 80px #0d1b2e33}.modal h2{margin:0 0 5px}.modal p{color:var(--muted);margin:0 0 18px}.modal label{font-size:12px;font-weight:800;color:#52647a}.modal input{width:100%;margin-top:7px;padding:12px 13px;border:1px solid #cdd9e7;border-radius:12px;outline:none}.modal input:focus{border-color:#7eb1ff;box-shadow:0 0 0 4px #2878ff12}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.primary{background:linear-gradient(135deg,var(--blue),#3798ff);color:#fff;padding:11px 14px;border-radius:11px;font-weight:800}.secondary{background:#edf2f7;color:#26394e;padding:11px 14px;border-radius:11px;font-weight:800}
@@ -398,6 +398,36 @@ async function savePrinterMeta(){
   }catch(e){$('printerMsg').textContent='No se pudo guardar: '+e.message}
   finally{$('savePrinterBtn').disabled=false}
 }
+async function savePrinterInline(id,field,value,el){
+  const r=rows.find(x=>x.printer_id===id);
+  if(!r)return;
+  const clean=String(value??'').trim();
+  const old=String(r[field]??'').trim();
+  if(clean===old)return;
+
+  el.disabled=true;
+  el.dataset.saving='1';
+  try{
+    const payload={p_printer_id:id,p_description:field==='description'?clean:String(r.description??'').trim(),p_city:field==='city'?clean:String(r.city??'').trim()};
+    const result=await api('/rest/v1/rpc/control_update_printer_meta',{
+      method:'POST',
+      headers:{'Prefer':'return=representation'},
+      body:JSON.stringify(payload)
+    });
+    const updated=Array.isArray(result)?result[0]:result;
+    if(!updated?.id)throw new Error('No se pudo guardar.');
+    r.description=updated.description;
+    r.city=updated.city;
+    r.updated_at=updated.updated_at;
+    el.value=field==='description'?(r.description||''):(r.city||'');
+  }catch(e){
+    el.value=old;
+    alert('No se pudo guardar: '+e.message);
+  }finally{
+    el.disabled=false;
+    delete el.dataset.saving;
+  }
+}
 async function setRetired(id,retired){
   const r=rows.find(x=>x.printer_id===id);if(!r)return;
   const action=retired?'retirar':'restaurar';
@@ -598,7 +628,7 @@ function renderAll(){
   const visibleInventory=invTerm?activeRows.filter(r=>[
     r.display_name,r.description,r.city,r.manufacturer,r.model,r.connection_type,r.ip_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
   ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
-  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
+  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" onchange="savePrinterInline('+JSON.stringify(r.printer_id)+',&quot;description&quot;,this.value,this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" onchange="savePrinterInline('+JSON.stringify(r.printer_id)+',&quot;city&quot;,this.value,this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(r.connection_type)+'</td><td>'+escapeHtml(r.ip_address||r.windows_port||r.usb_port||'—')+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+JSON.stringify(r.printer_id)+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
   $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Se consideran desconectadas las impresoras sin contacto durante más de 15 minutos.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+JSON.stringify(r.printer_id)+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
