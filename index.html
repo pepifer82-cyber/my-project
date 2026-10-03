@@ -426,11 +426,63 @@ function hasRealIp(r){
   return ipv4.test(ip)||ip.includes(':');
 }
 
+function normalizePrinterIdentity(r){
+  const serial=String(r?.serial_number||'').trim().toLowerCase();
+  if(serial)return 'serial:'+serial;
+
+  const windowsName=String(r?.windows_printer_name||'').trim().toLowerCase();
+  if(windowsName)return 'windows:'+windowsName;
+
+  const display=String(r?.display_name||'').trim().toLowerCase();
+  const manufacturer=String(r?.manufacturer||'').trim().toLowerCase();
+  const model=String(r?.model||'').trim().toLowerCase();
+  if(display)return 'display:'+display;
+  if(model||manufacturer)return 'model:'+(manufacturer+'|'+model);
+
+  const ip=String(r?.ip_address||'').trim().toLowerCase();
+  return ip?'ip:'+ip:'id:'+String(r?.printer_id||'');
+}
+
+function dedupePrinterRows(source){
+  const groups=new Map();
+  (Array.isArray(source)?source:[]).forEach(r=>{
+    const key=normalizePrinterIdentity(r);
+    const list=groups.get(key)||[];
+    list.push(r);
+    groups.set(key,list);
+  });
+
+  return [...groups.values()].map(list=>{
+    // Cuando el mismo equipo aparece por USB y por IP, preferimos
+    // la ficha que tenga IP, pero conservamos los datos faltantes del otro registro.
+    const sorted=[...list].sort((a,b)=>{
+      const aIp=hasRealIp(a)?1:0;
+      const bIp=hasRealIp(b)?1:0;
+      if(aIp!==bIp)return bIp-aIp;
+
+      const aSeen=new Date(a?.last_seen_at||0).getTime();
+      const bSeen=new Date(b?.last_seen_at||0).getTime();
+      return bSeen-aSeen;
+    });
+
+    const merged={...sorted[0]};
+    for(const r of sorted.slice(1)){
+      Object.keys(r||{}).forEach(k=>{
+        const current=merged[k];
+        if((current==null || current==='') && r[k]!=null && r[k]!==''){
+          merged[k]=r[k];
+        }
+      });
+    }
+    return merged;
+  });
+}
+
 function renderAll(){
-  // En Printer Control solo mostramos impresoras que tienen una IP real.
-  // Los equipos USB/WSD sin IP quedan fuera de las vistas activas.
-  const activeRows=rows.filter(r=>r.retired!==true && hasRealIp(r));
-  const retiredRows=rows.filter(r=>r.retired===true);
+  // Se muestran impresoras USB y de red. Si el mismo equipo aparece
+  // dos veces (por USB y por IP), queda una sola ficha, priorizando la IP.
+  const activeRows=dedupePrinterRows(rows.filter(r=>r.retired!==true));
+  const retiredRows=dedupePrinterRows(rows.filter(r=>r.retired===true));
   const offline=activeRows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');const online=activeRows.filter(r=>!offline.includes(r));
   $('mPrinters').textContent=activeRows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
   $('summaryText').textContent=activeRows.length?'La flota activa tiene '+activeRows.length+' impresora(s): '+online.length+' conectada(s) y '+offline.length+' desconectada(s).':(retiredRows.length?'No hay impresoras en control activo. Hay '+retiredRows.length+' retirada(s) guardada(s).':'Todavía no hay impresoras registradas para este proyecto.');
