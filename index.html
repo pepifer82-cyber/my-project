@@ -536,11 +536,34 @@ function renderCounterRows(){
     body.innerHTML='<tr><td colspan="9" class="empty">No hay lecturas para el período.</td></tr>';
     return;
   }
-  body.innerHTML=counterRows.map(r=>{
+
+  // El historial sigue guardado en Supabase, pero esta pantalla muestra
+  // únicamente la lectura más reciente de cada impresora.
+  const latestByPrinter=new Map();
+  counterRows.forEach(r=>{
+    const key=String(
+      r.printer_id ||
+      r.serial_number ||
+      r.ip_address ||
+      r.printer ||
+      r.agent ||
+      ''
+    );
+    const previous=latestByPrinter.get(key);
+    if(!previous || new Date(r.reading_at||0)>new Date(previous.reading_at||0)){
+      latestByPrinter.set(key,r);
+    }
+  });
+
+  const visibleRows=[...latestByPrinter.values()]
+    .sort((a,b)=>String(a.printer||'').localeCompare(String(b.printer||''),'es'));
+
+  body.innerHTML=visibleRows.map(r=>{
     const pages=r.pages_printed==null?'—':Number(r.pages_printed).toLocaleString();
+    const printerName=r.model || r.printer || '—';
     return '<tr>'+
       '<td>'+escapeHtml(r.reading_at?new Date(r.reading_at).toLocaleString():'—')+'</td>'+
-      '<td>'+escapeHtml(r.printer||'—')+'</td>'+
+      '<td>'+escapeHtml(printerName)+'</td>'+
       '<td>'+escapeHtml(r.city||'—')+'</td>'+
       '<td>'+escapeHtml(r.serial_number||'—')+'</td>'+
       '<td>'+escapeHtml(r.page_count==null?'—':Number(r.page_count).toLocaleString())+'</td>'+
