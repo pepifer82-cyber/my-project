@@ -58,18 +58,35 @@ function msg(t,ok=false){document.getElementById('authMsg').innerHTML='<div clas
 function showSignup(){loginBox.classList.add('hidden');signupBox.classList.remove('hidden');authMsg.innerHTML=''}
 function showLogin(){signupBox.classList.add('hidden');loginBox.classList.remove('hidden');authMsg.innerHTML=''}
 async function signup(){
- const username=suName.value.trim(), email=suEmail.value.trim(), password=suPass.value;
- if(!username||!email||password.length<6)return msg('Completa usuario, correo y una contraseña de 6 caracteres o más.');
- const {data,error}=await sb.auth.signUp({email,password,options:{data:{username,display_name:username}}});
- if(error)return msg(error.message);
- if(!data.session)return msg('Cuenta creada. Si el proyecto pide confirmar el correo, confirma el correo y luego inicia sesión.',true);
- msg('Cuenta creada.',true); await loadUser();
+ const username=document.getElementById('suName').value.trim();
+ const userEmail=document.getElementById('suEmail').value.trim().toLowerCase();
+ const userPassword=document.getElementById('suPass').value;
+ if(!username||!userEmail||userPassword.length<6)return msg('Completa usuario, correo y una contraseña de 6 caracteres o más.');
+ msg('Creando usuario...',true);
+ const {data,error}=await sb.auth.signUp({email:userEmail,password:userPassword,options:{data:{username:username,display_name:username}}});
+ if(error)return msg('No se pudo crear: '+error.message);
+ if(!data.user)return msg('Supabase no devolvió el usuario. Intenta nuevamente.');
+ if(!data.session){
+   return msg('USUARIO CREADO. Revisa tu correo para confirmar la cuenta y después inicia sesión. Si no llega, revisa Spam.',true);
+ }
+ await ensureProfile(data.user,username);
+ msg('¡Usuario creado correctamente!',true);
+ await loadUser();
+}
+async function ensureProfile(user,username){
+ const {data,error}=await sb.from('slot_profiles').upsert({
+   id:user.id, username:username, display_name:username
+ },{onConflict:'id'}).select().single();
+ if(error) throw error;
+ profile=data;
 }
 async function login(){const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(error)return msg(error.message);await loadUser()}
 async function forgot(){if(!email.value)return msg('Escribe tu correo primero.');const {error}=await sb.auth.resetPasswordForEmail(email.value.trim(),{redirectTo:location.href});msg(error?error.message:'Te enviamos el enlace de recuperación.',!error)}
 async function logout(){await sb.auth.signOut();location.reload()}
 async function loadUser(){
  const {data:{user}}=await sb.auth.getUser(); if(!user)return;
+ const username=user.user_metadata?.username || ('jugador_'+user.id.replaceAll('-','').slice(0,8));
+ try{ await ensureProfile(user,username); }catch(e){}
  const {data,error}=await sb.from('slot_profiles').select('*').eq('id',user.id).single();
  if(error){return msg('No se pudo cargar el jugador: '+error.message)}
  profile=data; authCard.classList.add('hidden');gameCard.classList.remove('hidden');
