@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A&T Slot — Consola</title><script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#07030d;color:#fff;font-family:system-ui,Arial}.wrap{max-width:1100px;margin:auto;padding:16px}h1{margin:0}.muted{color:#aaa}.top{display:flex;justify-content:space-between;align-items:center;gap:10px}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:15px 0}.card,.panel{background:#130b1e;border:1px solid #5b21b6;border-radius:16px;padding:14px}.num{font-size:25px;font-weight:900}.gold{color:#fde047}.cyan{color:#67e8f9}.green{color:#86efac}.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.tablewrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:650px}th,td{padding:9px;border-bottom:1px solid #30203d;text-align:left;font-size:13px}th{color:#c4b5fd}button{border:0;border-radius:10px;padding:9px 12px;font-weight:800;cursor:pointer;background:#6d28d9;color:#fff}.danger{background:#991b1b}.ok{background:#166534}.controls{display:flex;gap:8px;flex-wrap:wrap}.controls input{padding:9px;border-radius:9px;border:1px solid #4c1d95;background:#09050e;color:#fff;width:130px}.hidden{display:none}.msg{padding:10px;background:#7f1d1d;border-radius:10px;margin:10px 0}@media(max-width:800px){.cards{grid-template-columns:1fr 1fr}.grid2{grid-template-columns:1fr}.top{align-items:flex-start;flex-direction:column}}
+</style></head><body><div class="wrap">
+<div class="top"><div><h1>🎰 A&T SLOT — CONSOLA</h1><div class="muted">Control de jugadores, jugadas y premios</div></div><div><button onclick="location.href='index.html'">Volver al juego</button> <button class="danger" onclick="logout()">Salir</button></div></div>
+<div id="msg"></div><div id="app" class="hidden">
+<div class="cards">
+<div class="card"><div class="muted">JUGADORES</div><div id="players" class="num">0</div></div>
+<div class="card"><div class="muted">JUGADO</div><div id="wagered" class="num gold">0 ₲</div></div>
+<div class="card"><div class="muted">GANADO</div><div id="won" class="num green">0 ₲</div></div>
+<div class="card"><div class="muted">POZO</div><div id="pool" class="num cyan">0 ₲</div></div>
+</div>
+<div class="panel"><h2>⚙️ Configuración</h2><div class="controls"><label>Juego <input id="enabled" type="checkbox"></label><label>Mínimo <input id="minBet" type="number" min="100"></label><button onclick="saveSettings()">Guardar</button></div></div>
+<div class="grid2" style="margin-top:12px">
+<div class="panel"><h2>🏆 Premios pendientes</h2><div class="tablewrap"><table><thead><tr><th>Jugador</th><th>Premio</th><th>Fecha</th><th>Estado</th><th></th></tr></thead><tbody id="prizeRows"></tbody></table></div></div>
+<div class="panel"><h2>👥 Jugadores</h2><div class="tablewrap"><table><thead><tr><th>Usuario</th><th>Créditos</th><th>Creado</th><th>Admin</th></tr></thead><tbody id="playerRows"></tbody></table></div></div>
+</div>
+<div class="panel" style="margin-top:12px"><h2>🎯 Últimas jugadas</h2><div class="tablewrap"><table><thead><tr><th>Jugador</th><th>Apuesta</th><th>Rodillos</th><th>x</th><th>Premio</th><th>Saldo</th><th>Fecha</th></tr></thead><tbody id="spinRows"></tbody></table></div></div>
+</div></div>
+<script>
+const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co',SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);let me=null;
+const money=n=>new Intl.NumberFormat('es-PY').format(Number(n||0))+' ₲';
+const date=s=>new Date(s).toLocaleString('es-PY');
+function error(t){msg.innerHTML='<div class="msg">'+t+'</div>'}
+async function logout(){await sb.auth.signOut();location.href='index.html'}
+async function init(){
+ const {data:{user}}=await sb.auth.getUser();if(!user)return location.href='index.html';
+ const {data,error:e}=await sb.from('slot_profiles').select('*').eq('id',user.id).single();if(e||!data?.is_admin)return error('Acceso denegado: esta cuenta no es administradora.');
+ me=data;app.classList.remove('hidden');await refresh();
+}
+async function refresh(){
+ const [{data:profiles,error:e1},{data:spins,error:e2},{data:prizes,error:e3},{data:settings,error:e4}]=await Promise.all([
+ sb.from('slot_profiles').select('*').order('created_at',{ascending:false}),
+ sb.from('slot_spins').select('*').order('created_at',{ascending:false}).limit(100),
+ sb.from('slot_prizes').select('*').order('created_at',{ascending:false}).limit(100),
+ sb.from('slot_settings').select('*').eq('id',1).single()
+ ]);
+ if(e1||e2||e3||e4)return error((e1||e2||e3||e4).message);
+ const names=Object.fromEntries(profiles.map(p=>[p.id,p.display_name||p.username]));
+ players.textContent=profiles.length;wagered.textContent=money(settings.total_wagered);won.textContent=money(settings.total_won);pool.textContent=money(settings.jackpot_pool);
+ enabled.checked=settings.enabled;minBet.value=settings.min_bet;
+ playerRows.innerHTML=profiles.map(p=>'<tr><td>'+esc(p.display_name||p.username)+'</td><td>'+money(p.credits)+'</td><td>'+date(p.created_at)+'</td><td>'+(p.is_admin?'Sí':'No')+'</td></tr>').join('');
+ prizeRows.innerHTML=prizes.map(p=>'<tr><td>'+esc(names[p.player_id]||p.player_id.slice(0,8))+'</td><td>'+money(p.amount)+'</td><td>'+date(p.created_at)+'</td><td>'+p.status+'</td><td>'+(p.status==='pendiente'?'<button class="ok" onclick="markPrize(\''+p.id+'\')">Marcar premiado</button>':'✓')+'</td></tr>').join('');
+ spinRows.innerHTML=spins.slice(0,60).map(s=>'<tr><td>'+esc(names[s.player_id]||s.player_id.slice(0,8))+'</td><td>'+money(s.bet)+'</td><td>'+esc((s.symbols||[]).join(' '))+'</td><td>'+s.multiplier+'</td><td>'+money(s.win_amount)+'</td><td>'+money(s.balance_after)+'</td><td>'+date(s.created_at)+'</td></tr>').join('');
+}
+async function markPrize(id){const {error}=await sb.from('slot_prizes').update({status:'premiado',paid_at:new Date().toISOString()}).eq('id',id);if(error)return error(error.message);await refresh()}
+async function saveSettings(){const {error}=await sb.from('slot_settings').update({enabled:enabled.checked,min_bet:Math.max(100,Number(minBet.value||100)),updated_at:new Date().toISOString()}).eq('id',1);if(error)return window.alert(error.message);await refresh()}
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+sb.auth.onAuthStateChange(()=>init());init();setInterval(()=>{if(me)refresh()},5000);
+</script></body></html>
