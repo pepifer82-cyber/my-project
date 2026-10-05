@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>A&T Slot</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:system-ui,Arial,sans-serif;background:radial-gradient(circle at top,#3b0764,#120026 55%,#050008);color:#fff;min-height:100vh}
+.wrap{max-width:520px;margin:auto;padding:18px}.card{background:rgba(20,8,35,.88);border:1px solid #9d4edd;border-radius:24px;box-shadow:0 20px 60px #0008;padding:18px;margin:12px 0}
+h1{text-align:center;font-size:34px;margin:4px 0 0}.sub{text-align:center;color:#d8b4fe}.hidden{display:none}.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.label{font-size:12px;color:#c4b5fd}.value{font-size:25px;font-weight:800}.balance{color:#fde047}.pool{color:#67e8f9}.auth input,.controls input{width:100%;padding:13px;border-radius:12px;border:1px solid #6b21a8;background:#160622;color:#fff;margin:5px 0;font-size:16px}
+button{border:0;border-radius:13px;padding:13px 16px;font-weight:800;cursor:pointer}.primary{width:100%;background:linear-gradient(90deg,#f59e0b,#ef4444);color:#fff;font-size:18px}.secondary{background:#581c87;color:#fff}.danger{background:#991b1b;color:#fff}.row{display:flex;gap:9px;align-items:center}.row>*{flex:1}
+.reels{display:grid;grid-template-columns:repeat(3,1fr);gap:9px;margin:18px 0}.reel{height:105px;background:linear-gradient(#fff,#ddd);border-radius:18px;color:#111;display:grid;place-items:center;font-size:58px;box-shadow:inset 0 -8px 0 #bbb,0 8px 18px #0007}
+.betbox{text-align:center}.bet{font-size:25px;font-weight:900;margin:5px}.mini{font-size:12px;color:#c4b5fd}.result{text-align:center;min-height:28px;font-weight:800}.win{color:#fde047;font-size:25px}.links{text-align:center;margin-top:12px}.links a{color:#67e8f9;text-decoration:none}
+.msg{padding:10px;border-radius:12px;background:#3b0764;margin-top:8px;font-size:13px}.ok{background:#14532d}.err{background:#7f1d1d}
+</style>
+</head>
+<body><div class="wrap">
+<div class="card" id="authCard">
+<h1>🎰 A&T SLOT</h1><div class="sub">Juego promocional con créditos virtuales</div>
+<div class="auth" id="loginBox">
+<input id="email" type="email" placeholder="Correo">
+<input id="password" type="password" placeholder="Contraseña">
+<button class="primary" onclick="login()">INICIAR SESIÓN</button>
+<div class="row" style="margin-top:8px"><button class="secondary" onclick="showSignup()">CREAR USUARIO</button><button class="secondary" onclick="forgot()">RECUPERAR</button></div>
+</div>
+<div class="auth hidden" id="signupBox">
+<input id="suName" placeholder="Nombre de usuario">
+<input id="suEmail" type="email" placeholder="Correo">
+<input id="suPass" type="password" placeholder="Contraseña (mín. 6)">
+<button class="primary" onclick="signup()">CREAR USUARIO</button>
+<button class="secondary" style="width:100%;margin-top:8px" onclick="showLogin()">VOLVER</button>
+</div><div id="authMsg"></div>
+</div>
+
+<div class="card hidden" id="gameCard">
+<div class="grid">
+<div><div class="label">JUGADOR</div><div id="playerName" class="value">-</div></div>
+<div><div class="label">CRÉDITOS</div><div id="balance" class="value balance">0 ₲</div></div>
+<div><div class="label">POZO</div><div id="pool" class="value pool">0 ₲</div></div>
+<div><div class="label">ÚLTIMO PREMIO</div><div id="lastWin" class="value">0 ₲</div></div>
+</div>
+<div class="reels"><div class="reel" id="r1">🍒</div><div class="reel" id="r2">🍋</div><div class="reel" id="r3">🍊</div></div>
+<div class="betbox"><div class="mini">APUESTA</div><div class="row"><button class="secondary" onclick="changeBet(-100)">−</button><div id="bet" class="bet">100 ₲</div><button class="secondary" onclick="changeBet(100)">+</button></div></div>
+<button id="spinBtn" class="primary" style="margin-top:12px" onclick="spin()">🎰 GIRAR</button>
+<div id="result" class="result"></div>
+<div class="links"><button class="secondary" onclick="logout()">Salir</button> <a id="adminLink" class="hidden" href="admin.html">Consola administrativa</a></div>
+</div>
+</div>
+<script>
+const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
+const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
+const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
+let profile=null, bet=100, spinning=false;
+
+const money=n=>new Intl.NumberFormat('es-PY').format(Number(n||0))+' ₲';
+function msg(t,ok=false){document.getElementById('authMsg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'}
+function showSignup(){loginBox.classList.add('hidden');signupBox.classList.remove('hidden');authMsg.innerHTML=''}
+function showLogin(){signupBox.classList.add('hidden');loginBox.classList.remove('hidden');authMsg.innerHTML=''}
+async function signup(){
+ const username=suName.value.trim(), email=suEmail.value.trim(), password=suPass.value;
+ if(!username||!email||password.length<6)return msg('Completa usuario, correo y una contraseña de 6 caracteres o más.');
+ const {data,error}=await sb.auth.signUp({email,password,options:{data:{username,display_name:username}}});
+ if(error)return msg(error.message);
+ if(!data.session)return msg('Cuenta creada. Si el proyecto pide confirmar el correo, confirma el correo y luego inicia sesión.',true);
+ msg('Cuenta creada.',true); await loadUser();
+}
+async function login(){const {error}=await sb.auth.signInWithPassword({email:email.value.trim(),password:password.value});if(error)return msg(error.message);await loadUser()}
+async function forgot(){if(!email.value)return msg('Escribe tu correo primero.');const {error}=await sb.auth.resetPasswordForEmail(email.value.trim(),{redirectTo:location.href});msg(error?error.message:'Te enviamos el enlace de recuperación.',!error)}
+async function logout(){await sb.auth.signOut();location.reload()}
+async function loadUser(){
+ const {data:{user}}=await sb.auth.getUser(); if(!user)return;
+ const {data,error}=await sb.from('slot_profiles').select('*').eq('id',user.id).single();
+ if(error){return msg('No se pudo cargar el jugador: '+error.message)}
+ profile=data; authCard.classList.add('hidden');gameCard.classList.remove('hidden');
+ playerName.textContent=profile.display_name||profile.username; balance.textContent=money(profile.credits);
+ adminLink.classList.toggle('hidden',!profile.is_admin); await loadPool();
+}
+async function loadPool(){const {data}=await sb.from('slot_settings').select('jackpot_pool,min_bet,enabled').eq('id',1).single();if(data){pool.textContent=money(data.jackpot_pool);if(data.min_bet>100){bet=Math.max(bet,Number(data.min_bet));renderBet()}if(!data.enabled){spinBtn.disabled=true;result.textContent='Juego temporalmente desactivado.'}}}
+function changeBet(delta){bet=Math.max(100,bet+delta);renderBet()}
+function renderBet(){document.getElementById('bet').textContent=money(bet)}
+async function spin(){
+ if(spinning)return; if(!profile)return;
+ spinning=true;spinBtn.disabled=true;result.textContent='Girando...';
+ const els=[r1,r2,r3];const icons=['🍒','🍋','🍊','🍉','⭐','7️⃣'];
+ const timer=setInterval(()=>els.forEach(e=>e.textContent=icons[Math.floor(Math.random()*icons.length)]),80);
+ const {data,error}=await sb.functions.invoke('slot-play',{body:{bet}});
+ clearInterval(timer);
+ if(error){result.textContent='Error: '+(error.message||'No se pudo jugar');spinBtn.disabled=false;spinning=false;return}
+ const x=data.result; x.symbols.forEach((s,i)=>els[i].textContent=s);
+ profile.credits=x.balance;balance.textContent=money(x.balance);pool.textContent=money(x.jackpot_pool);lastWin.textContent=money(x.win_amount);
+ if(x.win_amount>0){result.innerHTML='<div class="win">🎉 GANASTE '+money(x.win_amount)+' ('+x.multiplier+'x)</div>'}else result.textContent='Sin premio esta vez.';
+ spinBtn.disabled=false;spinning=false;
+}
+sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_IN')loadUser()});
+sb.auth.getSession().then(({data})=>{if(data.session)loadUser()});
+renderBet();
+</script></body></html>
