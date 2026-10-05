@@ -46,7 +46,7 @@ async function refresh(){
  prizeRows.innerHTML=prizes.map(p=>'<tr><td>'+esc(names[p.player_id]||p.player_id.slice(0,8))+'</td><td>'+money(p.amount)+'</td><td>'+date(p.created_at)+'</td><td>'+p.status+'</td><td>'+(p.status==='pendiente'?'<button class="ok" onclick="markPrize(\''+p.id+'\')">Marcar premiado</button>':'✓')+'</td></tr>').join('');
  spinRows.innerHTML=spins.slice(0,60).map(s=>'<tr><td>'+esc(names[s.player_id]||s.player_id.slice(0,8))+'</td><td>'+money(s.bet)+'</td><td>'+esc((s.symbols||[]).join(' '))+'</td><td>'+s.multiplier+'</td><td>'+money(s.win_amount)+'</td><td>'+money(s.balance_after)+'</td><td>'+date(s.created_at)+'</td></tr>').join('');
 }
-async function markPrize(id){const {error}=await sb.from('slot_prizes').update({status:'premiado',paid_at:new Date().toISOString()}).eq('id',id);if(error)return error(error.message);await refresh()}
+async function markPrize(id){const {error}=await sb.from('slot_prizes').update({status:'premiado',paid_at:new Date().toISOString()}).eq('id',id);if(error)return window.alert(error.message);await refresh()}
 async function saveSettings(){const {error}=await sb.from('slot_settings').update({enabled:enabled.checked,min_bet:Math.max(100,Number(minBet.value||100)),updated_at:new Date().toISOString()}).eq('id',1);if(error)return window.alert(error.message);await refresh()}
 function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 sb.auth.onAuthStateChange(()=>init());init();setInterval(()=>{if(me)refresh()},5000);
