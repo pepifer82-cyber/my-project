@@ -98,10 +98,14 @@ function changeBet(delta){bet=Math.max(100,bet+delta);renderBet()}
 function renderBet(){document.getElementById('bet').textContent=money(bet)}
 async function spin(){
  if(spinning)return; if(!profile)return;
- spinning=true;spinBtn.disabled=true;result.textContent='Girando...';
+ spinning=true;spinBtn.disabled=true;result.textContent='🎰 ¡Girando...!';
  const els=[r1,r2,r3,r4];const icons=['🍒','🍋','🍊','🍉','⭐','7️⃣','🃏'];
- const timer=setInterval(()=>els.forEach(e=>e.textContent=icons[Math.floor(Math.random()*icons.length)]),80);
- const {data,error}=await sb.functions.invoke('slot-play',{body:{bet}});
+ const start=Date.now();
+ const timer=setInterval(()=>els.forEach((e,i)=>{e.textContent=icons[Math.floor(Math.random()*icons.length)];e.animate([{transform:'translateY(-8px) rotate(-2deg)'},{transform:'translateY(8px) rotate(2deg)'},{transform:'translateY(0) rotate(0)'}],{duration:180,easing:'ease-out'})}),70);
+ const playPromise=sb.functions.invoke('slot-play',{body:{bet}});
+ const {data,error}=await playPromise;
+ const remaining=Math.max(0,4200-(Date.now()-start));
+ if(remaining) await new Promise(resolve=>setTimeout(resolve,remaining));
  clearInterval(timer);
  if(error){result.textContent='Error: '+(error.message||'No se pudo jugar');spinBtn.disabled=false;spinning=false;return}
  const x=data.result; x.symbols.forEach((s,i)=>els[i].textContent=s);
