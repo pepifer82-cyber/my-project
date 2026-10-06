@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Tragamonedas</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#050505;color:#fff;font-family:Arial,sans-serif;min-height:100vh;display:flex;justify-content:center;align-items:center;padding:10px;overflow-x:hidden}
+body:before{content:"♠  ♦  ♣  ♥     🎲     ♠  ♦  ♣  ♥     🎰";position:fixed;inset:0;color:#777;opacity:.18;font-size:42px;line-height:2.5;word-spacing:18px;transform:rotate(-12deg) scale(1.2);pointer-events:none}
+.machine{position:relative;width:min(100%,700px);padding:18px;border:4px solid #aaa;border-radius:28px;background:linear-gradient(145deg,#080808,#252525 45%,#090909);box-shadow:0 0 0 3px #555,0 15px 45px #000;overflow:hidden}
+.machine:after{content:"♠ ♦ ♣ ♥  🎲  ♦ ♠ ♣ ♥  🎲  ♠ ♦ ♣ ♥";position:absolute;inset:0;color:#aaa;opacity:.08;font-size:50px;line-height:1.8;pointer-events:none}
+.content{position:relative;z-index:1}.title{text-align:center;font-size:clamp(25px,7vw,46px);font-weight:900;color:#ffd84d;text-shadow:0 3px 0 #7b4300,0 0 15px #ff9d00;margin:2px 0 14px}.sub{text-align:center;color:#ddd;margin-bottom:10px}
+.info{display:grid;grid-template-columns:1fr 1fr;gap:9px}.box{background:#050505;border:2px solid #888;border-radius:13px;padding:9px;text-align:center}.label{font-size:12px;color:#bbb}.value{font-size:22px;font-weight:900;color:#ffd84d}
+.controls{display:flex;gap:8px;justify-content:center;align-items:center;margin:10px 0;flex-wrap:wrap}.controls input,.controls select{font-size:17px;padding:9px;border-radius:9px;border:2px solid #777;background:#111;color:#fff;width:125px;text-align:center}
+.reels{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;background:#000;padding:10px;border:3px solid #c0c0c0;border-radius:17px;box-shadow:inset 0 0 20px #000;margin:12px 0}
+.reel{height:125px;background:linear-gradient(90deg,#777,#fff 25%,#ddd 55%,#777);border:3px solid #e3b62f;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:55px;color:#111;overflow:hidden;position:relative}.reel.spinning{animation:wheel .12s linear infinite}.reel:after{content:"";position:absolute;inset:0;background:linear-gradient(#fff4,transparent 35%,transparent 65%,#0004);pointer-events:none}
+@keyframes wheel{0%{transform:translateY(-7px)}50%{transform:translateY(7px)}100%{transform:translateY(-7px)}}
+.pointer{height:0;position:relative;z-index:2}.pointer:before,.pointer:after{content:"";position:absolute;top:55px;border:12px solid transparent}.pointer:before{left:0;border-right-color:#ff2b18}.pointer:after{right:0;border-left-color:#ff2b18}
+.spin{display:block;margin:10px auto;background:linear-gradient(#39ff39,#08a908);border:4px solid #ddd;border-radius:50px;padding:14px 45px;color:#fff;font-size:25px;font-weight:900;text-shadow:0 2px 2px #064;box-shadow:0 5px 0 #075a07,0 0 18px #0f0;cursor:pointer}.spin:active{transform:translateY(4px);box-shadow:0 1px 0 #075a07}.spin:disabled{opacity:.55}
+.msg{text-align:center;min-height:30px;font-weight:800;font-size:18px;color:#ffd84d}.pay{display:flex;flex-wrap:wrap;gap:6px;justify-content:center;font-size:12px}.pay span{background:#090909;border:1px solid #666;padding:5px 7px;border-radius:7px}.note{text-align:center;color:#aaa;font-size:11px;margin-top:8px}
+@media(max-width:480px){.machine{padding:11px}.reel{height:100px;font-size:42px}.reels{gap:4px;padding:6px}.spin{padding:12px 34px;font-size:21px}}
+</style>
+</head>
+<body>
+<div class="machine"><div class="content">
+<div class="title">🎰 TRAGAMONEDAS 🎰</div><div class="sub">¡Elegí tu fruta ganadora y girá!</div>
+<div class="info"><div class="box"><div class="label">CRÉDITOS</div><div class="value" id="balance">10.000 Gs.</div></div><div class="box"><div class="label">APUESTA</div><div class="value" id="betview">1.000 Gs.</div></div></div>
+<div class="controls"><label>Apuesta <input id="bet" type="number" min="100" step="100" value="1000"></label><label>Ganadora <select id="winner"><option>🍒</option><option>🍋</option><option>🍊</option><option>🍉</option><option>🍇</option><option>⭐</option></select></label></div>
+<div class="pointer"></div><div class="reels"><div class="reel" id="r0">🍒</div><div class="reel" id="r1">🍋</div><div class="reel" id="r2">🍊</div><div class="reel" id="r3">⭐</div></div>
+<button class="spin" id="spin">GIRAR 🎰</button><div class="msg" id="msg">¡Buena suerte!</div>
+<div class="pay"><span>2 iguales ×5</span><span>3 iguales ×20</span><span>4 iguales ×100</span><span>⭐ Comodín</span></div><div class="note">Demo con créditos virtuales. No utiliza dinero real.</div>
+</div></div>
+<script>
+(()=>{const symbols=['🍒','🍋','🍊','🍉','🍇','⭐'];let balance=10000,busy=false;const $=id=>document.getElementById(id),fmt=n=>Math.max(0,Math.round(n)).toLocaleString('es-PY');function draw(){$('balance').textContent=fmt(balance)+' Gs.';$('betview').textContent=fmt(Number($('bet').value)||0)+' Gs.'}function spin(){if(busy)return;const bet=Math.floor(Number($('bet').value)||0),win=$('winner').value;if(bet<100){$('msg').textContent='Mínimo 100 Gs.';return}if(bet>balance){$('msg').textContent='No hay suficientes créditos.';return}balance-=bet;draw();busy=true;$('spin').disabled=true;$('msg').textContent='🎰 Girando...';const reels=[0,1,2,3].map(i=>$('r'+i));reels.forEach(r=>r.classList.add('spinning'));const timers=[];for(let i=0;i<4;i++){timers.push(setTimeout(()=>{reels[i].classList.remove('spinning');reels[i].textContent=symbols[Math.floor(Math.random()*symbols.length)];if(i===3){let result=reels.map(r=>r.textContent);let count=result.filter(x=>x===win).length;if(Math.random()<.32){for(let k=0;k<count<2?2:count;k++)reels[k].textContent=win;result=reels.map(r=>r.textContent);count=result.filter(x=>x===win).length}let mult=count===4?100:count===3?20:count===2?5:0;if(result.includes('⭐')&&count>=2)mult=Math.max(mult,10);const prize=bet*mult;if(prize){balance+=prize;$('msg').textContent='🎉 ¡GANASTE '+fmt(prize)+' Gs. ×'+mult+'!'}else $('msg').textContent='Sin premio esta vez. ¡Otra vuelta!';draw();busy=false;$('spin').disabled=false}},900+i*650))}}draw();$('bet').addEventListener('input',draw);$('spin').addEventListener('click',spin)})();
+</script>
+</body></html>
