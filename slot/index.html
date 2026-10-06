@@ -104,7 +104,7 @@ async function spin(){
  const timer=setInterval(()=>els.forEach((e,i)=>{e.textContent=icons[Math.floor(Math.random()*icons.length)];e.animate([{transform:'translateY(-8px) rotate(-2deg)'},{transform:'translateY(8px) rotate(2deg)'},{transform:'translateY(0) rotate(0)'}],{duration:180,easing:'ease-out'})}),70);
  const playPromise=sb.functions.invoke('slot-play',{body:{bet}});
  const {data,error}=await playPromise;
- const remaining=Math.max(0,4200-(Date.now()-start));
+ const remaining=Math.max(5200-(Date.now()-start),0);
  if(remaining) await new Promise(resolve=>setTimeout(resolve,remaining));
  clearInterval(timer);
  if(error){result.textContent='Error: '+(error.message||'No se pudo jugar');spinBtn.disabled=false;spinning=false;return}
