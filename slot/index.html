@@ -97,7 +97,15 @@ async function loadPool(){const {data}=await sb.from('slot_settings').select('ja
 function changeBet(delta){bet=Math.max(100,bet+delta);renderBet()}
 function renderBet(){document.getElementById('bet').textContent=money(bet)}
 async function spin(){
- if(!profile||spinning)return;
+ if(!profile)return;
+ if(spinning){
+   if(Date.now()<stopAt)return;
+   stopRequested=true;
+   document.getElementById('spinBtn').disabled=true;
+   document.getElementById('spinBtn').textContent='⏳ DETENIENDO...';
+   result.textContent='⏳ Los símbolos están desacelerando...';
+   return;
+ }
  spinning=true; stopRequested=false; stopAt=Date.now()+1800;
  const btn=document.getElementById('spinBtn');
  btn.disabled=false; btn.textContent='🛑 PARAR DESPACIO';
