@@ -96,61 +96,71 @@ async function loadUser(){
 async function loadPool(){const {data}=await sb.from('slot_settings').select('jackpot_pool,min_bet,enabled,winning_symbol').eq('id',1).single();if(data){pool.textContent=money(data.jackpot_pool);document.getElementById('winningFruit').textContent=data.winning_symbol||'🍒';if(data.min_bet>100){bet=Math.max(bet,Number(data.min_bet));renderBet()}if(!data.enabled){spinBtn.disabled=true;result.textContent='Juego temporalmente desactivado.'}}}
 function changeBet(delta){bet=Math.max(100,bet+delta);renderBet()}
 function renderBet(){document.getElementById('bet').textContent=money(bet)}
-async function spin(){
+let spinStart=0;async function spin(){
+ const btn=document.getElementById('spinBtn');
+ const els=[
+   document.getElementById('r1'),document.getElementById('r2'),
+   document.getElementById('r3'),document.getElementById('r4')
+ ];
+ const icons=['🍒','🍋','🍊','🍉','⭐','7️⃣','🃏'];
  if(!profile)return;
  if(spinning){
-   if(Date.now()<stopAt)return;
+   if(Date.now()-spinStart<1400)return;
    stopRequested=true;
-   document.getElementById('spinBtn').disabled=true;
-   document.getElementById('spinBtn').textContent='⏳ DETENIENDO...';
-   result.textContent='⏳ Los símbolos están desacelerando...';
+   btn.disabled=true;
+   btn.textContent='⏳ DETENIENDO...';
+   result.textContent='⏳ Desacelerando los símbolos...';
    return;
  }
- spinning=true; stopRequested=false; stopAt=Date.now()+1800;
- const btn=document.getElementById('spinBtn');
+ spinning=true; stopRequested=false; spinStart=Date.now();
  btn.disabled=false; btn.textContent='🛑 PARAR DESPACIO';
- result.textContent='🎰 ¡Girando...!';
- const els=[r1,r2,r3,r4], icons=['🍒','🍋','🍊','🍉','⭐','7️⃣','🃏'];
+ result.textContent='🎰 ¡GIRANDO...!';
  const playPromise=sb.functions.invoke('slot-play',{body:{bet}});
- let finalData=null, finalError=null;
- playPromise.then(({data,error})=>{finalData=data;finalError=error});
- let delay=55, started=Date.now(), phase=0;
- function tick(){
+ let speed=65, ticks=0, timer;
+ function animateTick(){
    if(!spinning)return;
-   els.forEach((e,i)=>{
-     e.textContent=icons[Math.floor(Math.random()*icons.length)];
-     e.animate([
-       {transform:'translateY(-32px) scale(.96)',filter:'blur(1px)'},
-       {transform:'translateY(18px) scale(1.03)',filter:'blur(0)'},
-       {transform:'translateY(0) scale(1)',filter:'blur(0)'}
-     ],{duration:Math.max(90,delay*1.5),easing:'cubic-bezier(.2,.8,.3,1)'});
+   ticks++;
+   els.forEach((el,i)=>{
+     el.textContent=icons[Math.floor(Math.random()*icons.length)];
+     el.style.transform='translateY(-18px) scale(.94)';
+     setTimeout(()=>{el.style.transform='translateY(0) scale(1)'},25);
    });
-   const elapsed=Date.now()-started;
-   if(!stopRequested && elapsed<8500){delay=55;spinTimer=setTimeout(tick,delay);return}
-   stopRequested=true;
-   phase++;
-   delay=Math.min(520,55+phase*42);
-   if(phase<13){spinTimer=setTimeout(tick,delay);return}
-   finishSpin(els,playPromise);
- }
- tick();
-
- async function finishSpin(els,promise){
-   clearTimeout(spinTimer);
-   btn.disabled=true;btn.textContent='⏳ DETENIENDO...';
-   const res=await promise;
-   finalData=res.data;finalError=res.error;
-   if(finalError){result.textContent='Error: '+(finalError.message||'No se pudo jugar');spinning=false;btn.disabled=false;btn.textContent='🎰 PALANCA — GIRAR';return}
-   const x=finalData.result;
-   for(let i=0;i<4;i++){
-     await new Promise(r=>setTimeout(r,180+i*120));
-     els[i].animate([{transform:'translateY(-10px)'},{transform:'translateY(4px)'},{transform:'translateY(0)'}],{duration:300,easing:'ease-out'});
-     els[i].textContent=x.symbols[i];
+   if(!stopRequested && Date.now()-spinStart<8000){
+     timer=setTimeout(animateTick,speed);
+   }else{
+     stopRequested=true;
+     speed=Math.min(speed+45,500);
+     if(speed<500){timer=setTimeout(animateTick,speed);}
+     else finishSpin();
    }
-   profile.credits=x.balance;balance.textContent=money(x.balance);pool.textContent=money(x.jackpot_pool);lastWin.textContent=money(x.win_amount);
-   if(x.win_amount>0){result.innerHTML='<div class="win">🎉 ¡PREMIO! '+money(x.win_amount)+' · '+x.multiplier+'x</div>';if(x.multiplier>=10)burst()}
-   else result.textContent='Casi... probá otra combinación.';
-   spinning=false;stopRequested=false;btn.disabled=false;btn.textContent='🎰 PALANCA — GIRAR';
+ }
+ animateTick();
+
+ async function finishSpin(){
+   clearTimeout(timer);
+   const res=await playPromise;
+   if(res.error){
+     result.textContent='Error: '+(res.error.message||'No se pudo jugar');
+     spinning=false;btn.disabled=false;btn.textContent='🎰 PALANCA — GIRAR';return;
+   }
+   const x=res.data.result;
+   for(let i=0;i<4;i++){
+     await new Promise(resolve=>setTimeout(resolve,300+i*220));
+     els[i].style.transform='translateY(-12px)';
+     await new Promise(resolve=>setTimeout(resolve,100));
+     els[i].textContent=x.symbols[i];
+     els[i].style.transform='translateY(0)';
+   }
+   profile.credits=x.balance;
+   document.getElementById('balance').textContent=money(x.balance);
+   document.getElementById('pool').textContent=money(x.jackpot_pool);
+   document.getElementById('lastWin').textContent=money(x.win_amount);
+   if(x.win_amount>0){
+     result.innerHTML='<div class="win">🎉 ¡PREMIO! '+money(x.win_amount)+' · '+x.multiplier+'x</div>';
+     if(x.multiplier>=10)burst();
+   }else result.textContent='Casi... probá otra combinación.';
+   spinning=false;stopRequested=false;
+   btn.disabled=false;btn.textContent='🎰 PALANCA — GIRAR';
  }
 }
 sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_IN')loadUser()});
