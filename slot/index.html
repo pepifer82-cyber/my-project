@@ -42,7 +42,7 @@ button{border:0;border-radius:13px;padding:13px 16px;font-weight:800;cursor:poin
 </div>
 <div class="lucky">🍀 FRUTA GANADORA: <b id="winningFruit">🍒</b> · 🃏 COMODÍN = MULTIPLICADOR</div><div class="multis"><span class="chip">x1</span><span class="chip">x2</span><span class="chip">x5</span><span class="chip">x10</span><span class="chip">x20</span><span class="chip">x50</span><span class="chip">x100</span></div><div class="reels"><div class="reel" id="r1">🍒</div><div class="reel" id="r2">🍋</div><div class="reel" id="r3">🍊</div><div class="reel" id="r4">🍉</div></div>
 <div class="betbox"><div class="mini">APUESTA</div><div class="row"><button class="secondary" onclick="changeBet(-100)">−</button><div id="bet" class="bet">100 ₲</div><button class="secondary" onclick="changeBet(100)">+</button></div></div>
-<button id="spinBtn" class="primary" style="margin-top:12px" onclick="spin()">🎰 GIRAR</button>
+<button id="spinBtn" class="primary" style="margin-top:12px" onclick="spin()">🎰 PALANCA — GIRAR</button>
 <div id="result" class="result"></div>
 <div class="links"><button class="secondary" onclick="logout()">Salir</button> <a id="adminLink" class="hidden" href="admin.html">Consola administrativa</a></div>
 </div>
@@ -51,7 +51,7 @@ button{border:0;border-radius:13px;padding:13px 16px;font-weight:800;cursor:poin
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const sb=supabase.createClient(SUPABASE_URL,SUPABASE_KEY);
-let profile=null, bet=100, spinning=false;
+let profile=null, bet=100, spinning=false, stopRequested=false, spinTimer=null, stopAt=0;
 
 const money=n=>new Intl.NumberFormat('es-PY').format(Number(n||0))+' ₲';
 function msg(t,ok=false){document.getElementById('authMsg').innerHTML='<div class="msg '+(ok?'ok':'err')+'">'+t+'</div>'}
@@ -97,21 +97,53 @@ async function loadPool(){const {data}=await sb.from('slot_settings').select('ja
 function changeBet(delta){bet=Math.max(100,bet+delta);renderBet()}
 function renderBet(){document.getElementById('bet').textContent=money(bet)}
 async function spin(){
- if(spinning)return; if(!profile)return;
- spinning=true;spinBtn.disabled=true;result.textContent='🎰 ¡Girando...!';
- const els=[r1,r2,r3,r4];const icons=['🍒','🍋','🍊','🍉','⭐','7️⃣','🃏'];
- const start=Date.now();
- const timer=setInterval(()=>els.forEach((e,i)=>{e.textContent=icons[Math.floor(Math.random()*icons.length)];e.animate([{transform:'translateY(-8px) rotate(-2deg)'},{transform:'translateY(8px) rotate(2deg)'},{transform:'translateY(0) rotate(0)'}],{duration:180,easing:'ease-out'})}),70);
+ if(!profile||spinning)return;
+ spinning=true; stopRequested=false; stopAt=Date.now()+1800;
+ const btn=document.getElementById('spinBtn');
+ btn.disabled=false; btn.textContent='🛑 PARAR DESPACIO';
+ result.textContent='🎰 ¡Girando...!';
+ const els=[r1,r2,r3,r4], icons=['🍒','🍋','🍊','🍉','⭐','7️⃣','🃏'];
  const playPromise=sb.functions.invoke('slot-play',{body:{bet}});
- const {data,error}=await playPromise;
- const remaining=Math.max(5200-(Date.now()-start),0);
- if(remaining) await new Promise(resolve=>setTimeout(resolve,remaining));
- clearInterval(timer);
- if(error){result.textContent='Error: '+(error.message||'No se pudo jugar');spinBtn.disabled=false;spinning=false;return}
- const x=data.result; x.symbols.forEach((s,i)=>els[i].textContent=s);
- profile.credits=x.balance;balance.textContent=money(x.balance);pool.textContent=money(x.jackpot_pool);lastWin.textContent=money(x.win_amount);
- if(x.win_amount>0){result.innerHTML='<div class="win">🎉 ¡PREMIO! '+money(x.win_amount)+' · '+x.multiplier+'x</div>'; if(x.multiplier>=10) burst()}else result.textContent='Casi... probá otra combinación.';
- spinBtn.disabled=false;spinning=false;
+ let finalData=null, finalError=null;
+ playPromise.then(({data,error})=>{finalData=data;finalError=error});
+ let delay=55, started=Date.now(), phase=0;
+ function tick(){
+   if(!spinning)return;
+   els.forEach((e,i)=>{
+     e.textContent=icons[Math.floor(Math.random()*icons.length)];
+     e.animate([
+       {transform:'translateY(-32px) scale(.96)',filter:'blur(1px)'},
+       {transform:'translateY(18px) scale(1.03)',filter:'blur(0)'},
+       {transform:'translateY(0) scale(1)',filter:'blur(0)'}
+     ],{duration:Math.max(90,delay*1.5),easing:'cubic-bezier(.2,.8,.3,1)'});
+   });
+   const elapsed=Date.now()-started;
+   if(!stopRequested && elapsed<8500){delay=55;spinTimer=setTimeout(tick,delay);return}
+   stopRequested=true;
+   phase++;
+   delay=Math.min(520,55+phase*42);
+   if(phase<13){spinTimer=setTimeout(tick,delay);return}
+   finishSpin(els,playPromise);
+ }
+ tick();
+
+ async function finishSpin(els,promise){
+   clearTimeout(spinTimer);
+   btn.disabled=true;btn.textContent='⏳ DETENIENDO...';
+   const res=await promise;
+   finalData=res.data;finalError=res.error;
+   if(finalError){result.textContent='Error: '+(finalError.message||'No se pudo jugar');spinning=false;btn.disabled=false;btn.textContent='🎰 PALANCA — GIRAR';return}
+   const x=finalData.result;
+   for(let i=0;i<4;i++){
+     await new Promise(r=>setTimeout(r,180+i*120));
+     els[i].animate([{transform:'translateY(-10px)'},{transform:'translateY(4px)'},{transform:'translateY(0)'}],{duration:300,easing:'ease-out'});
+     els[i].textContent=x.symbols[i];
+   }
+   profile.credits=x.balance;balance.textContent=money(x.balance);pool.textContent=money(x.jackpot_pool);lastWin.textContent=money(x.win_amount);
+   if(x.win_amount>0){result.innerHTML='<div class="win">🎉 ¡PREMIO! '+money(x.win_amount)+' · '+x.multiplier+'x</div>';if(x.multiplier>=10)burst()}
+   else result.textContent='Casi... probá otra combinación.';
+   spinning=false;stopRequested=false;btn.disabled=false;btn.textContent='🎰 PALANCA — GIRAR';
+ }
 }
 sb.auth.onAuthStateChange((event)=>{if(event==='SIGNED_IN')loadUser()});
 sb.auth.getSession().then(({data})=>{if(data.session)loadUser()});
