@@ -329,8 +329,8 @@ async function loadApp(){
   // Un error aquí no debe borrar una sesión válida.
   try{
     await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
-    const memberships=await api('/rest/v1/control_project_members?select=role,active&user_id=eq.'+encodeURIComponent(currentUser.id)+'&active=eq.true').catch(()=>[]);
-    isAdmin=Array.isArray(memberships)&&memberships.some(m=>['owner','admin'].includes(String(m.role||'').toLowerCase()));
+    const adminCheck=await api('/rest/v1/rpc/control_is_global_admin',{method:'POST',body:'{}'}).catch(()=>false);
+    isAdmin=adminCheck===true || (Array.isArray(adminCheck)&&adminCheck[0]===true);
     $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('newProjectBtn').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);
     await loadProjects();
     return true;
