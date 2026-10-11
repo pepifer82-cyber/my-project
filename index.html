@@ -968,8 +968,9 @@ function exportProjectExcel(){
   if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
   if(!currentProjectId){alert('Seleccioná un proyecto primero.');return}
   const p=projects.find(x=>x.id===currentProjectId);
-  const activeRows=rows.filter(r=>r.retired!==true);
-  const retiredRows=rows.filter(r=>r.retired===true);
+  // Reutiliza la misma deduplicación de la pantalla: una IP física representa una sola impresora.
+  const activeRows=dedupePrinterRows(rows.filter(r=>r.retired!==true));
+  const retiredRows=dedupePrinterRows(rows.filter(r=>r.retired===true));
   const offline=activeRows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');
   const wb=XLSX.utils.book_new();
   const inventory=activeRows.map(r=>({
@@ -1112,7 +1113,7 @@ async function loadManagedUsers(){
     '<td><input class="toolbar-input" style="min-width:220px;width:100%" type="email" data-field="email" value="'+email+'" aria-label="Correo del usuario"></td>'+
     '<td><input class="toolbar-input" style="min-width:180px;width:100%" type="password" data-field="password" placeholder="No cambiar" autocomplete="new-password"></td>'+
     '<td>'+(u.active===false?'Desactivado':'Usuario normal')+'</td>'+
-    '<td><div class="content-tools"><button class="icon-btn" type="button" onclick="updateManagedUser(this)">Guardar</button><button class="side-danger" style="width:auto;margin:0;padding:7px 9px" type="button" onclick="removeManagedUser(this)">Eliminar</button></div></td>'+
+    '<td><div class="content-tools"><button class="icon-btn" type="button" onclick="updateManagedUser(this)">Guardar</button><button class="side-danger" style="width:auto;margin:0;padding:7px 9px" type="button" onclick="removeManagedUser(this)">Quitar usuario</button></div></td>'+
    '</tr>';
   }).join(''):'<tr><td colspan="4" class="empty">No hay otros usuarios asignados a este proyecto.</td></tr>';
   $('usersListMsg').textContent=users.length?'Usuarios encontrados: '+users.length+'.':'La lista está vacía.';
@@ -1137,7 +1138,7 @@ async function removeManagedUser(button){
  const row=button?.closest('.managed-user-row');if(!row)return;
  const user_id=row.dataset.userId,project_id=$('newUserProject').value;
  const email=row.querySelector('[data-field="email"]').value.trim();
- if(!confirm('¿Eliminar el acceso de '+email+'? Si no tiene acceso a otros proyectos, también se eliminará su cuenta.'))return;
+ if(!confirm('¿Quitar a '+email+' de este proyecto? Si no tiene acceso a otros proyectos, también se eliminará su cuenta.'))return;
  button.disabled=true;
  try{
   const result=await userAdminRequest({action:'remove',user_id,project_id});
