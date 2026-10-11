@@ -29,7 +29,8 @@ button{border:0;cursor:pointer}
 .project-dot{width:9px;height:9px;border-radius:50%;background:#b9c7d8;box-shadow:0 0 0 4px #b9c7d820}.project-item.active .project-dot{background:var(--blue);box-shadow:0 0 0 4px #2878ff18}
 .project-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .side-bottom{border-top:1px solid var(--line);padding-top:14px;margin-top:10px}
-.side-action{width:100%;padding:11px;border-radius:9px;background:#edf5ff;color:#1d4ed8;font-weight:800;border:1px solid #d7e6fb}.side-action:hover{background:#e4efff}
+.side-action{width:100%;padding:11px;border-radius:9px;background:#edf5ff;color:#1d4ed8;font-weight:800;border:1px solid #d7e6fb}.side-action:hover{background:#e4efff}.side-danger{width:100%;margin-top:8px;padding:10px;border-radius:9px;background:#fff1f2;color:#b42335;font-weight:800;border:1px solid #ffd4d9}.side-danger:hover:not(:disabled){background:#ffe3e6}.side-danger:disabled{opacity:.45;cursor:not-allowed}
+.serial-list{display:grid;gap:6px;max-height:120px;overflow:auto;margin:7px 0}.serial-item{display:flex;align-items:center;gap:7px;justify-content:space-between;padding:6px 8px;border-radius:8px;background:#ffffff12;font-size:10px}.serial-item code{word-break:break-all;color:#e5f1ff}.serial-copy{flex:none;background:#fff;color:#17365a;border-radius:6px;padding:5px 7px;font-size:10px;font-weight:800}
 .main{min-width:0;flex:1;display:flex;flex-direction:column;gap:14px}
 .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fff;border:1px solid #dfe6ef;border-radius:10px;padding:10px 12px;box-shadow:0 10px 35px #23456b12;backdrop-filter:blur(16px)}
 .top-left,.top-right{display:flex;align-items:center;gap:10px}.crumb{font-weight:800}.cloud-status{font-size:12px;color:#16745e;background:#e8fbf5;border:1px solid #ccefe4;padding:6px 9px;border-radius:999px}.cloud-status i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--green);margin-right:5px}
@@ -97,6 +98,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     <div id="projectEmpty" class="empty hidden">No hay proyectos.</div>
     <div class="side-bottom">
       <button id="newProjectBtn" class="side-action" type="button">＋ Nuevo proyecto</button>
+      <button id="archiveProjectBtn" class="side-danger" type="button" disabled>Retirar proyecto seleccionado</button>
     </div>
   </aside>
 
@@ -114,6 +116,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       <div class="serial-panel">
         <div class="serial-label">Serial de activación</div>
         <div id="serialValue" class="serial-value">—</div>
+        <div id="serialList" class="serial-list"></div>
         <div class="serial-actions">
           <button id="copySerialBtn" class="serial-btn copy" type="button">Copiar</button>
           <button id="newSerialBtn" class="serial-btn new" type="button">Generar otro</button>
@@ -322,10 +325,11 @@ async function loadApp(){
 }
 async function loadProjects(selectId){
   projects=await api('/rest/v1/control_projects?select=id,name,active,created_at&active=eq.true&order=created_at.asc');projects=Array.isArray(projects)?projects:[];
-  const serials=await api('/rest/v1/control_project_serials?select=project_id,serial,serial_last4,active&active=eq.true');
-  serialByProject=new Map((serials||[]).map(x=>[x.project_id,x]));
+  const serials=await api('/rest/v1/control_project_serials?select=project_id,serial,serial_last4,active,created_at&active=eq.true&order=created_at.asc');
+  serialByProject=new Map();
+  for(const item of (serials||[])){if(!serialByProject.has(item.project_id))serialByProject.set(item.project_id,[]);serialByProject.get(item.project_id).push(item);}
   renderProjectList();
-  if(!projects.length){$('projectEmpty').classList.remove('hidden');$('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';$('projectPanel')?.classList.add('hidden');return}
+  if(!projects.length){currentProjectId=null;rows=[];agentRows=[];serialByProject.clear();$('projectEmpty').classList.remove('hidden');$('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';$('projectMeta').textContent='Creá un proyecto para comenzar.';$('serialValue').textContent='—';$('serialList').innerHTML='';$('archiveProjectBtn').disabled=true;renderAll();return}
   $('projectEmpty').classList.add('hidden');
   openProject(selectId||currentProjectId||projects[0].id);
 }
@@ -340,7 +344,10 @@ function openProject(id){
   const p=projects.find(x=>x.id===id);if(!p)return;
   currentProjectId=id;currentView='resumen';
   $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id;
-  const s=serialByProject.get(id);$('serialValue').textContent=s?.serial||'Sin serial visible';
+  const serials=serialByProject.get(id)||[];
+  $('serialValue').textContent=serials.length?serials[serials.length-1].serial:'Sin serial visible';
+  $('serialList').innerHTML=serials.map((s,i)=>'<div class="serial-item"><code>'+escapeHtml(s.serial)+'</code><button class="serial-copy" type="button" data-serial="'+escapeHtml(s.serial)+'" onclick="copyProjectSerial(this.dataset.serial)">Copiar</button></div>').join('');
+  $('archiveProjectBtn').disabled=false;
   setDefaultCounterDates();
   showView('resumen');renderProjectList();loadProjectData();
 }
@@ -721,11 +728,11 @@ async function createProject(){
   }catch(e){$('projectMsg').textContent='Error: '+e.message}finally{$('createProjectBtn').disabled=false}
 }
 async function generateSerial(){
-  if(!currentProjectId)return;if(!confirm('Generar un serial adicional para este proyecto? Los anteriores seguirán funcionando.'))return;
+  if(!currentProjectId)return;if(!confirm('Generar un serial adicional para este proyecto? Los seriales anteriores seguirán funcionando.'))return;
   try{
     const result=await api('/rest/v1/rpc/control_issue_serial',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});const s=Array.isArray(result)?result[0]:result;
-    serialByProject.set(currentProjectId,{project_id:currentProjectId,serial:s.serial,serial_last4:s.serial_last4,active:true});$('serialValue').textContent=s.serial;await loadProjects(currentProjectId);
-    alert('Nuevo serial generado:\n\n'+s.serial+'\n\nPegalo en Configuración del A&T Printer Agent.');
+    await loadProjects(currentProjectId);
+    alert('Nuevo serial generado para '+$('projectName').textContent+':\\n\\n'+s.serial+'\\n\\nPegalo en Configuración del A&T Printer Agent.');
   }catch(e){alert('No se pudo generar: '+e.message)}
 }
 
@@ -1005,14 +1012,28 @@ function exportProjectExcel(){
   const stamp=new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb,'AT_Printer_Control_'+safeName+'_'+stamp+'.xlsx');
 }
+async function copyProjectSerial(serial){
+  if(!serial)return;
+  try{await navigator.clipboard.writeText(serial);alert('Serial copiado.')}catch{alert('No se pudo copiar automáticamente: '+serial)}
+}
 async function copySerial(){
-  const s=serialByProject.get(currentProjectId);if(!s?.serial){alert('Este proyecto no tiene un serial visible.');return}
-  try{await navigator.clipboard.writeText(s.serial);alert('Serial copiado.')}catch{alert('No se pudo copiar automáticamente.')}
+  const list=serialByProject.get(currentProjectId)||[];const s=list[list.length-1];if(!s?.serial){alert('Este proyecto no tiene un serial visible.');return}
+  await copyProjectSerial(s.serial);
+}
+async function archiveProject(){
+  const p=projects.find(x=>x.id===currentProjectId);if(!p)return;
+  if(!confirm('¿Retirar el proyecto «'+p.name+'»? Se desactivarán sus seriales y agentes. El inventario y el historial se conservarán, pero el proyecto dejará de aparecer en la lista.'))return;
+  const btn=$('archiveProjectBtn');btn.disabled=true;btn.textContent='Retirando…';
+  try{
+    await api('/rest/v1/rpc/control_archive_project',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});
+    currentProjectId=null;await loadProjects();alert('Proyecto retirado. Se conservaron sus datos e historial.');
+  }catch(e){alert('No se pudo retirar el proyecto: '+e.message)}finally{btn.textContent='Retirar proyecto seleccionado';if(currentProjectId)btn.disabled=false}
 }
 document.querySelectorAll('.app-btn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
 $('loginBtn').addEventListener('click',login);$('signupBtn').addEventListener('click',signup);$('logoutBtn').addEventListener('click',logout);
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('newProjectBtn').addEventListener('click',()=>{$('projectModal').classList.remove('hidden');$('projectNameInput').focus()});
+$('archiveProjectBtn').addEventListener('click',archiveProject);
 $('cancelProjectBtn').addEventListener('click',()=>{$('projectModal').classList.add('hidden')});
 $('createProjectBtn').addEventListener('click',createProject);$('copySerialBtn').addEventListener('click',copySerial);$('newSerialBtn').addEventListener('click',generateSerial);
 $('cancelPrinterBtn').addEventListener('click',closePrinterEditor);$('savePrinterBtn').addEventListener('click',savePrinterMeta);
