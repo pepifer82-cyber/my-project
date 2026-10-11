@@ -732,7 +732,7 @@ async function generateSerial(){
   try{
     const result=await api('/rest/v1/rpc/control_issue_serial',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});const s=Array.isArray(result)?result[0]:result;
     await loadProjects(currentProjectId);
-    alert('Nuevo serial generado para '+$('projectName').textContent+':\\n\\n'+s.serial+'\\n\\nPegalo en Configuración del A&T Printer Agent.');
+    alert('Nuevo serial generado para '+$('projectName').textContent+':\n\n'+s.serial+'\n\nPegalo en Configuración del A&T Printer Agent.');
   }catch(e){alert('No se pudo generar: '+e.message)}
 }
 
