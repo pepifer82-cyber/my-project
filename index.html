@@ -1081,7 +1081,7 @@ async function createManagedUser(){
  }catch(e){$('newUserMsg').textContent='No se pudo crear el usuario: '+e.message}
  finally{$('createUserBtn').disabled=false}
 }
-function copyProjectSerial(serial){
+async function copyProjectSerial(serial){
   if(!serial)return;
   try{await navigator.clipboard.writeText(serial);alert('Serial copiado.')}catch{alert('No se pudo copiar automáticamente: '+serial)}
 }
