@@ -61,7 +61,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
 .summary-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px}.insight{border:1px solid var(--line);border-radius:15px;padding:15px;background:#f8fbff}.insight strong{display:block;font-size:18px}.insight span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
 .modal-back{position:fixed;inset:0;background:#0d1b2e85;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20;backdrop-filter:blur(7px)}
 .modal{width:min(520px,100%);background:#fff;border-radius:22px;padding:22px;box-shadow:0 30px 80px #0d1b2e33}.modal h2{margin:0 0 5px}.modal p{color:var(--muted);margin:0 0 18px}.modal label{font-size:12px;font-weight:800;color:#52647a}.modal input{width:100%;margin-top:7px;padding:12px 13px;border:1px solid #cdd9e7;border-radius:12px;outline:none}.modal input:focus{border-color:#7eb1ff;box-shadow:0 0 0 4px #2878ff12}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.primary{background:linear-gradient(135deg,var(--blue),#3798ff);color:#fff;padding:11px 14px;border-radius:11px;font-weight:800}.secondary{background:#edf2f7;color:#26394e;padding:11px 14px;border-radius:11px;font-weight:800}
-.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:22px;position:relative}.auth-card{width:min(470px,100%);background:#ffffffe8;border:1px solid #ffffffb5;border-radius:27px;box-shadow:0 30px 90px #23456b1a;backdrop-filter:blur(18px);padding:26px}.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:25px}.auth-brand .brand-mark{width:48px;height:48px}.auth-card h1{font-size:28px;margin:0}.auth-card p{margin:5px 0 0;color:var(--muted);font-size:13px}.auth-fields{display:grid;gap:11px;margin-top:18px}.auth-fields label{font-size:12px;font-weight:800;color:#52647a}.auth-fields input{margin-top:6px;width:100%;padding:12px 13px;border:1px solid #cdd9e7;border-radius:12px;outline:none}.auth-actions{display:flex;gap:8px;margin-top:14px}.auth-actions button{flex:1}.auth-msg{min-height:22px;margin-top:11px;font-size:13px}.ok{color:#13805e}.danger{color:#b63e4e}.muted{color:var(--muted)}
+.auth-wrap{min-height:100vh;display:grid;place-items:center;padding:22px;position:relative}.auth-card{width:min(470px,100%);background:#ffffffe8;border:1px solid #ffffffb5;border-radius:27px;box-shadow:0 30px 90px #23456b1a;backdrop-filter:blur(18px);padding:26px}.auth-brand{display:flex;align-items:center;gap:12px;margin-bottom:25px}.auth-brand .brand-mark{width:48px;height:48px}.auth-card h1{font-size:28px;margin:0}.auth-card p{margin:5px 0 0;color:var(--muted);font-size:13px}.auth-fields{display:grid;gap:11px;margin-top:18px}.auth-fields label{font-size:12px;font-weight:800;color:#52647a}.auth-fields input{margin-top:6px;width:100%;padding:12px 13px;border:1px solid #cdd9e7;border-radius:12px;outline:none}.auth-actions{display:flex;gap:8px;margin-top:14px}.auth-actions button{flex:1}.pricing-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:12px 0}.pricing-grid label,.admin-form label{display:block;font-size:12px;font-weight:800;color:#52647a}.pricing-grid input,.admin-form input,.admin-form select{width:100%;margin-top:6px;padding:10px 12px;border:1px solid #cdd9e7;border-radius:10px}.price-result{font-size:22px;font-weight:900;margin-top:10px}.admin-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}@media(max-width:700px){.pricing-grid,.admin-form{grid-template-columns:1fr}}.auth-msg{min-height:22px;margin-top:11px;font-size:13px}.ok{color:#13805e}.danger{color:#b63e4e}.muted{color:var(--muted)}
 @media(max-width:1180px){.launcher{grid-template-columns:repeat(3,minmax(0,1fr))}.serial-panel{min-width:300px}.summary-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app-shell{padding:10px;gap:10px}.sidebar{width:220px;flex-basis:220px;top:10px;height:calc(100vh - 20px)}.hero{align-items:stretch;flex-direction:column}.serial-panel{max-width:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.app-shell{display:block}.sidebar{position:static;width:auto;height:auto;margin-bottom:10px}.project-list{max-height:180px}.toolbar-input{min-width:0;flex:1}.content-tools{width:100%}.topbar{flex-wrap:wrap}.launcher{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
@@ -80,7 +80,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     </div>
     <div class="auth-actions">
       <button id="loginBtn" class="primary" type="button">Ingresar</button>
-      <button id="signupBtn" class="secondary" type="button">Crear cuenta</button>
+      
     </div>
     <div id="authMsg" class="auth-msg muted"></div>
   </div>
@@ -98,7 +98,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     <div id="projectEmpty" class="empty hidden">No hay proyectos.</div>
     <div class="side-bottom">
       <button id="newProjectBtn" class="side-action" type="button">＋ Nuevo proyecto</button>
-      <button id="archiveProjectBtn" class="side-danger" type="button" disabled>Retirar proyecto seleccionado</button>
+      <button id="archiveProjectBtn" class="side-danger" type="button" disabled>Retirar proyecto seleccionado</button><button id="adminNavBtn" class="side-action hidden" type="button" style="margin-top:8px">⚙ Administrar</button>
     </div>
   </aside>
 
@@ -132,7 +132,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       <button class="app-btn" data-view="desconectadas" type="button"><div class="app-icon">!</div><div class="app-title">Desconectadas</div><div class="app-sub">Atención requerida</div></button>
       <button class="app-btn" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
       <button class="app-btn" data-view="contadores" type="button"><div class="app-icon">#</div><div class="app-title">Contadores</div><div class="app-sub">Historial por fechas</div></button>
-      <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button>
+      <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
     </section>
 
     <section class="kpis">
@@ -188,13 +188,32 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       </div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
-        <th>Fecha / hora</th><th>Impresora</th><th>Ciudad</th><th>Serie</th><th>Contador</th><th>Anterior</th><th>Páginas</th><th>Estado</th><th>Agente</th>
+        <th>Fecha / hora</th><th>Impresora</th><th>Ciudad</th><th>Serie</th><th>Contador impresión</th><th>Anterior</th><th>Páginas impresas</th><th>Contador escáner</th><th>Estado</th><th>Agente</th>
       </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
     <section id="view-retiradas" class="content-card hidden">
-      <div class="content-head"><div><h3>Impresoras retiradas</h3><small>Se conservan los datos y el historial, pero no aparecen en el control activo.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
+      <div class="content-head"><div><h3>Impresoras retiradas</h3><small>Se conservan los datos y el historial, pero no aparecen en el control activo.</small></div><div class="content-tools"><input id="retiredSearch" class="toolbar-input" type="search" placeholder="Buscar retirada: nombre, IP, serie, ciudad..."><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div></div>
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Estado anterior</th><th>Último contacto</th><th>Agente</th><th>IP</th><th>Retirada</th><th></th></tr></thead><tbody id="retiredBody"></tbody></table></div>
+    </section>
+    <section id="view-administrar" class="content-card hidden">
+      <div class="content-head"><div><h2>Administración exclusiva</h2><small>Solo el administrador puede crear usuarios y definir tarifas.</small></div></div>
+      <div class="insight"><strong>Tarifa por páginas</strong><span>Las páginas incluidas no se cobran. Se cobra solamente el excedente.</span></div>
+      <div class="pricing-grid">
+        <div><label for="freePagesInput">Páginas incluidas sin cargo</label><input id="freePagesInput" type="number" min="0" step="1" value="2000"></div>
+        <div><label for="pricePerPageInput">Precio por página adicional (Gs.)</label><input id="pricePerPageInput" type="number" min="0" step="1" value="0"></div>
+        <div><label for="samplePagesInput">Cantidad de páginas a calcular</label><input id="samplePagesInput" type="number" min="0" step="1" value="2000"></div>
+      </div>
+      <div class="insight"><span>Excedente facturable</span><strong id="billablePages">0 páginas</strong><span>Total estimado</span><div id="priceTotal" class="price-result">Gs. 0</div></div>
+      <div class="content-tools" style="margin-top:12px"><button id="savePricingBtn" class="toolbar-btn primary" type="button">Guardar tarifa</button><span id="pricingMsg" class="muted"></span></div>
+      <div style="height:1px;background:#dce6f2;margin:22px 0"></div>
+      <div class="content-head"><div><h3>Agregar usuario</h3><small>Crearás una cuenta y la asignarás a un proyecto seleccionado.</small></div></div>
+      <div class="admin-form">
+        <div><label for="newUserEmail">Correo del usuario</label><input id="newUserEmail" type="email" placeholder="usuario@correo.com"></div>
+        <div><label for="newUserPassword">Contraseña inicial</label><input id="newUserPassword" type="password" minlength="6" placeholder="Mínimo 6 caracteres"></div>
+        <div><label for="newUserProject">Proyecto al que tendrá acceso</label><select id="newUserProject"></select></div>
+      </div>
+      <div class="content-tools" style="margin-top:12px"><button id="createUserBtn" class="toolbar-btn primary" type="button">＋ Crear usuario</button><span id="newUserMsg" class="muted"></span></div>
     </section>
   </main>
 </div>
@@ -237,7 +256,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
-let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',counterRows=[];
+let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
 const $=id=>document.getElementById(id);
 const token=()=>localStorage.getItem(ACCESS_KEY)||'';
 function saveSession(s){if(s?.access_token)localStorage.setItem(ACCESS_KEY,s.access_token);if(s?.refresh_token)localStorage.setItem(REFRESH_KEY,s.refresh_token)}
@@ -255,7 +274,7 @@ async function api(path,opts={}){
 async function login(){
   const email=$('email').value.trim(),password=$('password').value;
   if(!email||!password){authMsg('Ingresá correo y contraseña.','danger');return}
-  $('loginBtn').disabled=true;$('signupBtn').disabled=true;authMsg('Ingresando...');
+  $('loginBtn').disabled=true;authMsg('Ingresando...');
 
   // Elimina una sesión vieja antes de iniciar otra para evitar
   // que un refresh token vencido interfiera con el acceso actual.
@@ -279,7 +298,7 @@ async function login(){
     authMsg('No se pudo ingresar: '+e.message,'danger');
   }finally{
     $('loginBtn').disabled=false;
-    $('signupBtn').disabled=false;
+    
   }
 }
 async function signup(){
@@ -314,6 +333,9 @@ async function loadApp(){
   // Un error aquí no debe borrar una sesión válida.
   try{
     await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
+    const memberships=await api('/rest/v1/control_project_members?select=role,active&user_id=eq.'+encodeURIComponent(currentUser.id)+'&active=eq.true').catch(()=>[]);
+    isAdmin=Array.isArray(memberships)&&memberships.some(m=>['owner','admin'].includes(String(m.role||'').toLowerCase()));
+    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('newProjectBtn').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);
     await loadProjects();
     return true;
   }catch(e){
@@ -353,7 +375,9 @@ function openProject(id){
 }
 function showView(view){
   currentView=view;
-  ['resumen','inventario','tinta','desconectadas','agentes','contadores','retiradas'].forEach(v=>$('view-'+v).classList.toggle('hidden',v!==view));
+  ['resumen','inventario','tinta','desconectadas','agentes','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
+  if(view==='administrar'&&!isAdmin){showView('resumen');return}
+  if(view==='administrar'){loadPricing();populateUserProjectSelect();}
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
 $('counterExcelBtn').addEventListener('click',exportCountersExcel);
 $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
@@ -715,7 +739,9 @@ function renderAll(){
   $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Se consideran desconectadas las impresoras sin contacto durante más de 15 minutos.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
-  $('retiredBody').innerHTML=retiredRows.length?retiredRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.last_status||'—')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.retired_at?new Date(r.retired_at).toLocaleString():'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',false)">Restaurar</button></td></tr>').join(''):'<tr><td colspan="9" class="empty">No hay impresoras retiradas.</td></tr>';
+  const retiredTerm=retiredSearch.trim().toLowerCase();
+  const visibleRetired=retiredTerm?retiredRows.filter(r=>[r.display_name,r.description,r.city,r.last_status,r.agent_code,r.machine_name,r.ip_address,r.serial_number].some(v=>String(v??'').toLowerCase().includes(retiredTerm))):retiredRows;
+  $('retiredBody').innerHTML=visibleRetired.length?visibleRetired.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.last_status||'—')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.retired_at?new Date(r.retired_at).toLocaleString():'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',false)">Restaurar</button></td></tr>').join(''):'<tr><td colspan="9" class="empty">No hay impresoras retiradas.</td></tr>';
   $('agentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td>'+escapeHtml(a.agent_code)+'</td><td>'+escapeHtml(a.machine_name)+'</td><td>'+escapeHtml(a.windows_user)+'</td><td>'+escapeHtml(a.app_version)+'</td><td>'+statePill(agentState(a))+'</td><td>'+escapeHtml(lastContact(a.last_seen_at))+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">No hay agentes registrados.</td></tr>';
 }
 async function createProject(){
@@ -914,7 +940,8 @@ async function exportCountersExcel(){
       Serie:lastRow.serial_number||'',
       'Contador inicial':first==null?'':Number(first),
       'Contador final':last==null?'':Number(last),
-      'Páginas del período':printed,
+      'Páginas impresas del período':printed,
+      'Contador escáner':lastRow.scanner_count==null?'':Number(lastRow.scanner_count),
       'Última lectura':lastRow.reading_at?new Date(lastRow.reading_at).toLocaleString('es-PY'):'',
       Estado:counterStatus(lastRow),
       Agente:lastRow.agent||''
@@ -1012,7 +1039,56 @@ function exportProjectExcel(){
   const stamp=new Date().toISOString().slice(0,10);
   XLSX.writeFile(wb,'AT_Printer_Control_'+safeName+'_'+stamp+'.xlsx');
 }
-async function copyProjectSerial(serial){
+async function updatePriceEstimate(){
+ const free=Math.max(0,Math.floor(Number($('freePagesInput').value)||0));
+ const rate=Math.max(0,Math.floor(Number($('pricePerPageInput').value)||0));
+ const pages=Math.max(0,Math.floor(Number($('samplePagesInput').value)||0));
+ const billable=Math.max(0,pages-free);
+ $('billablePages').textContent=billable.toLocaleString('es-PY')+' páginas';
+ $('priceTotal').textContent='Gs. '+(billable*rate).toLocaleString('es-PY');
+}
+async function loadPricing(){
+ if(!currentProjectId||!isAdmin)return;
+ $('pricingMsg').textContent='Cargando tarifa…';
+ try{
+  const data=await api('/rest/v1/rpc/control_get_pricing',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});
+  const row=Array.isArray(data)?data[0]:data;
+  pricing={free_pages:Number(row?.free_pages??2000),price_per_page:Number(row?.price_per_page??0)};
+  $('freePagesInput').value=pricing.free_pages;$('pricePerPageInput').value=pricing.price_per_page;
+  updatePriceEstimate();$('pricingMsg').textContent='Tarifa del proyecto cargada.';
+ }catch(e){$('pricingMsg').textContent='No se pudo cargar la tarifa: '+e.message}
+}
+async function savePricing(){
+ if(!isAdmin||!currentProjectId)return;
+ const free=Math.max(0,Math.floor(Number($('freePagesInput').value)||0));
+ const rate=Math.max(0,Math.floor(Number($('pricePerPageInput').value)||0));
+ $('savePricingBtn').disabled=true;$('pricingMsg').textContent='Guardando…';
+ try{
+  await api('/rest/v1/rpc/control_save_pricing',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId,p_free_pages:free,p_price_per_page:rate})});
+  pricing={free_pages:free,price_per_page:rate};updatePriceEstimate();$('pricingMsg').textContent='Tarifa guardada para este proyecto.';
+ }catch(e){$('pricingMsg').textContent='No se pudo guardar la tarifa: '+e.message}
+ finally{$('savePricingBtn').disabled=false}
+}
+function populateUserProjectSelect(){
+ const sel=$('newUserProject');if(!sel)return;
+ sel.innerHTML=projects.map(p=>'<option value="'+escapeHtml(p.id)+'">'+escapeHtml(p.name)+'</option>').join('');
+ if(currentProjectId)sel.value=currentProjectId;
+}
+async function createManagedUser(){
+ if(!isAdmin){$('newUserMsg').textContent='Solo el administrador puede crear usuarios.';return}
+ const email=$('newUserEmail').value.trim(),password=$('newUserPassword').value,project_id=$('newUserProject').value;
+ if(!email||password.length<6||!project_id){$('newUserMsg').textContent='Completá correo, contraseña (mínimo 6 caracteres) y proyecto.';return}
+ $('createUserBtn').disabled=true;$('newUserMsg').textContent='Creando usuario…';
+ try{
+  const res=await fetch(SUPABASE_URL+'/functions/v1/control-admin-users',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token()},body:JSON.stringify({email,password,project_id})});
+  const body=await res.json().catch(()=>({}));
+  if(!res.ok||!body.ok)throw new Error(body.error||('HTTP '+res.status));
+  $('newUserEmail').value='';$('newUserPassword').value='';
+  $('newUserMsg').textContent='Usuario creado y asignado al proyecto.';
+ }catch(e){$('newUserMsg').textContent='No se pudo crear el usuario: '+e.message}
+ finally{$('createUserBtn').disabled=false}
+}
+function copyProjectSerial(serial){
   if(!serial)return;
   try{await navigator.clipboard.writeText(serial);alert('Serial copiado.')}catch{alert('No se pudo copiar automáticamente: '+serial)}
 }
@@ -1030,10 +1106,13 @@ async function archiveProject(){
   }catch(e){alert('No se pudo retirar el proyecto: '+e.message)}finally{btn.textContent='Retirar proyecto seleccionado';if(currentProjectId)btn.disabled=false}
 }
 document.querySelectorAll('.app-btn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
-$('loginBtn').addEventListener('click',login);$('signupBtn').addEventListener('click',signup);$('logoutBtn').addEventListener('click',logout);
+$('adminNavBtn').addEventListener('click',()=>showView('administrar'));
+$('loginBtn').addEventListener('click',login);$('logoutBtn').addEventListener('click',logout);
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('newProjectBtn').addEventListener('click',()=>{$('projectModal').classList.remove('hidden');$('projectNameInput').focus()});
 $('archiveProjectBtn').addEventListener('click',archiveProject);
+$('retiredSearch').addEventListener('input',e=>{retiredSearch=e.target.value;renderAll()});
+$('freePagesInput').addEventListener('input',updatePriceEstimate);$('pricePerPageInput').addEventListener('input',updatePriceEstimate);$('samplePagesInput').addEventListener('input',updatePriceEstimate);$('savePricingBtn').addEventListener('click',savePricing);$('createUserBtn').addEventListener('click',createManagedUser);
 $('cancelProjectBtn').addEventListener('click',()=>{$('projectModal').classList.add('hidden')});
 $('createProjectBtn').addEventListener('click',createProject);$('copySerialBtn').addEventListener('click',copySerial);$('newSerialBtn').addEventListener('click',generateSerial);
 $('cancelPrinterBtn').addEventListener('click',closePrinterEditor);$('savePrinterBtn').addEventListener('click',savePrinterMeta);
