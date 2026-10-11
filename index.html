@@ -327,7 +327,7 @@ async function loadApp(){
     await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
     const memberships=await api('/rest/v1/control_project_members?select=role,active&user_id=eq.'+encodeURIComponent(currentUser.id)+'&active=eq.true').catch(()=>[]);
     isAdmin=Array.isArray(memberships)&&memberships.some(m=>['owner','admin'].includes(String(m.role||'').toLowerCase()));
-    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('newProjectBtn').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);
+    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('newProjectBtn').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);
     await loadProjects();
     return true;
   }catch(e){
