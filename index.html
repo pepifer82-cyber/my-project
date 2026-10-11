@@ -882,7 +882,8 @@ function renderCounterRows(){
       '<td>'+escapeHtml(r.page_count==null?'—':Number(r.page_count).toLocaleString())+'</td>'+
       '<td>'+escapeHtml(r.previous_page_count==null?'—':Number(r.previous_page_count).toLocaleString())+'</td>'+
       '<td>'+escapeHtml(pages)+'</td>'+
-      '<td>'+escapeHtml(counterStatus(r))+'</td>'+
+      '<td>'+escapeHtml(r.scanner_count==null?'—':Number(r.scanner_count).toLocaleString())+'</td>'+
+      '<td>'+escapeHtml(counterStatus(r))+' </td>'+
       '<td>'+escapeHtml(r.agent||'—')+'</td>'+
     '</tr>';
   }).join('');
