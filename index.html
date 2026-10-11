@@ -213,7 +213,11 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
         <div><label for="newUserPassword">Contraseña inicial</label><input id="newUserPassword" type="password" minlength="6" placeholder="Mínimo 6 caracteres"></div>
         <div><label for="newUserProject">Proyecto al que tendrá acceso</label><select id="newUserProject"></select></div>
       </div>
-      <div class="content-tools" style="margin-top:12px"><button id="createUserBtn" class="toolbar-btn primary" type="button">＋ Crear usuario</button><span id="newUserMsg" class="muted"></span></div>
+      <div class="content-tools" style="margin-top:12px"><button id="createUserBtn" class="toolbar-btn primary" type="button">＋ Agregar usuario al proyecto</button><span id="newUserMsg" class="muted"></span></div>
+      <div style="height:1px;background:#dce6f2;margin:22px 0"></div>
+      <div class="content-head"><div><h3>Usuarios del proyecto</h3><small>Modificá el correo, asigná una contraseña nueva o eliminá el acceso.</small></div><button id="refreshUsersBtn" class="toolbar-btn" type="button">↻ Actualizar lista</button></div>
+      <div id="usersListMsg" class="muted" style="font-size:12px;margin-bottom:10px">Seleccioná un proyecto para ver sus usuarios.</div>
+      <div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Correo</th><th>Nueva contraseña (opcional)</th><th>Tipo de acceso</th><th>Acciones</th></tr></thead><tbody id="managedUsersBody"></tbody></table></div>
     </section>
   </main>
 </div>
@@ -369,7 +373,7 @@ function showView(view){
   currentView=view;
   ['resumen','inventario','tinta','desconectadas','agentes','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
   if(view==='administrar'&&!isAdmin){showView('resumen');return}
-  if(view==='administrar'){loadPricing();populateUserProjectSelect();}
+  if(view==='administrar'){populateUserProjectSelect();loadPricing();loadManagedUsers();}
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
 $('counterExcelBtn').addEventListener('click',exportCountersExcel);
 $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
@@ -1064,22 +1068,83 @@ async function savePricing(){
 }
 function populateUserProjectSelect(){
  const sel=$('newUserProject');if(!sel)return;
+ const previous=sel.value;
  sel.innerHTML=projects.map(p=>'<option value="'+escapeHtml(p.id)+'">'+escapeHtml(p.name)+'</option>').join('');
  if(currentProjectId)sel.value=currentProjectId;
+ else if(previous&&projects.some(p=>p.id===previous))sel.value=previous;
+}
+async function userAdminRequest(payload){
+ const res=await fetch(SUPABASE_URL+'/functions/v1/control-admin-users',{
+  method:'POST',
+  headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token()},
+  body:JSON.stringify(payload)
+ });
+ const body=await res.json().catch(()=>({}));
+ if(!res.ok||!body.ok)throw new Error(body.error||body.message||('HTTP '+res.status));
+ return body;
 }
 async function createManagedUser(){
  if(!isAdmin){$('newUserMsg').textContent='Solo el administrador puede crear usuarios.';return}
  const email=$('newUserEmail').value.trim(),password=$('newUserPassword').value,project_id=$('newUserProject').value;
- if(!email||password.length<6||!project_id){$('newUserMsg').textContent='Completá correo, contraseña (mínimo 6 caracteres) y proyecto.';return}
- $('createUserBtn').disabled=true;$('newUserMsg').textContent='Creando usuario…';
+ if(!email||!project_id){$('newUserMsg').textContent='Completá correo y proyecto.';return}
+ if(password&&password.length<6){$('newUserMsg').textContent='La contraseña debe tener al menos 6 caracteres.';return}
+ $('createUserBtn').disabled=true;$('newUserMsg').textContent='Agregando usuario…';
  try{
-  const res=await fetch(SUPABASE_URL+'/functions/v1/control-admin-users',{method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token()},body:JSON.stringify({email,password,project_id})});
-  const body=await res.json().catch(()=>({}));
-  if(!res.ok||!body.ok)throw new Error(body.error||('HTTP '+res.status));
+  const result=await userAdminRequest({action:'create',email,password,project_id});
   $('newUserEmail').value='';$('newUserPassword').value='';
-  $('newUserMsg').textContent='Usuario creado y asignado al proyecto.';
- }catch(e){$('newUserMsg').textContent='No se pudo crear el usuario: '+e.message}
+  $('newUserMsg').textContent=result.account_created?'Usuario creado correctamente y asignado al proyecto.':'La cuenta ya existía y se le concedió acceso a este proyecto.';
+  await loadManagedUsers();
+ }catch(e){$('newUserMsg').textContent='No se pudo agregar el usuario: '+e.message}
  finally{$('createUserBtn').disabled=false}
+}
+async function loadManagedUsers(){
+ const project_id=$('newUserProject')?.value||currentProjectId;
+ const body=$('managedUsersBody');
+ if(!isAdmin||!project_id||!body)return;
+ $('usersListMsg').textContent='Cargando usuarios…';
+ try{
+  const result=await userAdminRequest({action:'list',project_id});
+  const users=Array.isArray(result.users)?result.users:[];
+  const visible=users.filter(u=>u.user_id!==currentUser?.id);
+  body.innerHTML=visible.length?visible.map(u=>{
+   const email=escapeHtml(u.email||'(sin correo)');
+   return '<tr class="managed-user-row" data-user-id="'+escapeHtml(u.user_id)+'">'+
+    '<td><input class="toolbar-input" style="min-width:220px;width:100%" type="email" data-field="email" value="'+email+'" aria-label="Correo del usuario"></td>'+
+    '<td><input class="toolbar-input" style="min-width:180px;width:100%" type="password" data-field="password" placeholder="No cambiar" autocomplete="new-password"></td>'+
+    '<td>'+(u.active===false?'Desactivado':'Usuario normal')+'</td>'+
+    '<td><div class="content-tools"><button class="icon-btn" type="button" onclick="updateManagedUser(this)">Guardar</button><button class="side-danger" style="width:auto;margin:0;padding:7px 9px" type="button" onclick="removeManagedUser(this)">Eliminar</button></div></td>'+
+   '</tr>';
+  }).join(''):'<tr><td colspan="4" class="empty">No hay otros usuarios asignados a este proyecto.</td></tr>';
+  $('usersListMsg').textContent=users.length?'Usuarios encontrados: '+users.length+'.':'La lista está vacía.';
+ }catch(e){body.innerHTML='<tr><td colspan="4" class="empty">No se pudo cargar la lista.</td></tr>';$('usersListMsg').textContent='Error al listar usuarios: '+e.message}
+}
+async function updateManagedUser(button){
+ const row=button?.closest('.managed-user-row');if(!row)return;
+ const email=row.querySelector('[data-field="email"]').value.trim();
+ const password=row.querySelector('[data-field="password"]').value;
+ const user_id=row.dataset.userId,project_id=$('newUserProject').value;
+ if(!email.includes('@')){alert('Ingresá un correo válido.');return}
+ if(password&&password.length<6){alert('La contraseña debe tener al menos 6 caracteres.');return}
+ button.disabled=true;
+ try{
+  await userAdminRequest({action:'update',user_id,project_id,email,password});
+  row.querySelector('[data-field="password"]').value='';
+  $('usersListMsg').textContent='Usuario actualizado correctamente.';
+ }catch(e){alert('No se pudo modificar el usuario: '+e.message)}
+ finally{button.disabled=false}
+}
+async function removeManagedUser(button){
+ const row=button?.closest('.managed-user-row');if(!row)return;
+ const user_id=row.dataset.userId,project_id=$('newUserProject').value;
+ const email=row.querySelector('[data-field="email"]').value.trim();
+ if(!confirm('¿Eliminar el acceso de '+email+'? Si no tiene acceso a otros proyectos, también se eliminará su cuenta.'))return;
+ button.disabled=true;
+ try{
+  const result=await userAdminRequest({action:'remove',user_id,project_id});
+  $('usersListMsg').textContent=result.message||'Usuario eliminado.';
+  await loadManagedUsers();
+ }catch(e){alert('No se pudo eliminar el usuario: '+e.message)}
+ finally{button.disabled=false}
 }
 async function copyProjectSerial(serial){
   if(!serial)return;
@@ -1105,7 +1170,7 @@ $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('newProjectBtn').addEventListener('click',()=>{$('projectModal').classList.remove('hidden');$('projectNameInput').focus()});
 $('archiveProjectBtn').addEventListener('click',archiveProject);
 $('retiredSearch').addEventListener('input',e=>{retiredSearch=e.target.value;renderAll()});
-$('freePagesInput').addEventListener('input',updatePriceEstimate);$('pricePerPageInput').addEventListener('input',updatePriceEstimate);$('samplePagesInput').addEventListener('input',updatePriceEstimate);$('savePricingBtn').addEventListener('click',savePricing);$('createUserBtn').addEventListener('click',createManagedUser);
+$('newUserProject').addEventListener('change',loadManagedUsers);$('refreshUsersBtn').addEventListener('click',loadManagedUsers);$('freePagesInput').addEventListener('input',updatePriceEstimate);$('pricePerPageInput').addEventListener('input',updatePriceEstimate);$('samplePagesInput').addEventListener('input',updatePriceEstimate);$('savePricingBtn').addEventListener('click',savePricing);$('createUserBtn').addEventListener('click',createManagedUser);
 $('cancelProjectBtn').addEventListener('click',()=>{$('projectModal').classList.add('hidden')});
 $('createProjectBtn').addEventListener('click',createProject);$('copySerialBtn').addEventListener('click',copySerial);$('newSerialBtn').addEventListener('click',generateSerial);
 $('cancelPrinterBtn').addEventListener('click',closePrinterEditor);$('savePrinterBtn').addEventListener('click',savePrinterMeta);
