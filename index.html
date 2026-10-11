@@ -301,14 +301,6 @@ async function login(){
     
   }
 }
-async function signup(){
-  const email=$('email').value.trim(),password=$('password').value;
-  if(!email||!password){authMsg('Ingresá correo y contraseña.','danger');return}
-  if(password.length<6){authMsg('La contraseña debe tener al menos 6 caracteres.','danger');return}
-  $('loginBtn').disabled=true;$('signupBtn').disabled=true;authMsg('Creando cuenta...');
-  try{const s=await api('/auth/v1/signup',{method:'POST',body:JSON.stringify({email,password})});if(s?.access_token){saveSession(s);await loadApp()}else authMsg('Cuenta creada. Confirmá el correo si Supabase lo solicita y luego ingresá.','ok')}
-  catch(e){authMsg('No se pudo crear la cuenta: '+e.message,'danger')}finally{$('loginBtn').disabled=false;$('signupBtn').disabled=false}
-}
 async function logout(){try{await api('/auth/v1/logout',{method:'POST'})}catch{}clearSession();location.reload()}
 async function loadApp(){
   if(!token())return false;
@@ -854,7 +846,7 @@ function renderCounterRows(){
   const body=$('counterBody');
   if(!body)return;
   if(!counterRows.length){
-    body.innerHTML='<tr><td colspan="9" class="empty">No hay lecturas de impresoras activas para el período.</td></tr>';
+    body.innerHTML='<tr><td colspan="10" class="empty">No hay lecturas de impresoras activas para el período.</td></tr>';
     return;
   }
 
