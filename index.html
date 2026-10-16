@@ -381,6 +381,8 @@ $('inventorySearch').addEventListener('input',e=>{inventorySearch=e.target.value
 $('refreshBtn').addEventListener('click',()=>loadProjectData());
 $('exportExcelBtn').addEventListener('click',exportProjectExcel);
 document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
+  // Al abrir Contadores, consultar el período predeterminado automáticamente.
+  if(view==='contadores')loadCounterHistory(true);
 }
 async function loadProjectData(){
   if(!currentProjectId)return;
@@ -819,14 +821,10 @@ async function loadCounterHistory(showMessage=true){
     });
     const history=Array.isArray(result)?result.filter(isRealPrinter):[];
 
-    // Solo mostramos impresoras que siguen activas en el proyecto.
-    // Los equipos retirados conservan su historial en Supabase, pero no
-    // aparecen en Contadores ni en la exportación.
-    const activeSource=rows.filter(r=>r.retired!==true && isRealPrinter(r));
-    const canonicalActive=dedupePrinterRows(activeSource);
-    const activeIds=new Set(canonicalActive.map(r=>String(r.printer_id)));
-
-    counterRows=history.filter(r=>activeIds.has(String(r.printer_id)));
+    // Supabase ya filtra impresoras retiradas/deshabilitadas en la función
+    // control_get_counter_history. No cruzamos contra "rows": eso podía ocultar
+    // lecturas válidas si el inventario todavía estaba cargando o fallaba.
+    counterRows=history;
     renderCounterRows();
 
     if(showMessage){
