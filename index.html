@@ -833,7 +833,7 @@ let remoteConfigHistoryTimer=null;
 function closeAgentRemoteConfig(){const m=$('remoteConfigModal');if(m)m.style.display='none';if(remoteConfigHistoryTimer){clearInterval(remoteConfigHistoryTimer);remoteConfigHistoryTimer=null}}
 function remoteIpv4(v){const p=String(v||'').trim().split('.');return p.length===4&&p.every(x=>/^\d{1,3}$/.test(x)&&Number(x)>=0&&Number(x)<=255)}
 function remoteCommandTitle(c){return({set_usb_control:'Configuración USB',add_ip:'Agregar IP',remove_ip:'Quitar IP',add_ip_range:'Agregar rango IP',remove_ip_range:'Quitar rango IP',set_network_scan:'Búsqueda de red',set_interval:'Intervalo de envío',rescan_now:'Buscar ahora'})[c]||c}
-function remoteCommandStatus(s){return({queued:'En espera',done:'Aplicado',failed:'Error'})[s]||s||'Desconocido'}
+function remoteCommandStatus(s){return({queued:'En espera',running:'En proceso',done:'Aplicado',failed:'Error',cancelled:'Cancelado'})[s]||s||'Desconocido'}
 function ensureAgentRemoteModal(){
  if($('remoteConfigModal'))return;
  document.body.insertAdjacentHTML('beforeend',`<div id="remoteConfigModal" style="display:none;position:fixed;inset:0;z-index:10000;background:#0b1525c9;align-items:center;justify-content:center;padding:14px">
@@ -865,7 +865,25 @@ async function refreshAgentRemoteCommands(prefill){
  if(!remoteConfigAgentId||!currentProjectId)return;
  try{
   const list=await api('/rest/v1/printer_agent_commands?select=id,command,payload,status,created_at,completed_at,result_message&project_id=eq.'+encodeURIComponent(currentProjectId)+'&agent_id=eq.'+encodeURIComponent(remoteConfigAgentId)+'&order=created_at.desc&limit=20');
-  if(prefill){const agent=agentRows.find(a=>String(a.id)===String(remoteConfigAgentId)),state=agent?.remote_config||{};if(state.reported_at){$('remoteUsbEnabled').checked=state.usb_control_enabled===true;$('remoteNetworkEnabled').checked=state.network_scan_enabled===true;$('remoteInterval').value=String([1800,3600,7200].includes(Number(state.sync_interval_seconds))?Number(state.sync_interval_seconds):1800);const ips=Array.isArray(state.network_ips)?state.network_ips:[],ranges=Array.isArray(state.network_ranges)?state.network_ranges:[];$('remoteAgentSnapshot').innerHTML='<b>Configuración local reportada: '+escapeHtml(new Date(state.reported_at).toLocaleString())+'</b><br>USB: '+(state.usb_control_enabled?'activado':'desactivado')+' · Red: '+(state.network_scan_enabled?'activada':'desactivada')+' · Intervalo: '+escapeHtml(Number(state.sync_interval_seconds)/60)+' min<br>IPs: '+escapeHtml(ips.join(', ')||'ninguna')+'<br>Rango principal: '+escapeHtml(state.network_range_start&&state.network_range_end?state.network_range_start+' - '+state.network_range_end:'ninguno')+'<br>Rangos adicionales: '+escapeHtml(ranges.join('; ')||'ninguno')}else{const u=(list||[]).find(c=>c.command==='set_usb_control'),n=(list||[]).find(c=>c.command==='set_network_scan'),i=(list||[]).find(c=>c.command==='set_interval');if(u&&typeof u.payload?.enabled==='boolean')$('remoteUsbEnabled').checked=u.payload.enabled;if(n&&typeof n.payload?.enabled==='boolean')$('remoteNetworkEnabled').checked=n.payload.enabled;if(i&&[1800,3600,7200].includes(Number(i.payload?.seconds)))$('remoteInterval').value=String(i.payload.seconds);$('remoteAgentSnapshot').textContent='Esta instalación todavía no reportó su configuración local. Los controles muestran los valores predeterminados o los últimos cambios solicitados.'}}
+  // Refresh the agent snapshot while the modal is open so acknowledged remote changes appear without closing it.
+  const freshAgents=await api('/rest/v1/printer_agents?select=id,remote_config&id=eq.'+encodeURIComponent(remoteConfigAgentId)+'&limit=1');
+  const freshAgent=Array.isArray(freshAgents)?freshAgents[0]:null;
+  const localAgent=agentRows.find(a=>String(a.id)===String(remoteConfigAgentId));
+  if(freshAgent&&localAgent)localAgent.remote_config=freshAgent.remote_config||{};
+  const state=(freshAgent?.remote_config)||(localAgent?.remote_config)||{};
+  if(state.reported_at){
+    $('remoteUsbEnabled').checked=state.usb_control_enabled===true;
+    $('remoteNetworkEnabled').checked=state.network_scan_enabled===true;
+    $('remoteInterval').value=String([1800,3600,7200].includes(Number(state.sync_interval_seconds))?Number(state.sync_interval_seconds):1800);
+    const ips=Array.isArray(state.network_ips)?state.network_ips:[],ranges=Array.isArray(state.network_ranges)?state.network_ranges:[];
+    $('remoteAgentSnapshot').innerHTML='<b>Configuración aplicada/reportada: '+escapeHtml(new Date(state.reported_at).toLocaleString())+'</b><br>USB: '+(state.usb_control_enabled?'activado':'desactivado')+' · Red: '+(state.network_scan_enabled?'activada':'desactivada')+' · Intervalo: '+escapeHtml(Number(state.sync_interval_seconds)/60)+' min<br>IPs: '+escapeHtml(ips.join(', ')||'ninguna')+'<br>Rango principal: '+escapeHtml(state.network_range_start&&state.network_range_end?state.network_range_start+' - '+state.network_range_end:'ninguno')+'<br>Rangos adicionales: '+escapeHtml(ranges.join('; ')||'ninguno');
+  }else if(prefill){
+    const u=(list||[]).find(c=>c.command==='set_usb_control'),n=(list||[]).find(c=>c.command==='set_network_scan'),i=(list||[]).find(c=>c.command==='set_interval');
+    if(u&&typeof u.payload?.enabled==='boolean')$('remoteUsbEnabled').checked=u.payload.enabled;
+    if(n&&typeof n.payload?.enabled==='boolean')$('remoteNetworkEnabled').checked=n.payload.enabled;
+    if(i&&[1800,3600,7200].includes(Number(i.payload?.seconds)))$('remoteInterval').value=String(i.payload.seconds);
+    $('remoteAgentSnapshot').textContent='Esta instalación todavía no reportó su configuración. Se mostrarán los valores aplicados cuando el agente confirme el primer cambio remoto.';
+  }
   $('remoteCommandHistory').innerHTML=(list||[]).length?list.map(c=>{const color=c.status==='done'?'#087443':c.status==='failed'?'#b42335':'#946200';return '<div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:7px 3px;border-bottom:1px solid #f1f5f9"><div><b>#'+escapeHtml(c.id)+' · '+escapeHtml(remoteCommandTitle(c.command))+'</b><div style="color:#64748b;margin-top:2px">'+escapeHtml(c.result_message||JSON.stringify(c.payload||{}))+'</div></div><div style="text-align:right;white-space:nowrap;color:'+color+';font-weight:800">'+escapeHtml(remoteCommandStatus(c.status))+'<div style="font-size:10px;color:#64748b;font-weight:400">'+escapeHtml(c.completed_at?new Date(c.completed_at).toLocaleString():new Date(c.created_at).toLocaleString())+'</div></div></div>'}).join(''):'<div style="padding:8px;color:#64748b">Todavía no hay comandos para esta instalación.</div>';
  }catch(e){$('remoteCommandHistory').textContent='No se pudo leer el historial. Verificá que tu usuario administre este proyecto.'}
 }
