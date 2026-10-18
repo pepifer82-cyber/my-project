@@ -202,7 +202,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       </div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
-        <th>Fecha / hora</th><th>Impresora</th><th>Ciudad</th><th>Serie</th><th>Contador impresión</th><th>Anterior</th><th>Páginas impresas</th><th>Contador escáner</th><th>Estado</th><th>Agente</th>
+        <th>Día con lecturas</th><th>Impresora</th><th>Ciudad</th><th>Serie</th><th>Contador inicial</th><th>Contador final</th><th>Páginas impresas del día</th><th>Escaneos del día</th><th>Contador escáner final</th><th>Lecturas del día</th><th>Estado en última lectura</th><th>Agente</th>
       </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
@@ -893,33 +893,23 @@ async function loadCounterHistory(showMessage=true){
   const dates=validateCounterDates();
   if(!dates)return [];
   const msg=$('counterMsg');
-  if(showMessage)msg.textContent='Consultando contadores...';
+  if(showMessage)msg.textContent='Consultando resumen diario...';
   try{
-    const result=await api('/rest/v1/rpc/control_get_counter_history',{
+    const result=await api('/rest/v1/rpc/control_get_counter_daily_history',{
       method:'POST',
       headers:{'Prefer':'return=representation'},
-      body:JSON.stringify({
-        p_project_id:currentProjectId,
-        p_from:dates.from,
-        p_to:dates.to
-      })
+      body:JSON.stringify({p_project_id:currentProjectId,p_from:dates.from,p_to:dates.to})
     });
-    const history=Array.isArray(result)?result.filter(isRealPrinter):[];
-
-    // Supabase ya filtra impresoras retiradas/deshabilitadas en la función
-    // control_get_counter_history. No cruzamos contra "rows": eso podía ocultar
-    // lecturas válidas si el inventario todavía estaba cargando o fallaba.
-    counterRows=history;
+    counterRows=Array.isArray(result)?result.filter(isRealPrinter):[];
     renderCounterRows();
-
     if(showMessage){
-      const uniqueCount=new Set(counterRows.map(r=>String(r.printer_id))).size;
-      const withCount=new Set(
-        counterRows.filter(r=>r.page_count!=null).map(r=>String(r.printer_id))
-      ).size;
-      msg.textContent=uniqueCount
-        ? ('Encontradas '+uniqueCount+' impresora(s) activas. '+withCount+' con contador informado.')
-        : 'No hay lecturas de impresoras activas en el período seleccionado.';
+      const printers=new Set(counterRows.map(r=>String(r.printer_id))).size;
+      const days=new Set(counterRows.map(r=>String(r.reading_day))).size;
+      const printDays=counterRows.filter(r=>r.pages_printed!=null).length;
+      const scanDays=counterRows.filter(r=>r.scans_count!=null||r.last_scanner_count!=null).length;
+      msg.textContent=counterRows.length
+        ? printers+' impresora(s), '+days+' día(s) con lecturas guardadas. '+printDays+' registro(s) con variación de páginas y '+scanDays+' con dato de escáner. Solo aparecen días con lecturas; no hace falta que la impresora esté conectada ahora.'
+        : 'No hay lecturas guardadas de impresoras activas en el período seleccionado.';
     }
     return counterRows;
   }catch(e){
@@ -933,119 +923,74 @@ function renderCounterRows(){
   const body=$('counterBody');
   if(!body)return;
   if(!counterRows.length){
-    body.innerHTML='<tr><td colspan="10" class="empty">No hay lecturas de impresoras activas para el período.</td></tr>';
+    body.innerHTML='<tr><td colspan="12" class="empty">No hay días con lecturas guardadas para el período.</td></tr>';
     return;
   }
-
-  // El historial sigue guardado en Supabase, pero esta pantalla muestra
-  // únicamente la lectura más reciente de cada impresora.
-  const latestByPrinter=new Map();
-  counterRows.forEach(r=>{
-    const key=String(
-      r.printer_id ||
-      r.serial_number ||
-      r.ip_address ||
-      r.printer ||
-      r.agent ||
-      ''
-    );
-    const previous=latestByPrinter.get(key);
-    if(!previous || new Date(r.reading_at||0)>new Date(previous.reading_at||0)){
-      latestByPrinter.set(key,r);
-    }
-  });
-
-  const visibleRows=[...latestByPrinter.values()]
-    .sort((a,b)=>String(a.printer||'').localeCompare(String(b.printer||''),'es'));
-
+  const visibleRows=[...counterRows].sort((a,b)=>
+    String(a.reading_day||'').localeCompare(String(b.reading_day||'')) ||
+    String(a.printer||'').localeCompare(String(b.printer||''),'es')
+  );
   body.innerHTML=visibleRows.map(r=>{
-    const pages=r.pages_printed==null?'—':Number(r.pages_printed).toLocaleString();
-    const printerName=r.model || r.printer || '—';
+    const pages=r.pages_printed==null?'—':Number(r.pages_printed).toLocaleString('es-PY');
+    const scans=r.scans_count==null?'—':Number(r.scans_count).toLocaleString('es-PY');
+    const printerName=r.model||r.printer||'—';
+    const day=String(r.reading_day||'');
+    const dayLabel=/^\d{4}-\d{2}-\d{2}$/.test(day)
+      ? new Date(day+'T12:00:00').toLocaleDateString('es-PY')
+      : '—';
+    const firstTime=r.first_reading_at?new Date(r.first_reading_at).toLocaleTimeString('es-PY'):'—';
+    const lastTime=r.last_reading_at?new Date(r.last_reading_at).toLocaleTimeString('es-PY'):'—';
+    const readingInfo='Primera lectura: '+firstTime+' · última lectura: '+lastTime;
     return '<tr>'+
-      '<td>'+escapeHtml(r.reading_at?new Date(r.reading_at).toLocaleString():'—')+'</td>'+
+      '<td title="'+escapeHtml(readingInfo)+'">'+escapeHtml(dayLabel)+'</td>'+
       '<td>'+escapeHtml(printerName)+'</td>'+
       '<td>'+escapeHtml(r.city||'—')+'</td>'+
       '<td>'+escapeHtml(r.serial_number||'—')+'</td>'+
-      '<td>'+escapeHtml(r.page_count==null?'—':Number(r.page_count).toLocaleString())+'</td>'+
-      '<td>'+escapeHtml(r.previous_page_count==null?'—':Number(r.previous_page_count).toLocaleString())+'</td>'+
+      '<td>'+escapeHtml(r.first_page_count==null?'—':Number(r.first_page_count).toLocaleString('es-PY'))+'</td>'+
+      '<td>'+escapeHtml(r.last_page_count==null?'—':Number(r.last_page_count).toLocaleString('es-PY'))+'</td>'+
       '<td>'+escapeHtml(pages)+'</td>'+
-      '<td>'+escapeHtml(r.scanner_count==null?'—':Number(r.scanner_count).toLocaleString())+'</td>'+
-      '<td>'+escapeHtml(counterStatus(r))+' </td>'+
+      '<td>'+escapeHtml(scans)+'</td>'+
+      '<td>'+escapeHtml(r.last_scanner_count==null?'—':Number(r.last_scanner_count).toLocaleString('es-PY'))+'</td>'+
+      '<td>'+escapeHtml(Number(r.reading_count||0).toLocaleString('es-PY'))+'</td>'+
+      '<td>'+escapeHtml(counterStatus({status:r.status})||'—')+'</td>'+
       '<td>'+escapeHtml(r.agent||'—')+'</td>'+
     '</tr>';
   }).join('');
 }
+
 async function exportCountersExcel(){
   if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel.');return}
   const dates=validateCounterDates();
   if(!dates)return;
-
   const data=await loadCounterHistory(false);
-  if(!data.length){alert('No hay lecturas de contadores de impresoras activas en ese período.');return}
-
+  if(!data.length){alert('No hay días con lecturas guardadas en ese período.');return}
   const p=projects.find(x=>x.id===currentProjectId);
-
-  // El reporte se presenta con UNA sola fila por impresora.
-  // El historial minuto a minuto permanece guardado en Supabase.
-  const byPrinter=new Map();
-
-  data.forEach(r=>{
-    const id=String(r.printer_id||r.serial_number||r.printer||'');
-    if(!id)return;
-    if(!byPrinter.has(id))byPrinter.set(id,[]);
-    byPrinter.get(id).push(r);
-  });
-
-  const report=[];
-  for(const list of byPrinter.values()){
-    list.sort((a,b)=>new Date(a.reading_at||0)-new Date(b.reading_at||0));
-
-    const numeric=list.filter(x=>x.page_count!=null);
-    const first=numeric[0]?.page_count;
-    const last=numeric[numeric.length-1]?.page_count;
-
-    let printed='';
-    if(first!=null&&last!=null&&Number(last)>=Number(first)){
-      printed=Number(last)-Number(first);
-    }
-
-    const lastRow=list[list.length-1];
-    const printerName=lastRow.printer||lastRow.model||'';
-
-    report.push({
-      Impresora:printerName,
-      Ciudad:lastRow.city||'',
-      Fabricante:lastRow.manufacturer||'',
-      Modelo:lastRow.model||'',
-      Serie:lastRow.serial_number||'',
-      'Contador inicial':first==null?'':Number(first),
-      'Contador final':last==null?'':Number(last),
-      'Páginas impresas del período':printed,
-      'Contador escáner':lastRow.scanner_count==null?'':Number(lastRow.scanner_count),
-      'Última lectura':lastRow.reading_at?new Date(lastRow.reading_at).toLocaleString('es-PY'):'',
-      Estado:counterStatus(lastRow),
-      Agente:lastRow.agent||''
-    });
-  }
-
-  report.sort((a,b)=>String(a.Impresora).localeCompare(String(b.Impresora),'es'));
-
+  const report=data.map(r=>({
+    Día:r.reading_day||'',
+    Impresora:r.printer||r.model||'',
+    Ciudad:r.city||'',
+    Fabricante:r.manufacturer||'',
+    Modelo:r.model||'',
+    Serie:r.serial_number||'',
+    'Primera lectura':r.first_reading_at?new Date(r.first_reading_at).toLocaleString('es-PY'):'',
+    'Última lectura':r.last_reading_at?new Date(r.last_reading_at).toLocaleString('es-PY'):'',
+    'Contador impresión inicial':r.first_page_count==null?'':Number(r.first_page_count),
+    'Contador impresión final':r.last_page_count==null?'':Number(r.last_page_count),
+    'Páginas impresas del día':r.pages_printed==null?'':Number(r.pages_printed),
+    'Contador escáner inicial':r.first_scanner_count==null?'':Number(r.first_scanner_count),
+    'Contador escáner final':r.last_scanner_count==null?'':Number(r.last_scanner_count),
+    'Escaneos del día':r.scans_count==null?'':Number(r.scans_count),
+    'Cantidad de lecturas':Number(r.reading_count||0),
+    'Estado en última lectura':counterStatus({status:r.status}),
+    Agente:r.agent||''
+  })).sort((a,b)=>String(a.Día).localeCompare(String(b.Día))||String(a.Impresora).localeCompare(String(b.Impresora),'es'));
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(report);
   fitColumns(ws);
-  XLSX.utils.book_append_sheet(wb,ws,'Contadores');
-
-  const safeName=String(p?.name||'proyecto')
-    .replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_')
-    .replace(/^_+|_+$/g,'')
-    .slice(0,60)||'proyecto';
-
-  XLSX.writeFile(
-    wb,
-    'AT_Printer_Contadores_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx'
-  );
+  XLSX.utils.book_append_sheet(wb,ws,'Resumen diario');
+  const safeName=String(p?.name||'proyecto').replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'proyecto';
+  XLSX.writeFile(wb,'AT_Printer_Resumen_Diario_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx');
 }
-
 
 function exportProjectExcel(){
   if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
