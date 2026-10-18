@@ -1,0 +1,71 @@
+name: Build ATPrinterAgent v0.2.8 Installer
+
+on:
+  push:
+    branches:
+      - build-atprinter-v0.2.8
+    paths:
+      - '.github/workflows/build-atprinter-agent.yml'
+      - 'build-atprinter-v0.2.8/package.part*'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'build-atprinter-v0.2.8/package.part*'
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Reassemble verified source
+        shell: pwsh
+        run: |
+          $pieces = @('01','02','03','04','05','06','07','08','09','10','11')
+          $encoded = ($pieces | ForEach-Object {
+            $file = "build-atprinter-v0.2.8/package.part$($_)"
+            if (!(Test-Path $file)) { throw "Missing source piece: $file" }
+            Get-Content -Raw $file
+          }) -join ''
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = Join-Path $env:RUNNER_TEMP 'atprinter-source.tar.gz'
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          tar -xzf $archive
+          if (!(Test-Path 'src/ATPrinterAgent.csproj')) { throw 'Source archive failed extraction.' }
+          if (!(Test-Path 'AandTPrinterAgent.iss')) { throw 'Installer script missing.' }
+      - name: Restore packages
+        run: dotnet restore src/ATPrinterAgent.csproj
+      - name: Publish x64
+        run: dotnet publish src/ATPrinterAgent.csproj --configuration Release --runtime win-x64 --self-contained false -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true --output publish-x64
+      - name: Publish x86
+        run: dotnet publish src/ATPrinterAgent.csproj --configuration Release --runtime win-x86 --self-contained false -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true --output publish-x86
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
+          if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
+          if (!(Test-Path $iscc)) { throw 'Inno Setup compiler unavailable.' }
+      - name: Build installer
+        shell: pwsh
+        run: |
+          if (!(Test-Path 'publish-x64/ATPrinterAgent.exe')) { throw 'Missing x64 agent.' }
+          if (!(Test-Path 'publish-x86/ATPrinterAgent.exe')) { throw 'Missing x86 agent.' }
+          & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'AandTPrinterAgent.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
+          if (!(Test-Path 'Instalar_ATPrinterAgent_v0.2.8.exe')) { throw 'Installer EXE was not created.' }
+          Get-Item 'Instalar_ATPrinterAgent_v0.2.8.exe' | Format-List Name,Length
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalar_ATPrinterAgent_v0.2.8-RANGOS-USB-INTERVALO
+          path: Instalar_ATPrinterAgent_v0.2.8.exe
+          if-no-files-found: error
+          retention-days: 7
