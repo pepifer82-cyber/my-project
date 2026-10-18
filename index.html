@@ -742,8 +742,9 @@ function dedupePrinterRows(source){
 function connectionLabel(r){
   const type=String(r?.connection_type||'').trim().toLowerCase();
   const port=String(r?.windows_port||r?.usb_port||'').trim();
-  if(type==='usb'||String(r?.usb_port||'').trim()||/^USB\d*$/i.test(port))return 'USB';
+  if(type==='usb')return 'USB';
   if(type==='ip'||type==='net'||type==='network'||type==='red'||hasRealIp(r)||/^WSD-/i.test(port))return 'NET';
+  if(String(r?.usb_port||'').trim()||/^USB\d*$/i.test(port))return 'USB';
   return 'LOCAL';
 }
 function printerIpPort(r){
