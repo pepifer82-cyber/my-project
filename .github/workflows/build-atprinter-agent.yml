@@ -5,6 +5,7 @@ on:
     branches:
       - master
     paths:
+      - '.github/workflows/build-atprinter-agent.yml'
       - 'build-atprinter-v0.2.8/package.part11'
   pull_request:
     branches:
@@ -13,7 +14,7 @@ on:
       - 'build-atprinter-v0.2.8/package.part*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-installer:
@@ -77,3 +78,12 @@ jobs:
           path: Instalar_ATPrinterAgent_v0.2.8.exe
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish downloadable prerelease
+        if: github.event_name == 'push' && github.ref == 'refs/heads/master'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'atprinteragent-v0.2.8-rangos-ip'
+          gh release create $tag 'Instalar_ATPrinterAgent_v0.2.8.exe' --title 'A&T Printer Agent v0.2.8 - Rangos IP múltiples' --notes 'Instalador de Windows generado por compilación automatizada. Incluye selección de intervalo, búsqueda USB opcional y administración de varios rangos IP.' --prerelease --repo $env:GITHUB_REPOSITORY
