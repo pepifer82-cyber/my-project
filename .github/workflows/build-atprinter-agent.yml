@@ -9,7 +9,7 @@ on:
       - 'build-atprinter-v0.2.8/package.part*'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build-installer:
