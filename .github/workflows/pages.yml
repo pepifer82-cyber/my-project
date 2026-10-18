@@ -4,6 +4,8 @@ on:
   push:
     branches: ["master"]
   workflow_dispatch:
+  issues:
+    types: [opened]
 
 permissions:
   contents: read
@@ -16,6 +18,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'issues' || startsWith(github.event.issue.title, '[deploy-pages]')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
