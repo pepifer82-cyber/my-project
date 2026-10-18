@@ -1,4 +1,5 @@
 name: Deploy static site to GitHub Pages
+# Remote agent configuration panel deployment: publish index.html on pushes to master
 
 on:
   push:
