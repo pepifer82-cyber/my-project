@@ -1,6 +1,11 @@
 name: Build ATPrinterAgent v0.2.8 Installer
 
 on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'build-atprinter-v0.2.8/package.part11'
   pull_request:
     branches:
       - master
