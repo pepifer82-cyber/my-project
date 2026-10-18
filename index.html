@@ -180,8 +180,8 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     </section>
 
     <section id="view-agentes" class="content-card hidden">
-      <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos que envían información a la nube.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
+      <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos. Configurá IP, rangos y USB por instalación.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
+      <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th><th>Control remoto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
     </section>
 
     <section id="view-contadores" class="content-card hidden">
@@ -825,8 +825,63 @@ function renderAll(){
   const retiredTerm=retiredSearch.trim().toLowerCase();
   const visibleRetired=retiredTerm?retiredRows.filter(r=>[r.display_name,r.description,r.city,r.last_status,r.agent_code,r.machine_name,r.ip_address,r.serial_number].some(v=>String(v??'').toLowerCase().includes(retiredTerm))):retiredRows;
   $('retiredBody').innerHTML=visibleRetired.length?visibleRetired.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.last_status||'—')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.retired_at?new Date(r.retired_at).toLocaleString():'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',false)">Restaurar</button></td></tr>').join(''):'<tr><td colspan="9" class="empty">No hay impresoras retiradas.</td></tr>';
-  $('agentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td>'+escapeHtml(a.agent_code)+'</td><td>'+escapeHtml(a.machine_name)+'</td><td>'+escapeHtml(a.windows_user)+'</td><td>'+escapeHtml(a.app_version)+'</td><td>'+statePill(agentState(a))+'</td><td>'+escapeHtml(lastContact(a.last_seen_at))+'</td></tr>').join(''):'<tr><td colspan="6" class="empty">No hay agentes registrados.</td></tr>';
+  $('agentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td>'+escapeHtml(a.agent_code)+'</td><td>'+escapeHtml(a.machine_name)+'</td><td>'+escapeHtml(a.windows_user)+'</td><td>'+escapeHtml(a.app_version)+'</td><td>'+statePill(agentState(a))+'</td><td>'+escapeHtml(lastContact(a.last_seen_at))+'</td><td><button class="toolbar-btn primary" type="button" '+(a.active===false?'disabled':'')+' onclick="openAgentRemoteConfig(\''+escapeHtml(a.id)+'\')">Configurar</button></td></tr>').join(''):'<tr><td colspan="7" class="empty">No hay agentes registrados.</td></tr>';
 }
+
+let remoteConfigAgentId=null;
+let remoteConfigHistoryTimer=null;
+function closeAgentRemoteConfig(){const m=$('remoteConfigModal');if(m)m.style.display='none';if(remoteConfigHistoryTimer){clearInterval(remoteConfigHistoryTimer);remoteConfigHistoryTimer=null}}
+function remoteIpv4(v){const p=String(v||'').trim().split('.');return p.length===4&&p.every(x=>/^\d{1,3}$/.test(x)&&Number(x)>=0&&Number(x)<=255)}
+function remoteCommandTitle(c){return({set_usb_control:'Configuración USB',add_ip:'Agregar IP',remove_ip:'Quitar IP',add_ip_range:'Agregar rango IP',remove_ip_range:'Quitar rango IP',set_network_scan:'Búsqueda de red',set_interval:'Intervalo de envío',rescan_now:'Buscar ahora'})[c]||c}
+function remoteCommandStatus(s){return({queued:'En espera',done:'Aplicado',failed:'Error'})[s]||s||'Desconocido'}
+function ensureAgentRemoteModal(){
+ if($('remoteConfigModal'))return;
+ document.body.insertAdjacentHTML('beforeend',`<div id="remoteConfigModal" style="display:none;position:fixed;inset:0;z-index:10000;background:#0b1525c9;align-items:center;justify-content:center;padding:14px">
+ <div style="width:min(820px,100%);max-height:94vh;overflow:auto;background:#fff;color:#102033;border-radius:16px;box-shadow:0 25px 90px #0005;padding:20px">
+ <div style="display:flex;gap:14px;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><h2 style="margin:0;font-size:21px;font-weight:850">Configuración remota del agente</h2><div id="remoteAgentMeta" style="color:#64748b;font-size:12px;margin-top:5px"></div></div><button class="toolbar-btn" type="button" onclick="closeAgentRemoteConfig()">Cerrar ✕</button></div>
+ <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px 12px;border-radius:10px;font-size:12px;color:#1e40af;margin-bottom:14px">Los comandos se guardan por instalación. El agente consulta la nube cada 30 segundos aproximadamente. Si la PC está apagada, los aplicará al volver a conectarse. USB y red funcionan por separado.</div>
+ <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
+ <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">USB</h3><label style="display:flex;gap:9px;align-items:center;font-size:13px"><input type="checkbox" id="remoteUsbEnabled" checked> Buscar impresoras USB</label><button class="toolbar-btn primary" style="margin-top:12px" onclick="submitRemoteUsb()">Aplicar USB</button></div>
+ <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">Búsqueda por IP / red</h3><label style="display:flex;gap:9px;align-items:center;font-size:13px"><input type="checkbox" id="remoteNetworkEnabled" checked> Buscar por IP y rangos</label><button class="toolbar-btn primary" style="margin-top:12px" onclick="submitRemoteNetwork()">Aplicar red</button></div>
+ <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">IP individual</h3><input id="remoteIpValue" class="toolbar-input" style="width:100%;margin:4px 0 9px" placeholder="Ej. 192.168.1.25" inputmode="decimal"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="toolbar-btn primary" onclick="submitRemoteIp('add_ip')">Agregar IP</button><button class="toolbar-btn" onclick="submitRemoteIp('remove_ip')">Quitar IP</button></div></div>
+ <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">Rangos de router</h3><input id="remoteRangeStart" class="toolbar-input" style="width:100%;margin:4px 0 7px" placeholder="IP inicial · 192.168.1.1" inputmode="decimal"><input id="remoteRangeEnd" class="toolbar-input" style="width:100%;margin:0 0 9px" placeholder="IP final · 192.168.1.254" inputmode="decimal"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="toolbar-btn primary" onclick="submitRemoteRange('add_ip_range')">Agregar rango</button><button class="toolbar-btn" onclick="submitRemoteRange('remove_ip_range')">Quitar rango</button></div></div>
+ <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">Frecuencia de envío</h3><select id="remoteInterval" class="toolbar-input" style="width:100%;margin-bottom:10px"><option value="1800">Cada 30 minutos</option><option value="3600">Cada 1 hora</option><option value="7200">Cada 2 horas</option></select><button class="toolbar-btn primary" onclick="submitRemoteInterval()">Aplicar intervalo</button></div>
+ <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">Acción inmediata</h3><div style="font-size:12px;color:#64748b;margin-bottom:10px">Inicia un escaneo sin esperar al siguiente intervalo.</div><button class="toolbar-btn primary" onclick="queueAgentCommand('rescan_now',{})">Iniciar búsqueda ahora</button></div>
+ </div>
+ <div id="remoteConfigMsg" class="auth-msg muted" style="margin-top:12px" aria-live="polite"></div>
+ <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin:18px 0 8px"><h3 style="margin:0;font-size:15px">Últimos comandos</h3><button class="toolbar-btn" onclick="refreshAgentRemoteCommands()">Actualizar estado</button></div><div id="remoteCommandHistory" style="border:1px solid #e2e8f0;border-radius:10px;padding:8px;font-size:12px">Consultando historial…</div>
+ </div></div>`);
+ $('remoteConfigModal').addEventListener('click',e=>{if(e.target===$('remoteConfigModal'))closeAgentRemoteConfig()});
+}
+async function openAgentRemoteConfig(agentId){
+ const a=agentRows.find(x=>String(x.id)===String(agentId));if(!a||a.active===false){alert('El agente no está activo en este proyecto.');return}
+ remoteConfigAgentId=String(agentId);ensureAgentRemoteModal();
+ $('remoteAgentMeta').textContent=(a.agent_code||'Agente')+' · '+(a.machine_name||'Equipo sin nombre')+' · '+(a.windows_user||'usuario Windows desconocido');
+ $('remoteConfigMsg').textContent='Consultando configuración guardada…';$('remoteConfigMsg').className='auth-msg muted';$('remoteConfigModal').style.display='flex';
+ await refreshAgentRemoteCommands(true);if(remoteConfigHistoryTimer)clearInterval(remoteConfigHistoryTimer);
+ remoteConfigHistoryTimer=setInterval(()=>{if($('remoteConfigModal')?.style.display==='flex')refreshAgentRemoteCommands(false)},7000);
+}
+async function refreshAgentRemoteCommands(prefill){
+ if(!remoteConfigAgentId||!currentProjectId)return;
+ try{
+  const list=await api('/rest/v1/printer_agent_commands?select=id,command,payload,status,created_at,completed_at,result_message&project_id=eq.'+encodeURIComponent(currentProjectId)+'&agent_id=eq.'+encodeURIComponent(remoteConfigAgentId)+'&order=created_at.desc&limit=20');
+  if(prefill){const u=(list||[]).find(c=>c.command==='set_usb_control'),n=(list||[]).find(c=>c.command==='set_network_scan'),i=(list||[]).find(c=>c.command==='set_interval');if(u&&typeof u.payload?.enabled==='boolean')$('remoteUsbEnabled').checked=u.payload.enabled;if(n&&typeof n.payload?.enabled==='boolean')$('remoteNetworkEnabled').checked=n.payload.enabled;if(i&&[1800,3600,7200].includes(Number(i.payload?.seconds)))$('remoteInterval').value=String(i.payload.seconds)}
+  $('remoteCommandHistory').innerHTML=(list||[]).length?list.map(c=>{const color=c.status==='done'?'#087443':c.status==='failed'?'#b42335':'#946200';return '<div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:7px 3px;border-bottom:1px solid #f1f5f9"><div><b>#'+escapeHtml(c.id)+' · '+escapeHtml(remoteCommandTitle(c.command))+'</b><div style="color:#64748b;margin-top:2px">'+escapeHtml(c.result_message||JSON.stringify(c.payload||{}))+'</div></div><div style="text-align:right;white-space:nowrap;color:'+color+';font-weight:800">'+escapeHtml(remoteCommandStatus(c.status))+'<div style="font-size:10px;color:#64748b;font-weight:400">'+escapeHtml(c.completed_at?new Date(c.completed_at).toLocaleString():new Date(c.created_at).toLocaleString())+'</div></div></div>'}).join(''):'<div style="padding:8px;color:#64748b">Todavía no hay comandos para esta instalación.</div>';
+ }catch(e){$('remoteCommandHistory').textContent='No se pudo leer el historial. Verificá que tu usuario administre este proyecto.'}
+}
+async function queueAgentCommand(command,payload){
+ const msg=$('remoteConfigMsg');if(!remoteConfigAgentId||!currentProjectId){msg.textContent='Seleccioná un agente y un proyecto.';msg.className='auth-msg danger';return}
+ const a=agentRows.find(x=>String(x.id)===String(remoteConfigAgentId));if(!a||a.active===false){msg.textContent='El agente está inactivo.';msg.className='auth-msg danger';return}
+ msg.textContent='Guardando comando en Supabase…';msg.className='auth-msg muted';
+ try{await api('/rest/v1/printer_agent_commands',{method:'POST',headers:{'Prefer':'return=representation'},body:JSON.stringify({project_id:currentProjectId,agent_id:remoteConfigAgentId,command,payload,created_by:currentUser?.id})});msg.textContent='Comando guardado. El agente lo consultará en unos 30 segundos; si está apagado, al conectarse.';msg.className='auth-msg ok';await refreshAgentRemoteCommands(false)}
+ catch(e){msg.textContent='No se pudo encolar el comando: '+e.message;msg.className='auth-msg danger'}
+}
+function submitRemoteUsb(){queueAgentCommand('set_usb_control',{enabled:$('remoteUsbEnabled').checked})}
+function submitRemoteNetwork(){queueAgentCommand('set_network_scan',{enabled:$('remoteNetworkEnabled').checked})}
+function submitRemoteInterval(){queueAgentCommand('set_interval',{seconds:Number($('remoteInterval').value)})}
+function submitRemoteIp(command){const ip=$('remoteIpValue').value.trim();if(!remoteIpv4(ip)){$('remoteConfigMsg').textContent='Ingresá una IPv4 válida, por ejemplo 192.168.1.25.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{ip})}
+function submitRemoteRange(command){const start=$('remoteRangeStart').value.trim(),end=$('remoteRangeEnd').value.trim(),num=s=>s.split('.').reduce((n,p)=>n*256+Number(p),0);if(!remoteIpv4(start)||!remoteIpv4(end)||num(start)>num(end)){$('remoteConfigMsg').textContent='Ingresá un rango IPv4 válido y ordenado.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{start,end})}
+
 async function createProject(){
   const name=$('projectNameInput').value.trim();if(!name){$('projectMsg').textContent='Escribí un nombre.';return}
   $('createProjectBtn').disabled=true;$('projectMsg').textContent='Creando proyecto...';
