@@ -1,12 +1,7 @@
 name: Build ATPrinterAgent v0.2.8 Installer
 
 on:
-  push:
-    branches:
-      - build-atprinter-v0.2.8
-    paths:
-      - '.github/workflows/build-atprinter-agent.yml'
-      - 'build-atprinter-v0.2.8/package.part*'
+  workflow_dispatch:
   pull_request:
     branches:
       - master
