@@ -871,18 +871,21 @@ async function refreshAgentRemoteCommands(prefill){
   const localAgent=agentRows.find(a=>String(a.id)===String(remoteConfigAgentId));
   if(freshAgent&&localAgent)localAgent.remote_config=freshAgent.remote_config||{};
   const state=(freshAgent?.remote_config)||(localAgent?.remote_config)||{};
-  if(state.reported_at){
+  const hasPending=(list||[]).some(c=>['queued','running'].includes(c.status));
+  if(state.reported_at&&(prefill||!hasPending)){
     $('remoteUsbEnabled').checked=state.usb_control_enabled===true;
     $('remoteNetworkEnabled').checked=state.network_scan_enabled===true;
     $('remoteInterval').value=String([1800,3600,7200].includes(Number(state.sync_interval_seconds))?Number(state.sync_interval_seconds):1800);
     const ips=Array.isArray(state.network_ips)?state.network_ips:[],ranges=Array.isArray(state.network_ranges)?state.network_ranges:[];
     $('remoteAgentSnapshot').innerHTML='<b>Configuración aplicada/reportada: '+escapeHtml(new Date(state.reported_at).toLocaleString())+'</b><br>USB: '+(state.usb_control_enabled?'activado':'desactivado')+' · Red: '+(state.network_scan_enabled?'activada':'desactivada')+' · Intervalo: '+escapeHtml(Number(state.sync_interval_seconds)/60)+' min<br>IPs: '+escapeHtml(ips.join(', ')||'ninguna')+'<br>Rango principal: '+escapeHtml(state.network_range_start&&state.network_range_end?state.network_range_start+' - '+state.network_range_end:'ninguno')+'<br>Rangos adicionales: '+escapeHtml(ranges.join('; ')||'ninguno');
-  }else if(prefill){
+  }else if(prefill&&!state.reported_at){
     const u=(list||[]).find(c=>c.command==='set_usb_control'),n=(list||[]).find(c=>c.command==='set_network_scan'),i=(list||[]).find(c=>c.command==='set_interval');
     if(u&&typeof u.payload?.enabled==='boolean')$('remoteUsbEnabled').checked=u.payload.enabled;
     if(n&&typeof n.payload?.enabled==='boolean')$('remoteNetworkEnabled').checked=n.payload.enabled;
     if(i&&[1800,3600,7200].includes(Number(i.payload?.seconds)))$('remoteInterval').value=String(i.payload.seconds);
     $('remoteAgentSnapshot').textContent='Esta instalación todavía no reportó su configuración. Se mostrarán los valores aplicados cuando el agente confirme el primer cambio remoto.';
+  }else if(hasPending){
+    $('remoteAgentSnapshot').innerHTML='Hay cambios esperando o procesándose. Los controles se mantendrán como los elegiste hasta que el agente confirme el resultado.';
   }
   $('remoteCommandHistory').innerHTML=(list||[]).length?list.map(c=>{const color=c.status==='done'?'#087443':c.status==='failed'?'#b42335':'#946200';return '<div style="display:flex;gap:10px;justify-content:space-between;align-items:flex-start;padding:7px 3px;border-bottom:1px solid #f1f5f9"><div><b>#'+escapeHtml(c.id)+' · '+escapeHtml(remoteCommandTitle(c.command))+'</b><div style="color:#64748b;margin-top:2px">'+escapeHtml(c.result_message||JSON.stringify(c.payload||{}))+'</div></div><div style="text-align:right;white-space:nowrap;color:'+color+';font-weight:800">'+escapeHtml(remoteCommandStatus(c.status))+'<div style="font-size:10px;color:#64748b;font-weight:400">'+escapeHtml(c.completed_at?new Date(c.completed_at).toLocaleString():new Date(c.created_at).toLocaleString())+'</div></div></div>'}).join(''):'<div style="padding:8px;color:#64748b">Todavía no hay comandos para esta instalación.</div>';
  }catch(e){$('remoteCommandHistory').textContent='No se pudo leer el historial. Verificá que tu usuario administre este proyecto.'}
