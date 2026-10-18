@@ -15,13 +15,15 @@ jobs:
   build-installer:
     runs-on: windows-latest
     steps:
-      - name: Checkout source
+      - name: Checkout branch
         uses: actions/checkout@v4
+
       - name: Set up .NET 8
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: 8.0.x
-      - name: Reassemble verified source
+
+      - name: Restore source archive from verified pieces
         shell: pwsh
         run: |
           $pieces = @('01','02','03','04','05','06','07','08','09','10','11')
@@ -34,33 +36,49 @@ jobs:
           $archive = Join-Path $env:RUNNER_TEMP 'atprinter-source.tar.gz'
           [IO.File]::WriteAllBytes($archive, $bytes)
           tar -xzf $archive
-          if (!(Test-Path 'src/ATPrinterAgent.csproj')) { throw 'Source archive failed extraction.' }
-          if (!(Test-Path 'AandTPrinterAgent.iss')) { throw 'Installer script missing.' }
-      - name: Restore packages
+          if (!(Test-Path 'src/ATPrinterAgent.csproj')) { throw 'Source archive did not extract correctly.' }
+          if (!(Test-Path 'AandTPrinterAgent.iss')) { throw 'Installer script is missing.' }
+
+      - name: Restore dependencies
         run: dotnet restore src/ATPrinterAgent.csproj
-      - name: Publish x64
+
+      - name: Publish x64 agent
         run: dotnet publish src/ATPrinterAgent.csproj --configuration Release --runtime win-x64 --self-contained false -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true --output publish-x64
-      - name: Publish x86
+
+      - name: Publish x86 agent
         run: dotnet publish src/ATPrinterAgent.csproj --configuration Release --runtime win-x86 --self-contained false -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeAllContentForSelfExtract=true --output publish-x86
-      - name: Ensure Inno Setup
+
+      - name: Install Inno Setup if needed
         shell: pwsh
         run: |
           $iscc = 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe'
           if (!(Test-Path $iscc)) { choco install innosetup --yes --no-progress }
-          if (!(Test-Path $iscc)) { throw 'Inno Setup compiler unavailable.' }
-      - name: Build installer
+          if (!(Test-Path $iscc)) { throw 'Inno Setup compiler not found.' }
+
+      - name: Compile installer EXE
         shell: pwsh
         run: |
-          if (!(Test-Path 'publish-x64/ATPrinterAgent.exe')) { throw 'Missing x64 agent.' }
-          if (!(Test-Path 'publish-x86/ATPrinterAgent.exe')) { throw 'Missing x86 agent.' }
+          if (!(Test-Path 'publish-x64/ATPrinterAgent.exe')) { throw 'x64 agent EXE was not generated.' }
+          if (!(Test-Path 'publish-x86/ATPrinterAgent.exe')) { throw 'x86 agent EXE was not generated.' }
           & 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe' 'AandTPrinterAgent.iss'
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed: $LASTEXITCODE" }
-          if (!(Test-Path 'Instalar_ATPrinterAgent_v0.2.8.exe')) { throw 'Installer EXE was not created.' }
-          Get-Item 'Instalar_ATPrinterAgent_v0.2.8.exe' | Format-List Name,Length
-      - name: Upload installer
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+          $installer = 'Instalar_ATPrinterAgent_v0.2.8.exe'
+          if (!(Test-Path $installer)) { throw 'Installer EXE was not generated.' }
+          Get-Item $installer | Format-List Name,Length,LastWriteTime
+
+      - name: Upload compiled installer
         uses: actions/upload-artifact@v4
         with:
           name: Instalar_ATPrinterAgent_v0.2.8-RANGOS-USB-INTERVALO
           path: Instalar_ATPrinterAgent_v0.2.8.exe
           if-no-files-found: error
           retention-days: 7
+
+      - name: Publish downloadable prerelease
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'atprinteragent-v0.2.8-rangos-ip'
+          gh release create $tag 'Instalar_ATPrinterAgent_v0.2.8.exe' --title 'A&T Printer Agent v0.2.8 - Rangos IP múltiples' --notes 'Instalador de Windows generado por compilación automatizada. Incluye selección de intervalo, búsqueda USB opcional y administración de varios rangos IP.' --prerelease --repo $env:GITHUB_REPOSITORY
