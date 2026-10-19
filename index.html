@@ -131,6 +131,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       <button class="app-btn" data-view="tinta" type="button"><div class="app-icon">◉</div><div class="app-title">Tóner</div><div class="app-sub">Niveles de tinta</div></button>
       <button class="app-btn" data-view="desconectadas" type="button"><div class="app-icon">!</div><div class="app-title">Desconectadas</div><div class="app-sub">Atención requerida</div></button>
       <button class="app-btn" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
+      <button class="app-btn" data-view="control-remoto" type="button"><div class="app-icon">📡</div><div class="app-title">Control remoto</div><div class="app-sub">IP · USB · Buscar ahora</div></button>
       <button class="app-btn" data-view="contadores" type="button"><div class="app-icon">#</div><div class="app-title">Contadores</div><div class="app-sub">Historial por fechas</div></button>
       <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
     </section>
@@ -182,6 +183,24 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     <section id="view-agentes" class="content-card hidden">
       <div class="content-head"><div><h3>Agentes del proyecto</h3><small>Estado de los equipos. Configurá IP, rangos y USB por instalación.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Equipo</th><th>Usuario Windows</th><th>Versión</th><th>Estado</th><th>Último contacto</th><th>Control remoto</th></tr></thead><tbody id="agentsBody"></tbody></table></div>
+    </section>
+
+    <section id="view-control-remoto" class="content-card hidden">
+      <div class="content-head">
+        <div><h2>📡 Control remoto de agentes</h2><small>Seleccioná una instalación para configurar su búsqueda de impresoras a distancia.</small></div>
+        <button class="toolbar-btn" type="button" onclick="loadProjectData()">↻ Actualizar</button>
+      </div>
+      <div class="summary-grid" style="margin-bottom:16px">
+        <div class="insight"><strong>🌐 Red e IP</strong><span>Agregá una IP, quitá una IP o administrá varios rangos de routers.</span></div>
+        <div class="insight"><strong>🔌 Búsqueda USB</strong><span>Activá o desactivá USB sin cambiar las búsquedas por red.</span></div>
+        <div class="insight"><strong>🔎 Buscar ahora</strong><span>Las órdenes se guardan y se aplican cuando el agente se conecta. Los cambios de red y USB provocan una búsqueda inmediata.</span></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px;padding:12px 14px;margin-bottom:14px;color:#1e40af;font-size:13px">
+        <span style="font-size:23px">🛡️</span>
+        <span><b>Control por instalación:</b> cada orden se envía únicamente al agente que seleccionás. El panel muestra su estado y la confirmación del agente.</span>
+      </div>
+      <div class="table-wrap"><table><thead><tr><th>Agente</th><th>Computadora</th><th>Usuario</th><th>Estado</th><th>Última conexión</th><th>Acciones</th></tr></thead><tbody id="remoteAgentsBody"></tbody></table></div>
+      <div id="remoteAgentsMsg" class="muted" style="font-size:12px;margin-top:10px">Elegí «Configurar IP y USB» junto al agente que querés administrar.</div>
     </section>
 
     <section id="view-contadores" class="content-card hidden">
@@ -386,7 +405,7 @@ function openProject(id){
 }
 function showView(view){
   currentView=view;
-  ['resumen','inventario','tinta','desconectadas','agentes','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
+  ['resumen','inventario','tinta','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
   if(view==='administrar'&&!isAdmin){showView('resumen');return}
   if(view==='administrar'){populateUserProjectSelect();loadPricing();loadManagedUsers();}
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
@@ -826,6 +845,8 @@ function renderAll(){
   const visibleRetired=retiredTerm?retiredRows.filter(r=>[r.display_name,r.description,r.city,r.last_status,r.agent_code,r.machine_name,r.ip_address,r.serial_number].some(v=>String(v??'').toLowerCase().includes(retiredTerm))):retiredRows;
   $('retiredBody').innerHTML=visibleRetired.length?visibleRetired.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+escapeHtml(r.city||'—')+'</td><td>'+escapeHtml(r.last_status||'—')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(r.ip_address||'—')+'</td><td>'+escapeHtml(r.retired_at?new Date(r.retired_at).toLocaleString():'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',false)">Restaurar</button></td></tr>').join(''):'<tr><td colspan="9" class="empty">No hay impresoras retiradas.</td></tr>';
   $('agentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td>'+escapeHtml(a.agent_code)+'</td><td>'+escapeHtml(a.machine_name)+'</td><td>'+escapeHtml(a.windows_user)+'</td><td>'+escapeHtml(a.app_version)+'</td><td>'+statePill(agentState(a))+'</td><td>'+escapeHtml(lastContact(a.last_seen_at))+'</td><td><button class="toolbar-btn primary" type="button" '+(a.active===false?'disabled':'')+' onclick="openAgentRemoteConfig(\''+escapeHtml(a.id)+'\')">Configurar</button></td></tr>').join(''):'<tr><td colspan="7" class="empty">No hay agentes registrados.</td></tr>';
+  $('remoteAgentsBody').innerHTML=agentRows.length?agentRows.map(a=>'<tr><td><b>'+escapeHtml(a.agent_code||'Agente')+'</b></td><td>'+escapeHtml(a.machine_name||'Equipo sin nombre')+'</td><td>'+escapeHtml(a.windows_user||'—')+'</td><td>'+statePill(agentState(a))+'</td><td>'+escapeHtml(lastContact(a.last_seen_at))+'</td><td><button class="toolbar-btn primary" type="button" style="font-weight:800" '+(a.active===false?'disabled':'')+' onclick="openAgentRemoteConfig(\''+escapeHtml(a.id)+'\')">⚙ Configurar IP y USB</button> <button class="toolbar-btn" type="button" '+(a.active===false?'disabled':'')+' onclick="sendRescanForAgent(\''+escapeHtml(a.id)+'\')">▶ Buscar ahora</button></td></tr>').join(''):'<tr><td colspan="6" class="empty">Todavía no hay agentes registrados. Instalá el agente, cargá el serial y completá la primera sincronización.</td></tr>';
+  if($('remoteAgentsMsg'))$('remoteAgentsMsg').textContent=agentRows.length?'Seleccioná Configurar IP y USB para guardar cambios o Buscar ahora para enviar una orden de escaneo. Los resultados aparecerán cuando el agente confirme.':'No hay agentes disponibles para este proyecto.';
 }
 
 let remoteConfigAgentId=null;
@@ -838,7 +859,7 @@ function ensureAgentRemoteModal(){
  if($('remoteConfigModal'))return;
  document.body.insertAdjacentHTML('beforeend',`<div id="remoteConfigModal" style="display:none;position:fixed;inset:0;z-index:10000;background:#0b1525c9;align-items:center;justify-content:center;padding:14px">
  <div style="width:min(820px,100%);max-height:94vh;overflow:auto;background:#fff;color:#102033;border-radius:16px;box-shadow:0 25px 90px #0005;padding:20px">
- <div style="display:flex;gap:14px;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><h2 style="margin:0;font-size:21px;font-weight:850">Configuración remota del agente</h2><div id="remoteAgentMeta" style="color:#64748b;font-size:12px;margin-top:5px"></div></div><button class="toolbar-btn" type="button" onclick="closeAgentRemoteConfig()">Cerrar ✕</button></div>
+ <div style="display:flex;gap:14px;align-items:flex-start;justify-content:space-between;margin-bottom:14px"><div><h2 style="margin:0;font-size:21px;font-weight:850">⚙ Configuración remota del agente</h2><div id="remoteAgentMeta" style="color:#64748b;font-size:12px;margin-top:5px"></div></div><button class="toolbar-btn" type="button" onclick="closeAgentRemoteConfig()">Cerrar ✕</button></div>
  <div style="background:#eff6ff;border:1px solid #bfdbfe;padding:10px 12px;border-radius:10px;font-size:12px;color:#1e40af;margin-bottom:10px">Los comandos se guardan por instalación. El agente consulta la nube cada 30 segundos aproximadamente. Si la PC está apagada, los aplicará al volver a conectarse. USB y red funcionan por separado.</div><div id="remoteAgentSnapshot" style="background:#f8fafc;border:1px solid #e2e8f0;padding:10px 12px;border-radius:10px;font-size:12px;color:#334155;margin-bottom:14px">Consultando la última configuración comunicada por este equipo…</div>
  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">
  <div style="border:1px solid #dce6f2;border-radius:12px;padding:14px"><h3 style="margin:0 0 10px;font-size:15px">USB</h3><label style="display:flex;gap:9px;align-items:center;font-size:13px"><input type="checkbox" id="remoteUsbEnabled" checked> Buscar impresoras USB</label><button class="toolbar-btn primary" style="margin-top:12px" onclick="submitRemoteUsb()">Aplicar USB</button></div>
@@ -900,6 +921,19 @@ async function queueAgentCommand(command,payload){
 function submitRemoteUsb(){queueAgentCommand('set_usb_control',{enabled:$('remoteUsbEnabled').checked})}
 function submitRemoteNetwork(){queueAgentCommand('set_network_scan',{enabled:$('remoteNetworkEnabled').checked})}
 function submitRemoteInterval(){queueAgentCommand('set_interval',{seconds:Number($('remoteInterval').value)})}
+async function sendRescanForAgent(agentId){
+ const previous=remoteConfigAgentId;
+ remoteConfigAgentId=String(agentId);
+ ensureAgentRemoteModal();
+ const a=agentRows.find(x=>String(x.id)===remoteConfigAgentId);
+ if(!a||a.active===false){alert('El agente está inactivo.');remoteConfigAgentId=previous;return}
+ $('remoteAgentMeta').textContent=(a.agent_code||'Agente')+' · '+(a.machine_name||'Equipo sin nombre')+' · '+(a.windows_user||'usuario Windows desconocido');
+ $('remoteConfigMsg').textContent='';$('remoteConfigMsg').className='auth-msg muted';
+ $('remoteConfigModal').style.display='flex';
+ await queueAgentCommand('rescan_now',{});
+ if(remoteConfigHistoryTimer)clearInterval(remoteConfigHistoryTimer);
+ remoteConfigHistoryTimer=setInterval(()=>{if($('remoteConfigModal')?.style.display==='flex')refreshAgentRemoteCommands(false)},7000);
+}
 function submitRemoteIp(command){const ip=$('remoteIpValue').value.trim();if(!remoteIpv4(ip)){$('remoteConfigMsg').textContent='Ingresá una IPv4 válida, por ejemplo 192.168.1.25.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{ip})}
 function submitRemoteRange(command){const start=$('remoteRangeStart').value.trim(),end=$('remoteRangeEnd').value.trim(),num=s=>s.split('.').reduce((n,p)=>n*256+Number(p),0);if(!remoteIpv4(start)||!remoteIpv4(end)||num(start)>num(end)){$('remoteConfigMsg').textContent='Ingresá un rango IPv4 válido y ordenado.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{start,end})}
 
