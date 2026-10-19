@@ -8,7 +8,7 @@ on:
   # Allows a one-time manual redeploy when commits were made through an integration
   # that did not start Actions; only specially prefixed issues trigger the publish job.
   issues:
-    types: [opened]:
+    types: [opened]
 
 permissions:
   contents: read
