@@ -5,6 +5,10 @@ on:
   push:
     branches: ["master"]
   workflow_dispatch:
+  # Allows a one-time manual redeploy when commits were made through an integration
+  # that did not start Actions; only specially prefixed issues trigger the publish job.
+  issues:
+    types: [opened]:
 
 permissions:
   contents: read
@@ -17,6 +21,7 @@ concurrency:
 
 jobs:
   deploy:
+    if: github.event_name != 'issues' || startsWith(github.event.issue.title, '[deploy-pages]')
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -24,6 +29,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: master
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload artifact
