@@ -1,0 +1,106 @@
+name: Build A&T Printer Agent v0.3.0 installer
+
+on:
+  push:
+    branches:
+      - build-agent-v0.3.0
+    paths:
+      - ".github/workflows/build-agent-v030.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout build branch
+        uses: actions/checkout@v4
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Rebuild source archive
+        shell: pwsh
+        run: |
+          $names = @(
+            "agent_src.b64.00",
+            "agent_src.b64.01a",
+            "agent_src.b64.01b",
+            "agent_src.b64.01c",
+            "agent_src.b64.01d",
+            "agent_src.b64.02",
+            "agent_src.b64.03",
+            "agent_src.b64.04",
+            "agent_src.b64.05",
+            "agent_src.b64.06",
+            "agent_src.b64.07a",
+            "agent_src.b64.07b",
+            "agent_src.b64.07c",
+            "agent_src.b64.07d",
+            "agent_src.b64.08a",
+            "agent_src.b64.08b",
+            "agent_src.b64.08c",
+            "agent_src.b64.08d",
+            "agent_src.b64.09a",
+            "agent_src.b64.09b",
+            "agent_src.b64.09c"
+          )
+          $builder = [System.Text.StringBuilder]::new()
+          foreach ($name in $names) {
+            if (-not (Test-Path $name)) { throw "Missing archive part: $name" }
+            [void]$builder.Append((Get-Content -Raw $name).Trim())
+          }
+          $bytes = [Convert]::FromBase64String($builder.ToString())
+          [IO.File]::WriteAllBytes("$PWD\agent-source.zip", $bytes)
+          Expand-Archive -LiteralPath "$PWD\agent-source.zip" -DestinationPath "$PWD\agent-src" -Force
+          if (-not (Test-Path "$PWD\agent-src\src\ATPrinterAgent.csproj")) { throw "Source ZIP failed verification." }
+          if (-not (Test-Path "$PWD\agent-src\AandTPrinterAgent.iss")) { throw "Installer script missing from source ZIP." }
+
+      - name: Publish Windows x86 agent
+        shell: pwsh
+        run: |
+          dotnet publish "$PWD\agent-src\src\ATPrinterAgent.csproj" -c Release -r win-x86 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o "$PWD\agent-src\publish-x86"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$PWD\agent-src\publish-x86\ATPrinterAgent.exe")) { throw "x86 executable was not created." }
+
+      - name: Publish Windows x64 agent
+        shell: pwsh
+        run: |
+          dotnet publish "$PWD\agent-src\src\ATPrinterAgent.csproj" -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None -p:DebugSymbols=false -o "$PWD\agent-src\publish-x64"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$PWD\agent-src\publish-x64\ATPrinterAgent.exe")) { throw "x64 executable was not created." }
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Compile installer EXE
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} "Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) {
+            $iscc = Join-Path $env:ProgramFiles "Inno Setup 6\ISCC.exe"
+          }
+          if (-not (Test-Path $iscc)) { throw "Inno Setup compiler was not found." }
+          Push-Location "$PWD\agent-src"
+          try {
+            & $iscc /Qp "AandTPrinterAgent.iss"
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } finally {
+            Pop-Location
+          }
+          if (-not (Test-Path "$PWD\agent-src\Instalar_ATPrinterAgent_v0.3.0.exe")) { throw "Installer EXE was not created." }
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalar_ATPrinterAgent_v0.3.0
+          path: agent-src/Instalar_ATPrinterAgent_v0.3.0.exe
+          if-no-files-found: error
+          retention-days: 30
