@@ -57,7 +57,7 @@ button{border:0;cursor:pointer}
 table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left;padding:14px 16px;border-bottom:1px solid #e9eef5;font-size:13px;vertical-align:top}td:nth-child(1){min-width:180px}td:nth-child(2){min-width:210px}td:nth-child(3){min-width:150px}th{white-space:nowrap}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#62758c;background:#eef3f8;position:sticky;top:0}tr:last-child td{border-bottom:0}.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f7;color:#52647a}.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#94a3b8}.pill.online{background:#e9fbf4;color:#16815e}.pill.online:before{background:#20ad7a}.pill.offline{background:#fff0f1;color:#be4b5b}.pill.offline:before{background:#e45867}.pill.stale{background:#fff7e7;color:#a36b11}.pill.stale:before{background:#f2a51d}
 .empty{padding:42px 15px;text-align:center;color:var(--muted)}
 .icon-btn{padding:7px 9px;border-radius:8px;background:#edf4ff;color:#1d63d4;font-weight:800;border:1px solid #d8e7fb;white-space:nowrap}
-.icon-btn:hover{background:#e3efff}.inline-edit{width:100%;min-width:120px;padding:7px 8px;border:1px solid transparent;border-radius:8px;background:transparent;color:inherit;outline:none}.inline-edit:hover{border-color:#cfdbe8;background:#f8fbff}.inline-edit:focus{border-color:#7eb1ff;background:#fff;box-shadow:0 0 0 3px #2878ff10}
+.icon-btn:hover{background:#e3efff}.inline-edit{width:100%;min-width:120px;padding:7px 8px;border:1px solid transparent;border-radius:8px;background:transparent;color:inherit;outline:none}.serial-edit{min-width:160px}.inline-edit:hover{border-color:#cfdbe8;background:#f8fbff}.inline-edit:focus{border-color:#7eb1ff;background:#fff;box-shadow:0 0 0 3px #2878ff10}
 .summary-grid{display:grid;grid-template-columns:1.25fr .75fr;gap:12px}.insight{border:1px solid var(--line);border-radius:15px;padding:15px;background:#f8fbff}.insight strong{display:block;font-size:18px}.insight span{display:block;color:var(--muted);font-size:12px;margin-top:4px}
 .modal-back{position:fixed;inset:0;background:#0d1b2e85;display:flex;align-items:center;justify-content:center;padding:18px;z-index:20;backdrop-filter:blur(7px)}
 .modal{width:min(520px,100%);background:#fff;border-radius:22px;padding:22px;box-shadow:0 30px 80px #0d1b2e33}.modal h2{margin:0 0 5px}.modal p{color:var(--muted);margin:0 0 18px}.modal label{font-size:12px;font-weight:800;color:#52647a}.modal input{width:100%;margin-top:7px;padding:12px 13px;border:1px solid #cdd9e7;border-radius:12px;outline:none}.modal input:focus{border-color:#7eb1ff;box-shadow:0 0 0 4px #2878ff12}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:14px}.primary{background:linear-gradient(135deg,var(--blue),#3798ff);color:#fff;padding:11px 14px;border-radius:11px;font-weight:800}.secondary{background:#edf2f7;color:#26394e;padding:11px 14px;border-radius:11px;font-weight:800}
@@ -515,7 +515,7 @@ async function savePrinterInline(el){
   if(!el||el.dataset.saving==='1')return;
   const id=el.dataset.printerId;
   const field=el.dataset.field;
-  if(!id||!field)return;
+  if(!id||!['description','city','serial_number'].includes(field))return;
 
   const r=rows.find(x=>String(x.printer_id)===String(id));
   if(!r)return;
@@ -528,42 +528,50 @@ async function savePrinterInline(el){
   el.disabled=true;
   const previousValues={
     description:String(r.description??''),
-    city:String(r.city??'')
+    city:String(r.city??''),
+    serial_number:String(r.serial_number??'')
   };
 
   try{
-    const payload={
-      p_printer_id:id,
-      p_description:field==='description'?clean:previousValues.description.trim(),
-      p_city:field==='city'?clean:previousValues.city.trim()
-    };
-
-    const result=await api('/rest/v1/rpc/control_update_printer_meta',{
-      method:'POST',
-      headers:{'Prefer':'return=representation'},
-      body:JSON.stringify(payload)
-    });
+    let result;
+    if(field==='serial_number'){
+      result=await api('/rest/v1/rpc/control_update_printer_serial',{
+        method:'POST',
+        headers:{'Prefer':'return=representation'},
+        body:JSON.stringify({p_printer_id:id,p_serial_number:clean})
+      });
+    }else{
+      const payload={
+        p_printer_id:id,
+        p_description:field==='description'?clean:previousValues.description.trim(),
+        p_city:field==='city'?clean:previousValues.city.trim()
+      };
+      result=await api('/rest/v1/rpc/control_update_printer_meta',{
+        method:'POST',
+        headers:{'Prefer':'return=representation'},
+        body:JSON.stringify(payload)
+      });
+    }
 
     const updated=Array.isArray(result)?result[0]:result;
     if(!updated?.id)throw new Error('Supabase no devolvió la impresora actualizada.');
 
-    // Actualiza todas las filas que pertenezcan al mismo equipo
-    // para que el dato no vuelva a desaparecer al refrescar la vista.
+    // Actualiza la caché local para mantener visible el valor recién guardado.
     rows.forEach(x=>{
       if(String(x.printer_id)===String(id)){
         x.description=updated.description;
         x.city=updated.city;
+        x.serial_number=updated.serial_number;
         x.updated_at=updated.updated_at;
       }
     });
 
-    el.value=field==='description'
-      ?String(updated.description??'')
-      :String(updated.city??'');
+    el.value=String(updated[field]??'');
 
   }catch(e){
-    el.value=field==='description'?previousValues.description:previousValues.city;
-    alert('No se pudo guardar '+(field==='description'?'la descripción':'la ciudad')+': '+e.message);
+    el.value=previousValues[field];
+    const fieldLabel={description:'la descripción',city:'la ciudad',serial_number:'el número de serie'}[field]||field;
+    alert('No se pudo guardar '+fieldLabel+': '+e.message);
   }finally{
     el.disabled=false;
     delete el.dataset.saving;
@@ -1055,7 +1063,7 @@ function renderCounterRows(){
       '<td title="'+escapeHtml(readingInfo)+'">'+escapeHtml(dayLabel)+'</td>'+
       '<td>'+escapeHtml(printerName)+'</td>'+
       '<td>'+escapeHtml(r.city||'—')+'</td>'+
-      '<td>'+escapeHtml(r.serial_number||'—')+'</td>'+
+      '<td><input class="inline-edit serial-edit" type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
       '<td>'+escapeHtml(r.first_page_count==null?'—':Number(r.first_page_count).toLocaleString('es-PY'))+'</td>'+
       '<td>'+escapeHtml(r.last_page_count==null?'—':Number(r.last_page_count).toLocaleString('es-PY'))+'</td>'+
       '<td>'+escapeHtml(pages)+'</td>'+
