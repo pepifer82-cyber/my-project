@@ -221,7 +221,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       </div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
-        <th>Día con lecturas</th><th>Impresora</th><th>Ciudad</th><th>Serie</th><th>Contador inicial</th><th>Contador final</th><th>Páginas impresas del día</th><th>Escaneos del día</th><th>Contador escáner final</th><th>Lecturas del día</th><th>Estado en última lectura</th><th>Agente</th>
+        <th>Día con lecturas</th><th>Impresora</th><th>Ciudad</th><th>IP</th><th>Serie de fábrica</th><th>Contador inicial</th><th>Contador final</th><th>Páginas impresas del día</th><th>Escaneos del día</th><th>Contador escáner final</th><th>Lecturas del día</th><th>Estado en última lectura</th><th>Agente</th>
       </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
@@ -1052,7 +1052,10 @@ async function loadCounterHistory(showMessage=true){
       headers:{'Prefer':'return=representation'},
       body:JSON.stringify({p_project_id:currentProjectId,p_from:dates.from,p_to:dates.to})
     });
-    counterRows=Array.isArray(result)?result.filter(isRealPrinter):[];
+    counterRows=Array.isArray(result)?result.filter(isRealPrinter).map(r=>{
+      const device=rows.find(x=>String(x.printer_id)===String(r.printer_id));
+      return {...r,ip_address:device?.ip_address?String(device.ip_address):''};
+    }):[];
     renderCounterRows();
     if(showMessage){
       const printers=new Set(counterRows.map(r=>String(r.printer_id))).size;
@@ -1075,7 +1078,7 @@ function renderCounterRows(){
   const body=$('counterBody');
   if(!body)return;
   if(!counterRows.length){
-    body.innerHTML='<tr><td colspan="12" class="empty">No hay días con lecturas guardadas para el período.</td></tr>';
+    body.innerHTML='<tr><td colspan="13" class="empty">No hay días con lecturas guardadas para el período.</td></tr>';
     return;
   }
   const visibleRows=[...counterRows].sort((a,b)=>
@@ -1097,6 +1100,7 @@ function renderCounterRows(){
       '<td title="'+escapeHtml(readingInfo)+'">'+escapeHtml(dayLabel)+'</td>'+
       '<td>'+escapeHtml(printerName)+'</td>'+
       '<td>'+escapeHtml(r.city||'—')+'</td>'+
+      '<td>'+escapeHtml(r.ip_address||'—')+'</td>'+
       '<td><input class="inline-edit serial-edit" type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
       '<td>'+escapeHtml(r.first_page_count==null?'—':Number(r.first_page_count).toLocaleString('es-PY'))+'</td>'+
       '<td>'+escapeHtml(r.last_page_count==null?'—':Number(r.last_page_count).toLocaleString('es-PY'))+'</td>'+
@@ -1121,6 +1125,7 @@ async function exportCountersExcel(){
     Día:r.reading_day||'',
     Impresora:r.printer||r.model||'',
     Ciudad:r.city||'',
+    IP:r.ip_address||'',
     Fabricante:r.manufacturer||'',
     Modelo:r.model||'',
     Serie:r.serial_number||'',
