@@ -710,25 +710,46 @@ function dedupePrinterRows(source){
   const input=Array.isArray(source)?source.filter(Boolean):[];
   const groups=[];
   const used=new Set();
+  const normalizedSerial=r=>String(r?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  const serialConflict=(a,b)=>{
+    const sa=normalizedSerial(a),sb=normalizedSerial(b);
+    return !!(sa&&sb&&sa!==sb);
+  };
 
-  // Primero agrupamos por IP real. Esto elimina duplicados exactos
-  // aunque lleguen desde nombres/modelos diferentes.
+  // Primero consolidar por número de serie físico: la IP puede cambiar
+  // o una impresora puede haber sido descubierta en dos direcciones distintas.
   for(let i=0;i<input.length;i++){
     if(used.has(i))continue;
-    const ip=realIpOf(input[i]).toLowerCase();
-
-    if(ip){
-      const indexes=[];
-      for(let j=i;j<input.length;j++){
-        if(used.has(j))continue;
-        if(realIpOf(input[j]).toLowerCase()===ip)indexes.push(j);
-      }
+    const serial=normalizedSerial(input[i]);
+    if(!serial)continue;
+    const indexes=[];
+    for(let j=i;j<input.length;j++){
+      if(used.has(j)||normalizedSerial(input[j])!==serial)continue;
+      indexes.push(j);
+    }
+    if(indexes.length>1){
       indexes.forEach(j=>used.add(j));
       groups.push(indexes);
     }
   }
 
-  // USB siempre conserva su propia ficha.
+  // Después consolidar entradas que comparten una IP real,
+  // sin unir registros que declaren números de serie incompatibles.
+  for(let i=0;i<input.length;i++){
+    if(used.has(i))continue;
+    const ip=realIpOf(input[i]).toLowerCase();
+    if(!ip)continue;
+    const indexes=[];
+    for(let j=i;j<input.length;j++){
+      if(used.has(j)||realIpOf(input[j]).toLowerCase()!==ip)continue;
+      if(indexes.some(k=>serialConflict(input[k],input[j])))continue;
+      indexes.push(j);
+    }
+    indexes.forEach(j=>used.add(j));
+    groups.push(indexes);
+  }
+
+  // USB conserva su propia ficha si no está duplicado por una ficha de red.
   for(let i=0;i<input.length;i++){
     if(used.has(i))continue;
     const r=input[i];
@@ -739,20 +760,18 @@ function dedupePrinterRows(source){
     }
   }
 
-  // WSD/red sin IP: si corresponde a una ficha de red con IP real,
-  // se incorpora a esa misma impresora en vez de mostrarla dos veces.
+  // WSD/red sin IP se incorpora a una ficha de red con IP cuando
+  // coincide la familia y el agente, evitando duplicar la cola de Windows.
   for(let i=0;i<input.length;i++){
     if(used.has(i))continue;
     const r=input[i];
-
     let target=-1;
     if(!realIpOf(r)){
       target=groups.findIndex(indexes=>{
-        const canonical=input[indexes[0]];
-        return !!realIpOf(canonical) && sameNetworkFamily(canonical,r);
+        const canonical=mergePrinterRecords(indexes.map(k=>input[k]));
+        return !!realIpOf(canonical) && !serialConflict(canonical,r) && sameNetworkFamily(canonical,r);
       });
     }
-
     if(target>=0){
       groups[target].push(i);
       used.add(i);
@@ -835,7 +854,22 @@ function renderAll(){
   // Se muestran impresoras USB y de red. Si el mismo equipo aparece
   // dos veces (por USB y por IP), queda una sola ficha, priorizando la IP.
   const activeRows=dedupePrinterRows(rows.filter(r=>r.retired!==true));
-  const retiredRows=dedupePrinterRows(rows.filter(r=>r.retired===true));
+  const activeNetworkRows=activeRows.filter(r=>!!realIpOf(r));
+  const retiredSource=rows.filter(r=>r.retired===true).filter(r=>{
+    const conn=String(r?.connection_type||'').toLowerCase();
+    const noIp=!realIpOf(r);
+    const ownSerial=String(r?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+    return !activeNetworkRows.some(n=>{
+      const networkSerial=String(n?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+      if(ownSerial&&networkSerial&&ownSerial===networkSerial)return true;
+      // Retired USB queue with the same display name as an active network
+      // printer is an alias: hide it from inventory, but preserve its readings.
+      const sameAgent=String(r?.agent_code||r?.agent_id||'').toLowerCase()===String(n?.agent_code||n?.agent_id||'').toLowerCase();
+      const sameName=String(r?.display_name||'').trim().toLowerCase()===String(n?.display_name||'').trim().toLowerCase();
+      return noIp && conn.includes('usb') && sameAgent && sameName && !(ownSerial&&networkSerial&&ownSerial!==networkSerial);
+    });
+  });
+  const retiredRows=dedupePrinterRows(retiredSource);
   const offline=activeRows.filter(r=>printerState(r)==='offline'||String(r.last_status||'').toLowerCase()==='offline');const online=activeRows.filter(r=>!offline.includes(r));
   $('mPrinters').textContent=activeRows.length;$('mOnline').textContent=online.length;$('mOffline').textContent=offline.length;$('mAgents').textContent=agentRows.length;
   $('summaryText').textContent=activeRows.length?'La flota activa tiene '+activeRows.length+' impresora(s): '+online.length+' conectada(s) y '+offline.length+' desconectada(s).':(retiredRows.length?'No hay impresoras en control activo. Hay '+retiredRows.length+' retirada(s) guardada(s).':'Todavía no hay impresoras registradas para este proyecto.');
