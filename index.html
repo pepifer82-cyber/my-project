@@ -205,7 +205,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
 
     <section id="view-contadores" class="content-card hidden">
       <div class="content-head">
-        <div><h3>Contadores por fechas</h3><small>Un renglón por impresora y día con lecturas guardadas. Si la impresora estuvo varios días sin comunicar, el aumento del contador se atribuye al día de la siguiente lectura; no se inventan datos de días sin lectura.</small></div>
+        <div><h3>Contadores por fechas</h3><small>Un renglón por impresora y día en que hubo lecturas guardadas, aunque actualmente esté desconectada o retirada. Si estuvo varios días sin comunicar, el aumento del contador se atribuye al día de la siguiente lectura; no se inventan datos de días sin lectura.</small></div>
       </div>
       <div class="content-tools" style="margin-bottom:12px;align-items:end">
         <div style="flex:0 0 180px;min-width:160px">
@@ -1027,7 +1027,7 @@ async function loadCounterHistory(showMessage=true){
       const scanDays=counterRows.filter(r=>r.scans_count!=null||r.last_scanner_count!=null).length;
       msg.textContent=counterRows.length
         ? printers+' impresora(s), '+days+' día(s) con lecturas guardadas. '+printDays+' registro(s) con variación de páginas y '+scanDays+' con dato de escáner. Solo aparecen días con lecturas; no hace falta que la impresora esté conectada ahora.'
-        : 'No hay lecturas guardadas de impresoras activas en el período seleccionado.';
+        : 'No hay lecturas guardadas de impresoras en el período seleccionado.';
     }
     return counterRows;
   }catch(e){
