@@ -72,11 +72,11 @@ jobs:
           $mainForm = [regex]::Replace($mainForm, 'e\.Cancel = true;\s*Hide\(\);', 'e.Cancel = true;' + [Environment]::NewLine + '                _tray.Visible = true;' + [Environment]::NewLine + '                Hide();')
           if ($mainForm -notmatch 'Icon = System\.Drawing\.Icon\.ExtractAssociatedIcon') { throw "Could not apply branded tray icon." }
           if ($mainForm -notmatch 'e\.Cancel = true;\s*_tray\.Visible = true;\s*Hide\(\);') { throw "Could not apply close-to-tray behavior." }
-          $mainForm = $mainForm.Replace("A&T Printer Agent 0.3.2", "A&T Printer Agent 0.3.2").Replace("v0.3.2 · Windows", "v0.3.2 · Windows")
+          $mainForm = $mainForm.Replace("A&T Printer Agent 0.2.9", "A&T Printer Agent 0.3.2").Replace("v0.2.9 · Windows", "v0.3.2 · Windows")
           [IO.File]::WriteAllText($mainFormPath, $mainForm, [Text.UTF8Encoding]::new($false))
 
           $syncPath = "$PWD\agent-src\src\SupabaseSync.cs"
-          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.3.2", "ATPrinterAgent/0.3.2")
+          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.2.9", "ATPrinterAgent/0.3.2")
           [IO.File]::WriteAllText($syncPath, $syncContent, [Text.UTF8Encoding]::new($false))
 
           $readmePath = "$PWD\agent-src\README.txt"
