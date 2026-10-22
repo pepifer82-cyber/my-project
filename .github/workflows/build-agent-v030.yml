@@ -1,4 +1,4 @@
-name: Build A&T Printer Agent v0.3.0 installer
+name: Build A&T Printer Agent v0.3.1 installer
 
 on:
   push:
@@ -66,16 +66,65 @@ jobs:
           $replacement = "_config = _store.Load();" + [Environment]::NewLine + "        _startInBackground = startInBackground && _config.InitialDiscoveryComplete;"
           $mainForm = [regex]::Replace($mainForm, '_startInBackground = startInBackground;\s*_config = _store\.Load\(\);', $replacement)
           if ($mainForm -notmatch '_startInBackground = startInBackground && _config.InitialDiscoveryComplete;') { throw "Could not apply first-start visibility fix." }
-          $mainForm = $mainForm.Replace("A&T Printer Agent 0.2.9", "A&T Printer Agent 0.3.0").Replace("v0.2.9 · Windows", "v0.3.0 · Windows")
+          $mainForm = $mainForm.Replace("A&T Printer Agent 0.2.9", "A&T Printer Agent 0.3.1").Replace("v0.2.9 · Windows", "v0.3.1 · Windows")
           [IO.File]::WriteAllText($mainFormPath, $mainForm, [Text.UTF8Encoding]::new($false))
 
           $syncPath = "$PWD\agent-src\src\SupabaseSync.cs"
-          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.2.9", "ATPrinterAgent/0.3.0")
+          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.2.9", "ATPrinterAgent/0.3.1")
           [IO.File]::WriteAllText($syncPath, $syncContent, [Text.UTF8Encoding]::new($false))
 
           $readmePath = "$PWD\agent-src\README.txt"
-          $readme = (Get-Content -Raw $readmePath).Replace("v0.2.9", "v0.3.0")
+          $readme = (Get-Content -Raw $readmePath).Replace("v0.2.9", "v0.3.1")
+
           [IO.File]::WriteAllText($readmePath, $readme, [Text.UTF8Encoding]::new($false))
+
+          # Align assembly version with the corrected installer.
+          $projectPath = "$PWD\agent-src\src\ATPrinterAgent.csproj"
+          $project = Get-Content -Raw $projectPath
+          $project = $project.Replace("<Version>0.3.0</Version>", "<Version>0.3.1</Version>")
+          $project = $project.Replace("<AssemblyVersion>0.3.0.0</AssemblyVersion>", "<AssemblyVersion>0.3.1.0</AssemblyVersion>")
+          $project = $project.Replace("<FileVersion>0.3.0.0</FileVersion>", "<FileVersion>0.3.1.0</FileVersion>")
+          $project = $project.Replace("0.3.0-multiprotocol-meters", "0.3.1-first-run-and-uninstall")
+          [IO.File]::WriteAllText($projectPath, $project, [Text.UTF8Encoding]::new($false))
+
+          # First launch must show the app so the user can add the project serial and IPs.
+          $issPath = "$PWD\agent-src\AandTPrinterAgent.iss"
+          $iss = Get-Content -Raw $issPath
+          $iss = $iss.Replace('#define MyAppVersion "0.3.0"', '#define MyAppVersion "0.3.1"')
+          $iss = $iss.Replace('OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.0', 'OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.1')
+          $iss = $iss.Replace('Parameters: "--background"; Flags: nowait postinstall skipifsilent; Description: "Iniciar A&T Printer Agent en segundo plano"', 'Parameters: ""; Flags: nowait postinstall skipifsilent; Description: "Abrir A&T Printer Agent para configurar serial e IP"')
+          $iss = $iss.Replace('[UninstallRun]', '[Icons]' + [Environment]::NewLine + 'Name: "{group}\A&T Printer Agent"; Filename: "{app}\ATPrinterAgent.exe"' + [Environment]::NewLine + 'Name: "{group}\Desinstalar A&T Printer Agent"; Filename: "{uninstallexe}"' + [Environment]::NewLine + [Environment]::NewLine + '[UninstallRun]')
+          if ($iss -notmatch 'Parameters: ""') { throw "Could not change the post-install launch to visible mode." }
+          if ($iss -notmatch 'Desinstalar A&T Printer Agent') { throw "Could not add the uninstall shortcut." }
+          if ($iss -notmatch 'function InitializeUninstall') {
+            $uninstallCode = @'
+var
+  DeleteAllUserData: Boolean;
+
+function InitializeUninstall(): Boolean;
+begin
+  Result := True;
+  DeleteAllUserData :=
+    MsgBox('¿Deseas borrar COMPLETAMENTE los datos locales de A&T Printer Agent?' + #13#10 + #13#10 +
+      'Sí: elimina serial, IPs, rangos y configuración guardada.' + #13#10 +
+      'No: desinstala el programa, pero conserva esos datos para una futura instalación.',
+      mbConfirmation, MB_YESNO) = IDYES;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if (CurUninstallStep = usPostUninstall) and DeleteAllUserData then
+  begin
+    DelTree(ExpandConstant('{localappdata}\ATPrinterAgent'), True, True, True);
+    DelTree(ExpandConstant('{userappdata}\ATPrinterAgent'), True, True, True);
+    DelTree(ExpandConstant('{commonappdata}\ATPrinterAgent'), True, True, True);
+  end;
+end;
+'@
+            $iss = $iss.Replace('[Code]', '[Code]' + [Environment]::NewLine + $uninstallCode)
+          }
+          [IO.File]::WriteAllText($issPath, $iss, [Text.UTF8Encoding]::new($false))
+
 
       - name: Publish Windows x86 agent
         shell: pwsh
@@ -112,12 +161,12 @@ jobs:
           } finally {
             Pop-Location
           }
-          if (-not (Test-Path "$PWD\agent-src\Instalar_ATPrinterAgent_v0.3.0.exe")) { throw "Installer EXE was not created." }
+          if (-not (Test-Path "$PWD\agent-src\Instalar_ATPrinterAgent_v0.3.1.exe")) { throw "Installer EXE was not created." }
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Instalar_ATPrinterAgent_v0.3.0
-          path: agent-src/Instalar_ATPrinterAgent_v0.3.0.exe
+          name: Instalar_ATPrinterAgent_v0.3.1
+          path: agent-src/Instalar_ATPrinterAgent_v0.3.1.exe
           if-no-files-found: error
           retention-days: 30
