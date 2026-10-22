@@ -97,33 +97,33 @@ jobs:
           if ($iss -notmatch 'Parameters: ""') { throw "Could not change the post-install launch to visible mode." }
           if ($iss -notmatch 'Desinstalar A&T Printer Agent') { throw "Could not add the uninstall shortcut." }
           if ($iss -notmatch 'function InitializeUninstall') {
-            $uninstallCode = @'
-var
-  DeleteAllUserData: Boolean;
-
-function InitializeUninstall(): Boolean;
-begin
-  Result := True;
-  DeleteAllUserData :=
-    MsgBox('¿Deseas borrar COMPLETAMENTE los datos locales de A&T Printer Agent?' + #13#10 + #13#10 +
-      'Sí: elimina serial, IPs, rangos y configuración guardada.' + #13#10 +
-      'No: desinstala el programa, pero conserva esos datos para una futura instalación.',
-      mbConfirmation, MB_YESNO) = IDYES;
-end;
-
-procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
-begin
-  if (CurUninstallStep = usPostUninstall) and DeleteAllUserData then
-  begin
-    DelTree(ExpandConstant('{localappdata}\ATPrinterAgent'), True, True, True);
-    DelTree(ExpandConstant('{userappdata}\ATPrinterAgent'), True, True, True);
-    DelTree(ExpandConstant('{commonappdata}\ATPrinterAgent'), True, True, True);
-  end;
-end;
-'@
+            $uninstallCode = @(
+              'var'
+              '  DeleteAllUserData: Boolean;'
+              ''
+              'function InitializeUninstall(): Boolean;'
+              'begin'
+              '  Result := True;'
+              '  DeleteAllUserData :='
+              '    MsgBox(''¿Deseas borrar COMPLETAMENTE los datos locales de A&T Printer Agent?'' + #13#10 + #13#10 +'
+              '      ''Sí: elimina serial, IPs, rangos y configuración guardada.'' + #13#10 +'
+              '      ''No: desinstala el programa, pero conserva esos datos para una futura instalación.'','
+              '      mbConfirmation, MB_YESNO) = IDYES;'
+              'end;'
+              ''
+              'procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);'
+              'begin'
+              '  if (CurUninstallStep = usPostUninstall) and DeleteAllUserData then'
+              '  begin'
+              '    DelTree(ExpandConstant(''{localappdata}\ATPrinterAgent''), True, True, True);'
+              '    DelTree(ExpandConstant(''{userappdata}\ATPrinterAgent''), True, True, True);'
+              '    DelTree(ExpandConstant(''{commonappdata}\ATPrinterAgent''), True, True, True);'
+              '  end;'
+              'end;'
+            ) -join [Environment]::NewLine
             $iss = $iss.Replace('[Code]', '[Code]' + [Environment]::NewLine + $uninstallCode)
           }
-          [IO.File]::WriteAllText($issPath, $iss, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText($issPath, $iss, [Text.UTF8Encoding]::new($true))
 
 
       - name: Publish Windows x86 agent
