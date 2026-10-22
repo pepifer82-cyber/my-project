@@ -1052,9 +1052,19 @@ async function loadCounterHistory(showMessage=true){
       headers:{'Prefer':'return=representation'},
       body:JSON.stringify({p_project_id:currentProjectId,p_from:dates.from,p_to:dates.to})
     });
+    const reportKeys=new Set();
     counterRows=Array.isArray(result)?result.filter(isRealPrinter).map(r=>{
       const device=rows.find(x=>String(x.printer_id)===String(r.printer_id));
       return {...r,ip_address:device?.ip_address?String(device.ip_address):''};
+    }).filter(r=>{
+      const day=String(r.reading_day||'').trim();
+      if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(day))return false;
+      const serial=String(r.serial_number||'').trim().toLowerCase();
+      const physicalKey=serial?'serial:'+serial:'id:'+String(r.printer_id);
+      const key=physicalKey+'|'+day;
+      if(reportKeys.has(key))return false;
+      reportKeys.add(key);
+      return true;
     }):[];
     renderCounterRows();
     if(showMessage){
@@ -1069,7 +1079,8 @@ async function loadCounterHistory(showMessage=true){
     return counterRows;
   }catch(e){
     counterRows=[];
-    renderCounterRows();
+    const body=$('counterBody');
+    if(body)body.innerHTML='<tr><td colspan="13" class="empty">No se pudieron cargar los datos. Revisá el error indicado arriba y volvé a consultar.</td></tr>';
     msg.textContent='No se pudo consultar: '+e.message;
     return [];
   }
