@@ -60,6 +60,23 @@ jobs:
           if (-not (Test-Path "$PWD\agent-src\src\ATPrinterAgent.csproj")) { throw "Source ZIP failed verification." }
           if (-not (Test-Path "$PWD\agent-src\AandTPrinterAgent.iss")) { throw "Installer script missing from source ZIP." }
 
+          # Keep first-run configuration visible, then use silent background mode after discovery.
+          $mainFormPath = "$PWD\agent-src\src\MainForm.cs"
+          $mainForm = Get-Content -Raw $mainFormPath
+          $replacement = "_config = _store.Load();" + [Environment]::NewLine + "        _startInBackground = startInBackground && _config.InitialDiscoveryComplete;"
+          $mainForm = [regex]::Replace($mainForm, '_startInBackground = startInBackground;\s*_config = _store\.Load\(\);', $replacement)
+          if ($mainForm -notmatch '_startInBackground = startInBackground && _config.InitialDiscoveryComplete;') { throw "Could not apply first-start visibility fix." }
+          $mainForm = $mainForm.Replace("A&T Printer Agent 0.2.9", "A&T Printer Agent 0.3.0").Replace("v0.2.9 · Windows", "v0.3.0 · Windows")
+          [IO.File]::WriteAllText($mainFormPath, $mainForm, [Text.UTF8Encoding]::new($false))
+
+          $syncPath = "$PWD\agent-src\src\SupabaseSync.cs"
+          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.2.9", "ATPrinterAgent/0.3.0")
+          [IO.File]::WriteAllText($syncPath, $syncContent, [Text.UTF8Encoding]::new($false))
+
+          $readmePath = "$PWD\agent-src\README.txt"
+          $readme = (Get-Content -Raw $readmePath).Replace("v0.2.9", "v0.3.0")
+          [IO.File]::WriteAllText($readmePath, $readme, [Text.UTF8Encoding]::new($false))
+
       - name: Publish Windows x86 agent
         shell: pwsh
         run: |
