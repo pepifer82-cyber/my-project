@@ -1,4 +1,4 @@
-name: Build A&T Printer Agent v0.3.1 installer
+name: Build A&T Printer Agent v0.3.2 installer
 
 on:
   push:
@@ -66,34 +66,44 @@ jobs:
           $replacement = "_config = _store.Load();" + [Environment]::NewLine + "        _startInBackground = startInBackground && _config.InitialDiscoveryComplete;"
           $mainForm = [regex]::Replace($mainForm, '_startInBackground = startInBackground;\s*_config = _store\.Load\(\);', $replacement)
           if ($mainForm -notmatch '_startInBackground = startInBackground && _config.InitialDiscoveryComplete;') { throw "Could not apply first-start visibility fix." }
-          $mainForm = $mainForm.Replace("A&T Printer Agent 0.2.9", "A&T Printer Agent 0.3.1").Replace("v0.2.9 · Windows", "v0.3.1 · Windows")
+          # The tray icon must be visible; closing with X hides the window instead of exiting.
+          $mainForm = $mainForm.Replace('Visible = false,', 'Visible = true,')
+          $mainForm = $mainForm.Replace('Icon = SystemIcons.Application,', 'Icon = System.Drawing.Icon.ExtractAssociatedIcon(Application.ExecutablePath) ?? System.Drawing.SystemIcons.Application,')
+          $mainForm = [regex]::Replace($mainForm, 'e\.Cancel = true;\s*Hide\(\);', 'e.Cancel = true;' + [Environment]::NewLine + '                _tray.Visible = true;' + [Environment]::NewLine + '                Hide();')
+          if ($mainForm -notmatch 'Icon = System\.Drawing\.Icon\.ExtractAssociatedIcon') { throw "Could not apply branded tray icon." }
+          if ($mainForm -notmatch 'e\.Cancel = true;\s*_tray\.Visible = true;\s*Hide\(\);') { throw "Could not apply close-to-tray behavior." }
+          $mainForm = $mainForm.Replace("A&T Printer Agent 0.3.2", "A&T Printer Agent 0.3.2").Replace("v0.3.2 · Windows", "v0.3.2 · Windows")
           [IO.File]::WriteAllText($mainFormPath, $mainForm, [Text.UTF8Encoding]::new($false))
 
           $syncPath = "$PWD\agent-src\src\SupabaseSync.cs"
-          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.2.9", "ATPrinterAgent/0.3.1")
+          $syncContent = (Get-Content -Raw $syncPath).Replace("ATPrinterAgent/0.3.2", "ATPrinterAgent/0.3.2")
           [IO.File]::WriteAllText($syncPath, $syncContent, [Text.UTF8Encoding]::new($false))
 
           $readmePath = "$PWD\agent-src\README.txt"
-          $readme = (Get-Content -Raw $readmePath).Replace("v0.2.9", "v0.3.1")
+          $readme = (Get-Content -Raw $readmePath).Replace("v0.2.9", "v0.3.2")
 
           [IO.File]::WriteAllText($readmePath, $readme, [Text.UTF8Encoding]::new($false))
 
           # Align assembly version with the corrected installer.
           $projectPath = "$PWD\agent-src\src\ATPrinterAgent.csproj"
           $project = Get-Content -Raw $projectPath
-          $project = $project.Replace("<Version>0.3.0</Version>", "<Version>0.3.1</Version>")
-          $project = $project.Replace("<AssemblyVersion>0.3.0.0</AssemblyVersion>", "<AssemblyVersion>0.3.1.0</AssemblyVersion>")
-          $project = $project.Replace("<FileVersion>0.3.0.0</FileVersion>", "<FileVersion>0.3.1.0</FileVersion>")
-          $project = $project.Replace("0.3.0-multiprotocol-meters", "0.3.1-first-run-and-uninstall")
+          $project = $project.Replace("<Version>0.3.0</Version>", "<Version>0.3.2</Version>")
+          $project = $project.Replace("<AssemblyVersion>0.3.0.0</AssemblyVersion>", "<AssemblyVersion>0.3.2.0</AssemblyVersion>")
+          $project = $project.Replace("<FileVersion>0.3.0.0</FileVersion>", "<FileVersion>0.3.2.0</FileVersion>")
+          $project = $project.Replace("0.3.0-multiprotocol-meters", "0.3.2-tray-icon-and-desktop")
+          if ($project -notmatch '<ApplicationIcon>app.ico</ApplicationIcon>') {
+            $project = $project.Replace('<ApplicationManifest>app.manifest</ApplicationManifest>', '<ApplicationManifest>app.manifest</ApplicationManifest>' + [Environment]::NewLine + '    <ApplicationIcon>app.ico</ApplicationIcon>')
+          }
           [IO.File]::WriteAllText($projectPath, $project, [Text.UTF8Encoding]::new($false))
 
           # First launch must show the app so the user can add the project serial and IPs.
           $issPath = "$PWD\agent-src\AandTPrinterAgent.iss"
           $iss = Get-Content -Raw $issPath
-          $iss = $iss.Replace('#define MyAppVersion "0.3.0"', '#define MyAppVersion "0.3.1"')
-          $iss = $iss.Replace('OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.0', 'OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.1')
+          $iss = $iss.Replace('#define MyAppVersion "0.3.0"', '#define MyAppVersion "0.3.2"')
+          $iss = $iss.Replace('OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.0', 'OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.2')
           $iss = $iss.Replace('Parameters: "--background"; Flags: nowait postinstall skipifsilent; Description: "Iniciar A&T Printer Agent en segundo plano"', 'Parameters: ""; Flags: nowait postinstall skipifsilent; Description: "Abrir A&T Printer Agent para configurar serial e IP"')
-          $iss = $iss.Replace('[UninstallRun]', '[Icons]' + [Environment]::NewLine + 'Name: "{group}\A&T Printer Agent"; Filename: "{app}\ATPrinterAgent.exe"' + [Environment]::NewLine + 'Name: "{group}\Desinstalar A&T Printer Agent"; Filename: "{uninstallexe}"' + [Environment]::NewLine + [Environment]::NewLine + '[UninstallRun]')
+          $iss = $iss.Replace('UninstallDisplayIcon={app}\{#MyAppExeName}', 'SetupIconFile=src\app.ico' + [Environment]::NewLine + 'UninstallDisplayIcon={app}\{#MyAppExeName}')
+          $iss = $iss.Replace('[UninstallRun]', '[Icons]' + [Environment]::NewLine + 'Name: "{group}\A&T Printer Agent"; Filename: "{app}\ATPrinterAgent.exe"; IconFilename: "{app}\ATPrinterAgent.exe"' + [Environment]::NewLine + 'Name: "{autodesktop}\A&T Printer Agent"; Filename: "{app}\ATPrinterAgent.exe"; IconFilename: "{app}\ATPrinterAgent.exe"' + [Environment]::NewLine + 'Name: "{group}\Desinstalar A&T Printer Agent"; Filename: "{uninstallexe}"' + [Environment]::NewLine + [Environment]::NewLine + '[UninstallRun]')
           if ($iss -notmatch 'Parameters: ""') { throw "Could not change the post-install launch to visible mode." }
           if ($iss -notmatch 'Desinstalar A&T Printer Agent') { throw "Could not add the uninstall shortcut." }
           if ($iss -notmatch 'function InitializeUninstall') {
@@ -125,6 +135,49 @@ jobs:
           }
           [IO.File]::WriteAllText($issPath, $iss, [Text.UTF8Encoding]::new($true))
 
+
+
+      - name: Set up Python for branded icon
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Generate A&T application icon
+        shell: pwsh
+        run: |
+          python -m pip install --disable-pip-version-check pillow
+          $iconScript = @'
+          from PIL import Image, ImageDraw, ImageFont
+          from pathlib import Path
+
+          S = 256
+          im = Image.new("RGBA", (S, S), (0, 0, 0, 0))
+          d = ImageDraw.Draw(im)
+          d.rounded_rectangle((8, 8, 248, 248), radius=48, fill=(12, 32, 62, 255), outline=(47, 191, 190, 255), width=7)
+          d.rounded_rectangle((70, 35, 186, 112), radius=10, fill=(246, 249, 252, 255))
+          d.rounded_rectangle((86, 52, 169, 61), radius=4, fill=(27, 183, 191, 255))
+          d.rounded_rectangle((86, 69, 151, 77), radius=4, fill=(243, 186, 59, 255))
+          d.rounded_rectangle((42, 88, 214, 177), radius=20, fill=(226, 235, 245, 255))
+          d.rounded_rectangle((54, 99, 202, 157), radius=12, fill=(17, 48, 82, 255))
+          d.ellipse((177, 112, 191, 126), fill=(46, 213, 153, 255))
+          d.rounded_rectangle((71, 151, 185, 216), radius=8, fill=(250, 252, 255, 255), outline=(46, 191, 190, 255), width=4)
+          font_path = r"C:\Windows\Fonts\arialbd.ttf"
+          try:
+              font = ImageFont.truetype(font_path, 45)
+          except OSError:
+              font = ImageFont.load_default()
+          box = d.textbbox((0, 0), "A&T", font=font)
+          d.text(((S - (box[2] - box[0])) / 2, 159), "A&T", font=font, fill=(12, 42, 75, 255))
+          d.rounded_rectangle((88, 204, 168, 211), radius=3, fill=(243, 186, 59, 255))
+          target = Path("agent-src/src/app.ico")
+          target.parent.mkdir(parents=True, exist_ok=True)
+          im.save(target, format="ICO", sizes=[(16,16),(24,24),(32,32),(48,48),(64,64),(128,128),(256,256)])
+          print(f"Created {target} ({target.stat().st_size} bytes)")
+          '@
+          [IO.File]::WriteAllText("$PWD\make_icon.py", $iconScript, [Text.UTF8Encoding]::new($false))
+          python "$PWD\make_icon.py"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if (-not (Test-Path "$PWD\agent-src\src\app.ico")) { throw "A&T app icon was not generated." }
 
       - name: Publish Windows x86 agent
         shell: pwsh
@@ -161,12 +214,12 @@ jobs:
           } finally {
             Pop-Location
           }
-          if (-not (Test-Path "$PWD\agent-src\Instalar_ATPrinterAgent_v0.3.1.exe")) { throw "Installer EXE was not created." }
+          if (-not (Test-Path "$PWD\agent-src\Instalar_ATPrinterAgent_v0.3.2.exe")) { throw "Installer EXE was not created." }
 
       - name: Upload installer
         uses: actions/upload-artifact@v4
         with:
-          name: Instalar_ATPrinterAgent_v0.3.1
-          path: agent-src/Instalar_ATPrinterAgent_v0.3.1.exe
+          name: Instalar_ATPrinterAgent_v0.3.2
+          path: agent-src/Instalar_ATPrinterAgent_v0.3.2.exe
           if-no-files-found: error
           retention-days: 30
