@@ -19,7 +19,7 @@ jobs:
       - name: Reassemble source ZIP
         shell: pwsh
         run: |
-          $parts = Get-ChildItem ".buildsrc\xz" -Filter "part*.b64" | Sort-Object Name
+          $parts = Get-ChildItem ".buildsrc\actual" -Filter "part*.b64" | Sort-Object Name
           if ($parts.Count -ne 23) { throw "Se esperaban 23 partes de código fuente; encontradas: $($parts.Count)" }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
           $bytes = [Convert]::FromBase64String($encoded)
