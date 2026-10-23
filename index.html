@@ -1103,6 +1103,25 @@ function aggregateCounterPeriodRows(dailyRows){
     obj[key]=(obj[key]||0)+n;
     obj['_has_'+key]=true;
   };
+  const printerIsColor=item=>{
+    const text=[item?.manufacturer,item?.model,item?.printer,item?.display_name]
+      .filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
+    const colorPatterns=[
+      /\\bcolor\\b|\\bcolour\\b/,
+      /\\bricoh\\s+mp\\s*c\\s*\\d/i,
+      /\\bmp\\s*c\\s*\\d{2,}/i,
+      /\\b(?:clp|clx)\\s*[- ]?\\d/i,
+      /\\b(?:cs|cx)\\s*\\d{3,}/i,
+      /\\b(?:versalink|altalink)\\s*c\\s*\\d/i,
+      /\\bbizhub\\s*c\\s*\\d/i,
+      /\\b(?:mfc|hl)[- ]?l?\\d{3,5}(?:cdw|cdwt|cdwxl|cdnt|cdw?)/i,
+      /\\b(?:lbp|mf)\\s*\\d{3,5}c(?:dw|dn|z)?\\b/i,
+      /\\bwf-c\\s*\\d/i,
+      /\\blexmark\\s+(?:cs|cx)\\s*\\d/i,
+      /\\bimage(?:class|runner)\\s+(?:advance\\s+)?c\\s*\\d/i
+    ];
+    return colorPatterns.some(pattern=>pattern.test(text));
+  };
   for(const r of ordered){
     const serial=String(r.serial_number||'').trim().toLowerCase();
     const ip=String(r.ip_address||'').trim().toLowerCase();
@@ -1117,7 +1136,7 @@ function aggregateCounterPeriodRows(dailyRows){
         first_scanner_count:null,last_scanner_count:null,total_scans:null,
         first_copy_count:null,last_copy_count:null,total_copies:null,
         status:r.status||'',agent:r.agent||'',reading_count:0,reading_days:0,
-        _firstTime:Infinity,_lastTime:-Infinity,_black:0,_color:0,_scans:0,_copies:0
+        _firstTime:Infinity,_lastTime:-Infinity,_print:0,_black:0,_color:0,_scans:0,_copies:0
       };
       groups.set(key,item);
     }
@@ -1149,19 +1168,34 @@ function aggregateCounterPeriodRows(dailyRows){
       item.status=r.status||item.status;
       item.agent=r.agent||item.agent;
     }
+    // El contador general de páginas se acumula durante todo el período.
+    // Luego se clasifica por tipo de equipo (monocromático o color), no se duplica.
+    addTotal(item,'_print',r.pages_printed);
     addTotal(item,'_black',pick(r,['total_black_pages','black_pages_printed','pages_black']));
     addTotal(item,'_color',pick(r,['total_color_pages','color_pages_printed','pages_color']));
     addTotal(item,'_scans',pick(r,['scans_count','total_scans','scans_printed']));
     addTotal(item,'_copies',pick(r,['total_copies','copies_count','copies_printed']));
   }
   return [...groups.values()].map(item=>{
-    item.total_black_pages=item._has__black?item._black:null;
-    item.total_color_pages=item._has__color?item._color:null;
+    // Preferimos la suma de diferencias guardadas entre lecturas. Solo si no hay
+    // ninguna diferencia calculable usamos el delta inicial-final del período.
+    let totalPrinted=item._has__print?item._print:null;
+    if(totalPrinted===null){
+      const first=numOrNull(item.first_page_count), last=numOrNull(item.last_page_count);
+      if(first!==null&&last!==null&&last>=first)totalPrinted=last-first;
+    }
+    if(printerIsColor(item)){
+      item.total_black_pages=item._has__black?item._black:0;
+      item.total_color_pages=totalPrinted;
+    }else{
+      item.total_black_pages=totalPrinted;
+      item.total_color_pages=item._has__color?item._color:0;
+    }
     item.total_scans=item._has__scans?item._scans:null;
     item.total_copies=item._has__copies?item._copies:null;
     delete item._firstTime;delete item._lastTime;
-    delete item._black;delete item._color;delete item._scans;delete item._copies;
-    delete item._has__black;delete item._has__color;delete item._has__scans;delete item._has__copies;
+    delete item._print;delete item._black;delete item._color;delete item._scans;delete item._copies;
+    delete item._has__print;delete item._has__black;delete item._has__color;delete item._has__scans;delete item._has__copies;
     return item;
   }).sort((a,b)=>String(a.printer||'').localeCompare(String(b.printer||''),'es'));
 }
