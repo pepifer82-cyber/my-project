@@ -20,7 +20,7 @@ jobs:
         shell: pwsh
         run: |
           $parts = Get-ChildItem ".buildsrc" -Filter "part*.b64" | Sort-Object Name
-          if ($parts.Count -ne 14) { throw "Se esperaban 14 partes de código fuente; encontradas: $($parts.Count)" }
+          if ($parts.Count -ne 11) { throw "Se esperaban 11 partes de código fuente; encontradas: $($parts.Count)" }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
           $bytes = [Convert]::FromBase64String($encoded)
           [IO.File]::WriteAllBytes("$PWD\agent-source.zip", $bytes)
