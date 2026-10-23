@@ -205,7 +205,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
 
     <section id="view-contadores" class="content-card hidden">
       <div class="content-head">
-        <div><h3>Contadores por fechas</h3><small>Un renglón por impresora y día en que hubo lecturas guardadas, aunque actualmente esté desconectada o retirada. Si estuvo varios días sin comunicar, el aumento del contador se atribuye al día de la siguiente lectura; no se inventan datos de días sin lectura.</small></div>
+        <div><h3>Reporte de contadores por período</h3><small>Una fila por impresora para todo el período seleccionado. Solo se usan lecturas guardadas; “—” indica que ese contador no fue enviado por el agente y no se reemplaza por cero.</small></div>
       </div>
       <div class="content-tools" style="margin-bottom:12px;align-items:end">
         <div style="flex:0 0 180px;min-width:160px">
@@ -221,7 +221,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       </div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
-        <th>Día con lecturas</th><th>Impresora</th><th>Ciudad</th><th>IP</th><th>Serie de fábrica</th><th>Contador inicial</th><th>Contador final</th><th>Páginas impresas del día</th><th>Escaneos del día</th><th>Contador escáner final</th><th>Lecturas del día</th><th>Estado en última lectura</th><th>Agente</th>
+        <th>Proyecto</th><th>Impresora</th><th>IP</th><th>Fabricante</th><th>Modelo</th><th>Serie</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
       </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
@@ -1045,7 +1045,7 @@ async function loadCounterHistory(showMessage=true){
   const dates=validateCounterDates();
   if(!dates)return [];
   const msg=$('counterMsg');
-  if(showMessage)msg.textContent='Consultando resumen diario...';
+  if(showMessage)msg.textContent='Consultando y agrupando contadores por impresora...';
   try{
     const result=await api('/rest/v1/rpc/control_get_counter_daily_history',{
       method:'POST',
@@ -1053,74 +1053,147 @@ async function loadCounterHistory(showMessage=true){
       body:JSON.stringify({p_project_id:currentProjectId,p_from:dates.from,p_to:dates.to})
     });
     const reportKeys=new Set();
-    counterRows=Array.isArray(result)?result.filter(isRealPrinter).map(r=>{
+    const dailyRows=Array.isArray(result)?result.filter(isRealPrinter).map(r=>{
       const device=rows.find(x=>String(x.printer_id)===String(r.printer_id));
       return {...r,ip_address:device?.ip_address?String(device.ip_address):''};
     }).filter(r=>{
       const day=String(r.reading_day||'').trim();
       if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return false;
       const serial=String(r.serial_number||'').trim().toLowerCase();
-      const physicalKey=serial?'serial:'+serial:'id:'+String(r.printer_id);
+      const ip=String(r.ip_address||'').trim().toLowerCase();
+      const physicalKey=serial?'serial:'+serial:(ip?'ip:'+ip:'id:'+String(r.printer_id));
       const key=physicalKey+'|'+day;
       if(reportKeys.has(key))return false;
       reportKeys.add(key);
       return true;
     }):[];
+    const dayCount=new Set(dailyRows.map(r=>String(r.reading_day))).size;
+    counterRows=aggregateCounterPeriodRows(dailyRows);
     renderCounterRows();
     if(showMessage){
-      const printers=new Set(counterRows.map(r=>String(r.printer_id))).size;
-      const days=new Set(counterRows.map(r=>String(r.reading_day))).size;
-      const printDays=counterRows.filter(r=>r.pages_printed!=null).length;
-      const scanDays=counterRows.filter(r=>r.scans_count!=null||r.last_scanner_count!=null).length;
       msg.textContent=counterRows.length
-        ? printers+' impresora(s), '+days+' día(s) con lecturas guardadas. '+printDays+' registro(s) con variación de páginas y '+scanDays+' con dato de escáner. Solo aparecen días con lecturas; no hace falta que la impresora esté conectada ahora.'
+        ? counterRows.length+' impresora(s) con lecturas en '+dayCount+' día(s) del período. Los contadores no disponibles se muestran como “—”.'
         : 'No hay lecturas guardadas de impresoras en el período seleccionado.';
     }
     return counterRows;
   }catch(e){
     counterRows=[];
-    const body=$('counterBody');
-    if(body)body.innerHTML='<tr><td colspan="13" class="empty">No se pudieron cargar los datos. Revisá el error indicado arriba y volvé a consultar.</td></tr>';
+    renderCounterRows();
     msg.textContent='No se pudo consultar: '+e.message;
     return [];
   }
+}
+function aggregateCounterPeriodRows(dailyRows){
+  const project=projects.find(x=>String(x.id)===String(currentProjectId));
+  const projectName=project?.name||project?.project_name||project?.nombre||'—';
+  const groups=new Map();
+  const ordered=[...dailyRows].sort((a,b)=>
+    String(a.first_reading_at||a.reading_day||'').localeCompare(String(b.first_reading_at||b.reading_day||''))||
+    String(a.printer||'').localeCompare(String(b.printer||''),'es')
+  );
+  const numOrNull=v=>{
+    if(v===null||v===undefined||v==='')return null;
+    const n=Number(v);
+    return Number.isFinite(n)?n:null;
+  };
+  const pick=(r,names)=>{for(const name of names){const n=numOrNull(r?.[name]);if(n!==null)return n;}return null;};
+  const addTotal=(obj,key,value)=>{
+    const n=numOrNull(value);
+    if(n===null)return;
+    obj[key]=(obj[key]||0)+n;
+    obj['_has_'+key]=true;
+  };
+  for(const r of ordered){
+    const serial=String(r.serial_number||'').trim().toLowerCase();
+    const ip=String(r.ip_address||'').trim().toLowerCase();
+    const key=serial?'serial:'+serial:(ip?'ip:'+ip:'id:'+String(r.printer_id));
+    let item=groups.get(key);
+    if(!item){
+      item={
+        project_name:projectName,printer_id:r.printer_id,printer:r.model||r.printer||'—',
+        ip_address:r.ip_address||'',manufacturer:r.manufacturer||'',model:r.model||'',
+        serial_number:r.serial_number||'',first_reading_at:null,last_reading_at:null,
+        first_page_count:null,last_page_count:null,total_black_pages:null,total_color_pages:null,
+        first_scanner_count:null,last_scanner_count:null,total_scans:null,
+        first_copy_count:null,last_copy_count:null,total_copies:null,
+        status:r.status||'',agent:r.agent||'',reading_count:0,reading_days:0,
+        _firstTime:Infinity,_lastTime:-Infinity,_black:0,_color:0,_scans:0,_copies:0
+      };
+      groups.set(key,item);
+    }
+    if(!item.ip_address&&r.ip_address)item.ip_address=r.ip_address;
+    if(!item.serial_number&&r.serial_number)item.serial_number=r.serial_number;
+    if(!item.manufacturer&&r.manufacturer)item.manufacturer=r.manufacturer;
+    if(!item.model&&r.model)item.model=r.model;
+    item.reading_count+=Number(r.reading_count||0);
+    item.reading_days+=1;
+    const firstTs=r.first_reading_at?new Date(r.first_reading_at).getTime():NaN;
+    const lastTs=r.last_reading_at?new Date(r.last_reading_at).getTime():NaN;
+    if(Number.isFinite(firstTs)&&firstTs<item._firstTime){
+      item._firstTime=firstTs;
+      item.first_reading_at=r.first_reading_at;
+      item.first_page_count=numOrNull(r.first_page_count);
+      const v=pick(r,['first_scanner_count','scanner_count_start']);
+      if(v!==null)item.first_scanner_count=v;
+      const c=pick(r,['first_copy_count','copies_start']);
+      if(c!==null)item.first_copy_count=c;
+    }
+    if(Number.isFinite(lastTs)&&lastTs>=item._lastTime){
+      item._lastTime=lastTs;
+      item.last_reading_at=r.last_reading_at;
+      item.last_page_count=numOrNull(r.last_page_count);
+      const v=pick(r,['last_scanner_count','scanner_count_end']);
+      if(v!==null)item.last_scanner_count=v;
+      const c=pick(r,['last_copy_count','copies_end']);
+      if(c!==null)item.last_copy_count=c;
+      item.status=r.status||item.status;
+      item.agent=r.agent||item.agent;
+    }
+    addTotal(item,'_black',pick(r,['total_black_pages','black_pages_printed','pages_black']));
+    addTotal(item,'_color',pick(r,['total_color_pages','color_pages_printed','pages_color']));
+    addTotal(item,'_scans',pick(r,['scans_count','total_scans','scans_printed']));
+    addTotal(item,'_copies',pick(r,['total_copies','copies_count','copies_printed']));
+  }
+  return [...groups.values()].map(item=>{
+    item.total_black_pages=item._has__black?item._black:null;
+    item.total_color_pages=item._has__color?item._color:null;
+    item.total_scans=item._has__scans?item._scans:null;
+    item.total_copies=item._has__copies?item._copies:null;
+    delete item._firstTime;delete item._lastTime;
+    delete item._black;delete item._color;delete item._scans;delete item._copies;
+    delete item._has__black;delete item._has__color;delete item._has__scans;delete item._has__copies;
+    return item;
+  }).sort((a,b)=>String(a.printer||'').localeCompare(String(b.printer||''),'es'));
 }
 function renderCounterRows(){
   const body=$('counterBody');
   if(!body)return;
   if(!counterRows.length){
-    body.innerHTML='<tr><td colspan="13" class="empty">No hay días con lecturas guardadas para el período.</td></tr>';
+    body.innerHTML='<tr><td colspan="18" class="empty">No hay lecturas guardadas de impresoras en el período.</td></tr>';
     return;
   }
-  const visibleRows=[...counterRows].sort((a,b)=>
-    String(a.reading_day||'').localeCompare(String(b.reading_day||'')) ||
-    String(a.printer||'').localeCompare(String(b.printer||''),'es')
-  );
-  body.innerHTML=visibleRows.map(r=>{
-    const pages=r.pages_printed==null?'—':Number(r.pages_printed).toLocaleString('es-PY');
-    const scans=r.scans_count==null?'—':Number(r.scans_count).toLocaleString('es-PY');
-    const printerName=r.model||r.printer||'—';
-    const day=String(r.reading_day||'');
-    const dayLabel=/^\d{4}-\d{2}-\d{2}$/.test(day)
-      ? new Date(day+'T12:00:00').toLocaleDateString('es-PY')
-      : '—';
-    const firstTime=r.first_reading_at?new Date(r.first_reading_at).toLocaleTimeString('es-PY'):'—';
-    const lastTime=r.last_reading_at?new Date(r.last_reading_at).toLocaleTimeString('es-PY'):'—';
-    const readingInfo='Primera lectura: '+firstTime+' · última lectura: '+lastTime;
+  const show=v=>v===null||v===undefined||v===''?'—':Number(v).toLocaleString('es-PY');
+  const dt=v=>v?new Date(v).toLocaleString('es-PY'):'—';
+  body.innerHTML=counterRows.map(r=>{
     return '<tr>'+
-      '<td title="'+escapeHtml(readingInfo)+'">'+escapeHtml(dayLabel)+'</td>'+
-      '<td>'+escapeHtml(printerName)+'</td>'+
-      '<td>'+escapeHtml(r.city||'—')+'</td>'+
+      '<td>'+escapeHtml(r.project_name||'—')+'</td>'+
+      '<td>'+escapeHtml(r.model||r.printer||'—')+'</td>'+
       '<td>'+escapeHtml(r.ip_address||'—')+'</td>'+
+      '<td>'+escapeHtml(r.manufacturer||'—')+'</td>'+
+      '<td>'+escapeHtml(r.model||'—')+'</td>'+
       '<td><input class="inline-edit serial-edit" type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
-      '<td>'+escapeHtml(r.first_page_count==null?'—':Number(r.first_page_count).toLocaleString('es-PY'))+'</td>'+
-      '<td>'+escapeHtml(r.last_page_count==null?'—':Number(r.last_page_count).toLocaleString('es-PY'))+'</td>'+
-      '<td>'+escapeHtml(pages)+'</td>'+
-      '<td>'+escapeHtml(scans)+'</td>'+
-      '<td>'+escapeHtml(r.last_scanner_count==null?'—':Number(r.last_scanner_count).toLocaleString('es-PY'))+'</td>'+
-      '<td>'+escapeHtml(Number(r.reading_count||0).toLocaleString('es-PY'))+'</td>'+
-      '<td>'+escapeHtml(counterStatus({status:r.status})||'—')+'</td>'+
-      '<td>'+escapeHtml(r.agent||'—')+'</td>'+
+      '<td>'+escapeHtml(dt(r.first_reading_at))+'</td>'+
+      '<td>'+escapeHtml(dt(r.last_reading_at))+'</td>'+
+      '<td>'+escapeHtml(show(r.first_page_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.last_page_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.total_black_pages))+'</td>'+
+      '<td>'+escapeHtml(show(r.total_color_pages))+'</td>'+
+      '<td>'+escapeHtml(show(r.first_scanner_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.last_scanner_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.total_scans))+'</td>'+
+      '<td>'+escapeHtml(show(r.first_copy_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.last_copy_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.total_copies))+'</td>'+
     '</tr>';
   }).join('');
 }
@@ -1130,34 +1203,36 @@ async function exportCountersExcel(){
   const dates=validateCounterDates();
   if(!dates)return;
   const data=await loadCounterHistory(false);
-  if(!data.length){alert('No hay días con lecturas guardadas en ese período.');return}
+  if(!data.length){alert('No hay lecturas guardadas de impresoras en ese período.');return}
   const p=projects.find(x=>x.id===currentProjectId);
+  const val=v=>v===null||v===undefined||v===''?'':Number(v);
+  const dt=v=>v?new Date(v).toLocaleString('es-PY'):'';
   const report=data.map(r=>({
-    Día:r.reading_day||'',
-    Impresora:r.printer||r.model||'',
-    Ciudad:r.city||'',
+    Proyecto:r.project_name||p?.name||'',
+    Impresora:r.model||r.printer||'',
     IP:r.ip_address||'',
     Fabricante:r.manufacturer||'',
     Modelo:r.model||'',
     Serie:r.serial_number||'',
-    'Primera lectura':r.first_reading_at?new Date(r.first_reading_at).toLocaleString('es-PY'):'',
-    'Última lectura':r.last_reading_at?new Date(r.last_reading_at).toLocaleString('es-PY'):'',
-    'Contador impresión inicial':r.first_page_count==null?'':Number(r.first_page_count),
-    'Contador impresión final':r.last_page_count==null?'':Number(r.last_page_count),
-    'Páginas impresas del día':r.pages_printed==null?'':Number(r.pages_printed),
-    'Contador escáner inicial':r.first_scanner_count==null?'':Number(r.first_scanner_count),
-    'Contador escáner final':r.last_scanner_count==null?'':Number(r.last_scanner_count),
-    'Escaneos del día':r.scans_count==null?'':Number(r.scans_count),
-    'Cantidad de lecturas':Number(r.reading_count||0),
-    'Estado en última lectura':counterStatus({status:r.status}),
-    Agente:r.agent||''
-  })).sort((a,b)=>String(a.Día).localeCompare(String(b.Día))||String(a.Impresora).localeCompare(String(b.Impresora),'es'));
+    'Primera Lectura desde':dt(r.first_reading_at),
+    'Última lectura hasta':dt(r.last_reading_at),
+    'Contador impresión desde':val(r.first_page_count),
+    'Contador impresión hasta':val(r.last_page_count),
+    'total Paginas negro':val(r.total_black_pages),
+    'total Páginas color':val(r.total_color_pages),
+    'Contador escáner desde':val(r.first_scanner_count),
+    'Contador escáner hasta':val(r.last_scanner_count),
+    'total Escaneos':val(r.total_scans),
+    'copias desde':val(r.first_copy_count),
+    'copias hasta':val(r.last_copy_count),
+    'total copias':val(r.total_copies)
+  }));
   const wb=XLSX.utils.book_new();
   const ws=XLSX.utils.json_to_sheet(report);
   fitColumns(ws);
-  XLSX.utils.book_append_sheet(wb,ws,'Resumen diario');
+  XLSX.utils.book_append_sheet(wb,ws,'Resumen del período');
   const safeName=String(p?.name||'proyecto').replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'proyecto';
-  XLSX.writeFile(wb,'AT_Printer_Resumen_Diario_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx');
+  XLSX.writeFile(wb,'AT_Printer_Resumen_Periodo_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx');
 }
 
 function exportProjectExcel(){
