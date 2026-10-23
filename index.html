@@ -1105,20 +1105,20 @@ function aggregateCounterPeriodRows(dailyRows){
   };
   const printerIsColor=item=>{
     const text=[item?.manufacturer,item?.model,item?.printer,item?.display_name]
-      .filter(Boolean).join(' ').normalize('NFD').replace(/[\\u0300-\\u036f]/g,'').toLowerCase();
+      .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const colorPatterns=[
-      /\\bcolor\\b|\\bcolour\\b/,
-      /\\bricoh\\s+mp\\s*c\\s*\\d/i,
-      /\\bmp\\s*c\\s*\\d{2,}/i,
-      /\\b(?:clp|clx)\\s*[- ]?\\d/i,
-      /\\b(?:cs|cx)\\s*\\d{3,}/i,
-      /\\b(?:versalink|altalink)\\s*c\\s*\\d/i,
-      /\\bbizhub\\s*c\\s*\\d/i,
-      /\\b(?:mfc|hl)[- ]?l?\\d{3,5}(?:cdw|cdwt|cdwxl|cdnt|cdw?)/i,
-      /\\b(?:lbp|mf)\\s*\\d{3,5}c(?:dw|dn|z)?\\b/i,
-      /\\bwf-c\\s*\\d/i,
-      /\\blexmark\\s+(?:cs|cx)\\s*\\d/i,
-      /\\bimage(?:class|runner)\\s+(?:advance\\s+)?c\\s*\\d/i
+      /\bcolor\b|\bcolour\b/,
+      /\bricoh\s+mp\s*c\s*\d/i,
+      /\bmp\s*c\s*\d{2,}/i,
+      /\b(?:clp|clx)\s*[- ]?\d/i,
+      /\b(?:cs|cx)\s*\d{3,}/i,
+      /\b(?:versalink|altalink)\s*c\s*\d/i,
+      /\bbizhub\s*c\s*\d/i,
+      /\b(?:mfc|hl)[- ]?l?\d{3,5}(?:cdw|cdwt|cdwxl|cdnt|cdw?)/i,
+      /\b(?:lbp|mf)\s*\d{3,5}c(?:dw|dn|z)?\b/i,
+      /\bwf-c\s*\d/i,
+      /\blexmark\s+(?:cs|cx)\s*\d/i,
+      /\bimage(?:class|runner)\s+(?:advance\s+)?c\s*\d/i
     ];
     return colorPatterns.some(pattern=>pattern.test(text));
   };
