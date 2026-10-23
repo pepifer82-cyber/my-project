@@ -221,7 +221,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       </div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
-        <th>Proyecto</th><th>Impresora</th><th>IP</th><th>Fabricante</th><th>Modelo</th><th>Serie</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
+        <th>Proyecto</th><th>Impresora</th><th>IP</th><th>Fabricante</th><th>Modelo</th><th>Serie</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total general de impresión</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
       </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
@@ -1132,7 +1132,7 @@ function aggregateCounterPeriodRows(dailyRows){
         project_name:projectName,printer_id:r.printer_id,printer:r.model||r.printer||'—',
         ip_address:r.ip_address||'',manufacturer:r.manufacturer||'',model:r.model||'',
         serial_number:r.serial_number||'',first_reading_at:null,last_reading_at:null,
-        first_page_count:null,last_page_count:null,total_black_pages:null,total_color_pages:null,
+        first_page_count:null,last_page_count:null,total_general_pages:null,total_black_pages:null,total_color_pages:null,
         first_scanner_count:null,last_scanner_count:null,total_scans:null,
         first_copy_count:null,last_copy_count:null,total_copies:null,
         status:r.status||'',agent:r.agent||'',reading_count:0,reading_days:0,
@@ -1184,6 +1184,7 @@ function aggregateCounterPeriodRows(dailyRows){
       const first=numOrNull(item.first_page_count), last=numOrNull(item.last_page_count);
       if(first!==null&&last!==null&&last>=first)totalPrinted=last-first;
     }
+    item.total_general_pages=totalPrinted;
     if(printerIsColor(item)){
       item.total_black_pages=item._has__black?item._black:0;
       item.total_color_pages=totalPrinted;
@@ -1203,7 +1204,7 @@ function renderCounterRows(){
   const body=$('counterBody');
   if(!body)return;
   if(!counterRows.length){
-    body.innerHTML='<tr><td colspan="18" class="empty">No hay lecturas guardadas de impresoras en el período.</td></tr>';
+    body.innerHTML='<tr><td colspan="19" class="empty">No hay lecturas guardadas de impresoras en el período.</td></tr>';
     return;
   }
   const show=v=>v===null||v===undefined||v===''?'—':Number(v).toLocaleString('es-PY');
@@ -1220,6 +1221,7 @@ function renderCounterRows(){
       '<td>'+escapeHtml(dt(r.last_reading_at))+'</td>'+
       '<td>'+escapeHtml(show(r.first_page_count))+'</td>'+
       '<td>'+escapeHtml(show(r.last_page_count))+'</td>'+
+      '<td>'+escapeHtml(show(r.total_general_pages))+'</td>'+
       '<td>'+escapeHtml(show(r.total_black_pages))+'</td>'+
       '<td>'+escapeHtml(show(r.total_color_pages))+'</td>'+
       '<td>'+escapeHtml(show(r.first_scanner_count))+'</td>'+
@@ -1252,6 +1254,7 @@ async function exportCountersExcel(){
     'Última lectura hasta':dt(r.last_reading_at),
     'Contador impresión desde':val(r.first_page_count),
     'Contador impresión hasta':val(r.last_page_count),
+    'Total general de impresión':val(r.total_general_pages),
     'total Paginas negro':val(r.total_black_pages),
     'total Páginas color':val(r.total_color_pages),
     'Contador escáner desde':val(r.first_scanner_count),
