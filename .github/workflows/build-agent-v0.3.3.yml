@@ -35,10 +35,13 @@ jobs:
           if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "No se encontró el proyecto .NET" }
           if (!(Test-Path "$agentRoot\AandTPrinterAgent.iss")) { throw "No se encontró el instalador Inno Setup" }
 
-      - name: Setup .NET 8 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: "8.0.x"
+      - name: Verify preinstalled .NET 8 SDK
+        shell: pwsh
+        run: |
+          dotnet --info
+          if ($LASTEXITCODE -ne 0) { throw "No se encontró .NET SDK en el runner de Windows" }
+          $sdks = dotnet --list-sdks
+          if (!($sdks | Select-String '^8\\.')) { throw "El runner no tiene .NET 8 SDK instalado: $sdks" }
 
       - name: Install Inno Setup 6
         shell: pwsh
