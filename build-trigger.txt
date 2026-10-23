@@ -1,2 +1,1 @@
-Build A&T Printer Agent v0.3.3 from fully hash-verified source archive.
-Revision: source archive SHA-256 da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75.
+Retry build using preinstalled Windows .NET 8 SDK.
