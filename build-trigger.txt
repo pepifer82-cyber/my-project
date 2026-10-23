@@ -1,1 +1,1 @@
-Retry build using preinstalled Windows .NET 8 SDK.
+Retry Windows installer build after fixing SDK check.
