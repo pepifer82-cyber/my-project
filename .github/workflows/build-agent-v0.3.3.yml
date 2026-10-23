@@ -1,0 +1,98 @@
+name: Build A&T Printer Agent v0.3.3 Windows installer
+
+on:
+  push:
+    branches: ["build-agent-v0.3.3-final"]
+    paths:
+      - "build-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source package
+        uses: actions/checkout@v4
+
+      - name: Reassemble source ZIP
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem ".buildsrc" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 5) { throw "Se esperaban 5 partes de código fuente; encontradas: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          [IO.File]::WriteAllBytes("$PWD\agent-source.zip", $bytes)
+          $expected = "bbe9312c4e817d58b902af0e6d3c0649a7faf9cc9c874268cab4c843a6c01557"
+          $actual = (Get-FileHash "$PWD\agent-source.zip" -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Hash de ZIP distinto: $actual" }
+          Expand-Archive "$PWD\agent-source.zip" -DestinationPath "$PWD\agent-src" -Force
+          if (!(Test-Path "$PWD\agent-src\src\ATPrinterAgent.csproj")) { throw "No se encontró el proyecto .NET" }
+          if (!(Test-Path "$PWD\agent-src\AandTPrinterAgent.iss")) { throw "No se encontró el instalador Inno Setup" }
+
+      - name: Setup .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
+
+      - name: Publish x86 single-file agent
+        shell: pwsh
+        run: |
+          Set-Location "$PWD\agent-src\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "Restore x86 falló" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
+          if ($LASTEXITCODE -ne 0) { throw "Publicación x86 falló" }
+          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "No se generó el EXE x86" }
+
+      - name: Publish x64 single-file agent
+        shell: pwsh
+        run: |
+          Set-Location "$PWD\agent-src\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Restore x64 falló" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
+          if ($LASTEXITCODE -ne 0) { throw "Publicación x64 falló" }
+          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "No se generó el EXE x64" }
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          Set-Location "$PWD\agent-src"
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falló" }
+          $exe = Join-Path (Get-Location) "Instalar_ATPrinterAgent_v0.3.3.exe"
+          if (!(Test-Path $exe)) { throw "El instalador final no se generó" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1000000) { throw "El instalador final es demasiado pequeño: $size bytes" }
+          Get-FileHash $exe -Algorithm SHA256
+          Get-Item $exe | Select-Object FullName,Length
+
+      - name: Publish build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalar_ATPrinterAgent_v0.3.3
+          path: agent-src/Instalar_ATPrinterAgent_v0.3.3.exe
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create downloadable release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: atprinteragent-v0.3.3-total-general
+          name: A&T Printer Agent v0.3.3 - Total general de impresión
+          body: |
+            Instalador Windows compilado automáticamente a partir del código fuente v0.3.3.
+            Incluye selección x86/x64, conservación de configuración de la instalación y contador general de impresión.
+            Hash SHA-256 validado durante la compilación.
+          files: agent-src/Instalar_ATPrinterAgent_v0.3.3.exe
