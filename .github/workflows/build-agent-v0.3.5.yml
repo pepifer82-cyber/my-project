@@ -1,0 +1,114 @@
+name: Build A&T Printer Agent v0.3.5 Windows installer
+
+on:
+  push:
+    branches: ["build-agent-v0.3.5-serial-fix"]
+    paths:
+      - "build-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout build source
+        uses: actions/checkout@v4
+
+      - name: Reassemble v0.3.5 source archive
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem ".buildsrc/v035" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 29) { throw "Expected 29 source parts; found: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-source.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "658ffbd9b5e621dc79eaa727f4904f1835260fae00deee4204f2de6605ccdacb"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Source package hash mismatch: $actual" }
+          New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "Could not extract source archive" }
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "Missing .NET project" }
+          if (!(Test-Path "$agentRoot\AandTPrinterAgent.iss")) { throw "Missing Inno Setup script" }
+
+      - name: Verify .NET SDK
+        shell: pwsh
+        run: |
+          dotnet --info
+          $sdks = dotnet --list-sdks
+          if (!($sdks | Select-String '^8\.')) { throw "The runner does not have .NET 8 SDK: $sdks" }
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Failed to install Inno Setup 6" }
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "ISCC.exe not found: $iscc" }
+
+      - name: Publish x86 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "x86 restore failed" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
+          if ($LASTEXITCODE -ne 0) { throw "x86 publish failed" }
+          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "x86 EXE not created" }
+
+      - name: Publish x64 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "x64 restore failed" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
+          if ($LASTEXITCODE -ne 0) { throw "x64 publish failed" }
+          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "x64 EXE not created" }
+
+      - name: Compile Windows installer
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          Set-Location $agentRoot
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+          $exe = Join-Path (Get-Location) "Instalar_ATPrinterAgent_v0.3.5.exe"
+          if (!(Test-Path $exe)) { throw "Final installer not generated" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1000000) { throw "Installer is unexpectedly small: $size bytes" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Instalar_ATPrinterAgent_v0.3.5.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          Get-Item $exe | Select-Object FullName,Length
+          Write-Host "SHA256: $hash"
+
+      - name: Publish downloadable build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalar_ATPrinterAgent_v0.3.5
+          path: |
+            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/Instalar_ATPrinterAgent_v0.3.5.exe
+            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create versioned release for the remote updater
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent-v0.3.5
+          name: A&T Printer Agent v0.3.5 - Validación de series
+          body: |
+            Instalador Windows compilado automáticamente a partir del código fuente v0.3.5.
+            Incluye validación estricta de números de serie, lectura SNMP con verificación de OID,
+            alternativas PJL/IPP/HTTP cuando el equipo las admite y conservación de la configuración.
+            El estado desconectado se determina por el último contacto real del agente.
+          files: |
+            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/Instalar_ATPrinterAgent_v0.3.5.exe
+            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/SHA256SUMS.txt
