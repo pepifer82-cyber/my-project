@@ -2,21 +2,34 @@ param([Parameter(Mandatory=$true)][string]$AgentRoot)
 $ErrorActionPreference = "Stop"
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 
+$crlf = [string][char]13 + [string][char]10
+$lf = [string][char]10
+
+function Normalize-Lines([string]$Value) {
+    return $Value.Replace($script:crlf, $script:lf)
+}
 function Replace-Required {
     param([string]$Path, [string]$Old, [string]$New, [string]$Label)
-    $text = [System.IO.File]::ReadAllText($Path)
-    if (-not $text.Contains($Old)) { throw "Patch v0.3.5: no se encontró '$Label' en $Path" }
+    $text = Normalize-Lines ([System.IO.File]::ReadAllText($Path))
+    $Old = Normalize-Lines $Old
+    $New = Normalize-Lines $New
+    if (-not $text.Contains($Old)) {
+        throw "Patch v0.3.5: no se encontró '$Label' en $Path"
+    }
     $text = $text.Replace($Old, $New)
     [System.IO.File]::WriteAllText($Path, $text, $utf8)
 }
 function Replace-Block {
     param([string]$Path, [string]$StartMarker, [string]$EndMarker, [string]$NewBlock, [string]$Label)
-    $text = [System.IO.File]::ReadAllText($Path)
+    $text = Normalize-Lines ([System.IO.File]::ReadAllText($Path))
+    $StartMarker = Normalize-Lines $StartMarker
+    $EndMarker = Normalize-Lines $EndMarker
+    $NewBlock = Normalize-Lines $NewBlock
     $start = $text.IndexOf($StartMarker, [System.StringComparison]::Ordinal)
     if ($start -lt 0) { throw "Patch v0.3.5: inicio no encontrado para '$Label' en $Path" }
     $end = $text.IndexOf($EndMarker, $start, [System.StringComparison]::Ordinal)
     if ($end -lt 0) { throw "Patch v0.3.5: fin no encontrado para '$Label' en $Path" }
-    $text = $text.Substring(0, $start) + $NewBlock + [Environment]::NewLine + [Environment]::NewLine + $text.Substring($end)
+    $text = $text.Substring(0, $start) + $NewBlock + $lf + $lf + $text.Substring($end)
     [System.IO.File]::WriteAllText($Path, $text, $utf8)
 }
 
