@@ -1,1 +1,1 @@
-Retry Windows installer build after fixing SDK check.
+Build A&T Printer Agent v0.3.5 serial fix - trigger 2026-10-29
