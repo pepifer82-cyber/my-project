@@ -52,7 +52,7 @@
         var relevant = new[] { "device", "product", "serial", "information", "system", "printer", "status", "about", "general" };
 
         foreach (Match match in Regex.Matches(homeHtml,
-            "<a\\b[^>]*\\bhref\\s*=\\s*(['""])(.*?)\\1[^>]*>(.*?)</a>",
+            "<a\\b[^>]*\\bhref\\s*=\\s*(['\"])(.*?)\\1[^>]*>(.*?)</a>",
             RegexOptions.IgnoreCase | RegexOptions.Singleline))
         {
             var href = WebUtility.HtmlDecode(match.Groups[2].Value).Trim();
