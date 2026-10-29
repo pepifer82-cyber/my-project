@@ -13,32 +13,51 @@ jobs:
   build-installer:
     runs-on: windows-latest
     steps:
-      - name: Checkout build source
+      - name: Checkout build branch
         uses: actions/checkout@v4
-      - name: Reassemble v0.3.5 source archive
+
+      - name: Reassemble the verified v0.3.3 source base
         shell: pwsh
         run: |
-          $parts = Get-ChildItem ".buildsrc/v035" -Filter "part*.b64" | Sort-Object Name
-          if ($parts.Count -ne 8) { throw "Expected 8 source parts; found: $($parts.Count)" }
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Expected 23 base source parts; found: $($parts.Count)" }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
           $bytes = [Convert]::FromBase64String($encoded)
-          $archive = "$PWD\agent-source.tar.xz"
+          $archive = "$PWD\agent-base.tar.xz"
           [IO.File]::WriteAllBytes($archive, $bytes)
-          $expected = "e6643d6499d79b9ef16dca7a5ab0c9477b65a1300332d3a6b6e40efc7e8ebc8d"
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
           $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $expected) { throw "Source package hash mismatch: $actual" }
+          if ($actual -ne $expected) { throw "Base source hash mismatch: $actual" }
           New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
           tar -xf $archive -C "$PWD\agent-src"
-          if ($LASTEXITCODE -ne 0) { throw "Could not extract source archive" }
-          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
-          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "Missing .NET project" }
-          if (!(Test-Path "$agentRoot\AandTPrinterAgent.iss")) { throw "Missing Inno Setup script" }
+          if ($LASTEXITCODE -ne 0) { throw "Could not extract base source archive" }
+
+      - name: Apply verified v0.3.5 serial patch
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem ".buildsrc/v035patch" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 12) { throw "Expected 12 patch parts; found: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-patch.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "219c7b566c09e5b2e4fdfefd0c2c69310cc1d9a94d0b427f5825e7550b3466ff"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Patch source hash mismatch: $actual" }
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "Could not apply v0.3.5 source overlay" }
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "Missing .NET project after patch" }
+          if (!(Test-Path "$agentRoot\src\UpdateManager.cs")) { throw "Missing remote updater source" }
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.5</Version>' -Quiet)) { throw "The project is not version 0.3.5" }
+
       - name: Verify .NET SDK
         shell: pwsh
         run: |
           dotnet --info
           $sdks = dotnet --list-sdks
           if (!($sdks | Select-String '^8\.')) { throw "The runner does not have .NET 8 SDK: $sdks" }
+
       - name: Install Inno Setup 6
         shell: pwsh
         run: |
@@ -46,30 +65,33 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Failed to install Inno Setup 6" }
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "ISCC.exe not found: $iscc" }
+
       - name: Publish x86 single-file agent
         shell: pwsh
         run: |
-          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location "$agentRoot\src"
           dotnet restore ATPrinterAgent.csproj -r win-x86
           if ($LASTEXITCODE -ne 0) { throw "x86 restore failed" }
           dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
           if ($LASTEXITCODE -ne 0) { throw "x86 publish failed" }
           if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "x86 EXE not created" }
+
       - name: Publish x64 single-file agent
         shell: pwsh
         run: |
-          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location "$agentRoot\src"
           dotnet restore ATPrinterAgent.csproj -r win-x64
           if ($LASTEXITCODE -ne 0) { throw "x64 restore failed" }
           dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
           if ($LASTEXITCODE -ne 0) { throw "x64 publish failed" }
           if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "x64 EXE not created" }
+
       - name: Compile Windows installer
         shell: pwsh
         run: |
-          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location $agentRoot
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           & $iscc "AandTPrinterAgent.iss"
@@ -82,15 +104,17 @@ jobs:
           "$hash  Instalar_ATPrinterAgent_v0.3.5.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
           Get-Item $exe | Select-Object FullName,Length
           Write-Host "SHA256: $hash"
+
       - name: Publish downloadable build artifact
         uses: actions/upload-artifact@v4
         with:
           name: Instalar_ATPrinterAgent_v0.3.5
           path: |
-            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/Instalar_ATPrinterAgent_v0.3.5.exe
-            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/SHA256SUMS.txt
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.5.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
           if-no-files-found: error
           retention-days: 30
+
       - name: Create versioned release for the remote updater
         uses: softprops/action-gh-release@v2
         with:
@@ -102,5 +126,5 @@ jobs:
             alternativas PJL/IPP/HTTP cuando el equipo las admite y conservación de la configuración.
             El estado desconectado se determina por el último contacto real del agente.
           files: |
-            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/Instalar_ATPrinterAgent_v0.3.5.exe
-            agent-src/ATPrinterAgent_v0.3.5_SERIAL_FIX_SOURCE/SHA256SUMS.txt
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.5.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
