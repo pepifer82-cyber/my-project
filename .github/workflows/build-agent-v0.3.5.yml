@@ -37,6 +37,27 @@ jobs:
         run: |
           $parts = Get-ChildItem ".buildsrc/v035patch" -Filter "part*.b64" | Sort-Object Name
           if ($parts.Count -ne 12) { throw "Expected 12 patch parts; found: $($parts.Count)" }
+          $expectedPartHashes = @(
+            "ed21b659c52da4dc92a8e8843d23b91664c9930eb889ab8b89a9204c04e65f1a",
+            "8b7270230afdd765e27d8b7a68fad32b50827c177d28ded544b1a663803ab1b7",
+            "96ce9ffc919134ef914577870dac28bd6289c01ea980051c6b0cff943066825c",
+            "8779c8a34df88473bb1b36ef3b3edc7d175f44d01c2d0151fb3aef4441611e05",
+            "d2a4e9c242ed676ac3949ecadb874e72ef075344dddd970ffb45023acebdaf9e",
+            "9451a6b22705531362482d5cbd33eba879724e8d96cca76996443f268e69b59c",
+            "40e642ee7440b570ec6889ad52683c7b99affd12abc87c0d26fc5315c46b37a4",
+            "a0c6dca0acb089d19b8b0660a1a10aec0a0abc39249c97d2a99af2da6cd3f62a",
+            "779c46d80a38007ceaed012393089eadd962a9ecffd08da05c0216e409579151",
+            "783cb84f7ee5560c421beaa8b39c2ea888d23028fea40fcfe4f12951bda88280",
+            "cc68939165c18a29d39d2310357188ef0266fa2663cade06b5b2069a15dbe814",
+            "34ed56a83857b91d8f52fcabbfb0d9da9a0d7d3487d059928ea08d649be5a334"
+          )
+          for ($i = 0; $i -lt $parts.Count; $i++) {
+            $partText = (Get-Content $parts[$i].FullName -Raw).Trim()
+            $actualPartHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::ASCII.GetBytes($partText))).ToLower()
+            if ($actualPartHash -ne $expectedPartHashes[$i]) {
+              throw "Patch fragment $($parts[$i].Name) mismatch: $actualPartHash"
+            }
+          }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
           $bytes = [Convert]::FromBase64String($encoded)
           $archive = "$PWD\agent-patch.tar.xz"
