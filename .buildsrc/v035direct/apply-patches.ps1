@@ -113,7 +113,7 @@ $oldCounter = '                        if (number <= (ulong)long.MaxValue) retur
 $newCounter = @'
                         // Every UInt32 value fits safely inside Int64.
                         return (long)number;
-'@.TrimEnd()
+'@
 Replace-Required $networkPath $oldCounter $newCounter "UInt32 page-counter conversion"
 
 Replace-Required $syncPath '        serial_number = x.SerialNumber,' '        serial_number = SnmpClient.NormalizeSerial(x.SerialNumber),' "payload serial revalidation"
