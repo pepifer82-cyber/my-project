@@ -19,6 +19,16 @@ function Replace-Required {
     $text = $text.Replace($Old, $New)
     [System.IO.File]::WriteAllText($Path, $text, $utf8)
 }
+function Replace-FirstRequired {
+    param([string]$Path, [string]$Old, [string]$New, [string]$Label)
+    $text = Normalize-Lines ([System.IO.File]::ReadAllText($Path))
+    $Old = Normalize-Lines $Old
+    $New = Normalize-Lines $New
+    $index = $text.IndexOf($Old, [System.StringComparison]::Ordinal)
+    if ($index -lt 0) { throw "Patch v0.3.5: no se encontró '$Label' en $Path" }
+    $text = $text.Substring(0, $index) + $New + $text.Substring($index + $Old.Length)
+    [System.IO.File]::WriteAllText($Path, $text, $utf8)
+}
 function Replace-Block {
     param([string]$Path, [string]$StartMarker, [string]$EndMarker, [string]$NewBlock, [string]$Label)
     $text = Normalize-Lines ([System.IO.File]::ReadAllText($Path))
@@ -114,7 +124,7 @@ $newCounter = @'
                         // Every UInt32 value fits safely inside Int64.
                         return (long)number;
 '@
-Replace-Required $networkPath $oldCounter $newCounter "UInt32 page-counter conversion"
+Replace-FirstRequired $networkPath $oldCounter $newCounter "UInt32 page-counter conversion"
 
 Replace-Required $syncPath '        serial_number = x.SerialNumber,' '        serial_number = SnmpClient.NormalizeSerial(x.SerialNumber),' "payload serial revalidation"
 Replace-Required $syncPath 'ATPrinterAgent/0.3.3 (+A&T Informatica)' 'ATPrinterAgent/0.3.5 (+A&T Informatica)' "sync user agent version"
