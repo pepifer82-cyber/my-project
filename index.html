@@ -476,7 +476,7 @@ function isRealPrinter(r){
 }
 
 function ageMinutes(v){if(!v)return Infinity;return (Date.now()-new Date(v).getTime())/60000}
-function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const s=String(r.reading_status||r.last_status||'').trim().toLowerCase();if(s.includes('offline')||s.includes('descon')||s==='unreachable'||s==='not available')return 'offline';if(ageMinutes(r.last_seen_at)>15)return 'offline';if(/^(online|connected|conectada|conectado|reachable)$/i.test(s))return 'online';return 'unknown'}
+function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const states=[r.reading_status,r.last_status].map(v=>String(v||'').trim().toLowerCase()).filter(Boolean);if(states.some(s=>s.includes('offline')||s.includes('descon')||s==='unreachable'||s==='not available'))return 'offline';if(ageMinutes(r.last_seen_at)>15)return 'offline';if(states.some(s=>/^(online|connected|conectada|conectado|reachable)$/i.test(s)))return 'online';return 'unknown'}
 function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at);return m<=3?'online':m<=15?'stale':'offline'}
 function statePill(state){const label={online:'Conectada',offline:'Desconectada',stale:'Sincronizando',unknown:'Sin verificar',disabled:'Deshabilitada'}[state]||state;return '<span class="pill '+state+'">'+escapeHtml(label)+'</span>'}
 function lastContact(v){return v?new Date(v).toLocaleString():'Nunca'}
