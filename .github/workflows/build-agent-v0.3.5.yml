@@ -53,6 +53,24 @@ jobs:
           )
           for ($i = 0; $i -lt $parts.Count; $i++) {
             $partText = (Get-Content $parts[$i].FullName -Raw).Trim()
+            if ($parts[$i].Name -eq "part007.b64") {
+              $expectedSegments = @(
+                "51efcb3369d9696c5c230bb113672a331ca4c54ce946bd23556eddcd898d39be",
+                "4fff96918fe6f370bc24cdeb305c5d8eff9245dc341306df9249297b1099ea15",
+                "c7077ce53091f24b5e230d21d84ca7735a75218b17cfc491be8123a0212b6c6d",
+                "137b8d70f21983443a406e43fe59c8ebb1de50357b72a866641163b0f5178100",
+                "12adcadf3869d8bfc9903b0a73e66b6a69939a325cd71df7796b5bf4662539ad",
+                "3d23ce2593d9179fe369782dfe59e936e2810569d9f5f071256bdf3030e72ce9",
+                "714b03116bc7815910af4ab4e3951fa9ba0e3d6d70101fbc4d50cd1c2cf317f5",
+                "da82be80c98010be339c8d496628e7e3b2bc34826067e3bf145925d260bd8878"
+              )
+              for ($s = 0; $s -lt 8; $s++) {
+                $segment = $partText.Substring($s * 500, 500)
+                $segmentHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::ASCII.GetBytes($segment))).ToLower()
+                Write-Host "part007 segment $s SHA256: $segmentHash"
+                if ($segmentHash -ne $expectedSegments[$s]) { throw "part007 segment $s mismatch: $segmentHash" }
+              }
+            }
             $actualPartHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::ASCII.GetBytes($partText))).ToLower()
             if ($actualPartHash -ne $expectedPartHashes[$i]) {
               throw "Patch fragment $($parts[$i].Name) mismatch: $actualPartHash"
