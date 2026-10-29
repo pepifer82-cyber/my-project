@@ -114,6 +114,7 @@ jobs:
         with:
           tag_name: agent-v0.3.5
           name: A&T Printer Agent v0.3.5 - Corrección de series y actualización remota
+          overwrite_files: true
           body: |
             Instalador de Windows compilado con .NET 8 y empaquetado con Inno Setup 6.
             Mejora la validación de series SNMP/OID, rechaza valores con caracteres de control,
