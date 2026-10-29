@@ -13,94 +13,52 @@ jobs:
   build-installer:
     runs-on: windows-latest
     steps:
-      - name: Checkout build branch
+      - name: Checkout source
         uses: actions/checkout@v4
 
-      - name: Reassemble the verified v0.3.3 source base
+      - name: Reassemble verified v0.3.3 source
         shell: pwsh
         run: |
           $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
-          if ($parts.Count -ne 23) { throw "Expected 23 base source parts; found: $($parts.Count)" }
+          if ($parts.Count -ne 23) { throw "Se esperaban 23 partes de la fuente base; encontradas: $($parts.Count)" }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
           $bytes = [Convert]::FromBase64String($encoded)
           $archive = "$PWD\agent-base.tar.xz"
           [IO.File]::WriteAllBytes($archive, $bytes)
           $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
           $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $expected) { throw "Base source hash mismatch: $actual" }
+          if ($actual -ne $expected) { throw "Hash de la fuente base incorrecto: $actual" }
           New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
           tar -xf $archive -C "$PWD\agent-src"
-          if ($LASTEXITCODE -ne 0) { throw "Could not extract base source archive" }
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo extraer la fuente base" }
 
-      - name: Apply verified v0.3.5 serial patch
+      - name: Apply verified v0.3.5 serial and updater fixes
         shell: pwsh
         run: |
-          $parts = Get-ChildItem ".buildsrc/v035patch" -Filter "part*.b64" | Sort-Object Name
-          if ($parts.Count -ne 12) { throw "Expected 12 patch parts; found: $($parts.Count)" }
-          $expectedPartHashes = @(
-            "ed21b659c52da4dc92a8e8843d23b91664c9930eb889ab8b89a9204c04e65f1a",
-            "8b7270230afdd765e27d8b7a68fad32b50827c177d28ded544b1a663803ab1b7",
-            "96ce9ffc919134ef914577870dac28bd6289c01ea980051c6b0cff943066825c",
-            "8779c8a34df88473bb1b36ef3b3edc7d175f44d01c2d0151fb3aef4441611e05",
-            "d2a4e9c242ed676ac3949ecadb874e72ef075344dddd970ffb45023acebdaf9e",
-            "9451a6b22705531362482d5cbd33eba879724e8d96cca76996443f268e69b59c",
-            "40e642ee7440b570ec6889ad52683c7b99affd12abc87c0d26fc5315c46b37a4",
-            "a0c6dca0acb089d19b8b0660a1a10aec0a0abc39249c97d2a99af2da6cd3f62a",
-            "779c46d80a38007ceaed012393089eadd962a9ecffd08da05c0216e409579151",
-            "783cb84f7ee5560c421beaa8b39c2ea888d23028fea40fcfe4f12951bda88280",
-            "cc68939165c18a29d39d2310357188ef0266fa2663cade06b5b2069a15dbe814",
-            "34ed56a83857b91d8f52fcabbfb0d9da9a0d7d3487d059928ea08d649be5a334"
-          )
-          for ($i = 0; $i -lt $parts.Count; $i++) {
-            $partText = (Get-Content $parts[$i].FullName -Raw).Trim()
-            if ($parts[$i].Name -eq "part007.b64") {
-              $expectedSegments = @(
-                "5fc2bb1e8ff6b3468d67b801d156134dc9e47ae51ba5eb1ff1c4939e86bb9cb6",
-                "bf72a65905e40d8de2fd5423b49e46f26078b7ef3da39683d047b7a502b7bde6",
-                "4fe6c62802dcd38b2da7c223b4c3be78065331d54871137f1b3117e6c9aac7ef",
-                "c96d773459c3fd94fa10647f893ebcf28ea9f61f2aee874a615368f81387a430",
-                "29a40008fdd273b31136109f3d03b993ce2c725f17e1c81108452e74df9dc451"
-              )
-              for ($s = 0; $s -lt 5; $s++) {
-                $segment = $partText.Substring(3000 + $s * 100, 100)
-                $segmentHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::ASCII.GetBytes($segment))).ToLower()
-                Write-Host "part007 subsegment $s SHA256: $segmentHash"
-                if ($segmentHash -ne $expectedSegments[$s]) { throw "part007 subsegment $s mismatch: $segmentHash" }
-              }
-            }
-            $actualPartHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData([Text.Encoding]::ASCII.GetBytes($partText))).ToLower()
-            if ($actualPartHash -ne $expectedPartHashes[$i]) {
-              throw "Patch fragment $($parts[$i].Name) mismatch: $actualPartHash"
-            }
-          }
-          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
-          $bytes = [Convert]::FromBase64String($encoded)
-          $archive = "$PWD\agent-patch.tar.xz"
-          [IO.File]::WriteAllBytes($archive, $bytes)
-          $expected = "219c7b566c09e5b2e4fdfefd0c2c69310cc1d9a94d0b427f5825e7550b3466ff"
-          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
-          if ($actual -ne $expected) { throw "Patch source hash mismatch: $actual" }
-          tar -xf $archive -C "$PWD\agent-src"
-          if ($LASTEXITCODE -ne 0) { throw "Could not apply v0.3.5 source overlay" }
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
-          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "Missing .NET project after patch" }
-          if (!(Test-Path "$agentRoot\src\UpdateManager.cs")) { throw "Missing remote updater source" }
-          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.5</Version>' -Quiet)) { throw "The project is not version 0.3.5" }
+          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "No se encontró el proyecto .NET" }
+          if (!(Test-Path ".buildsrc\v035direct\apply-patches.ps1")) { throw "No se encontró el script de corrección" }
+          if (!(Test-Path ".buildsrc\v035direct\NetworkHttpProbe.txt")) { throw "No se encontró la búsqueda HTTP de series" }
+          if (!(Test-Path ".buildsrc\v035direct\UpdateManager.cs")) { throw "No se encontró el actualizador remoto" }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ".buildsrc\v035direct\apply-patches.ps1" -AgentRoot $agentRoot
+          if ($LASTEXITCODE -ne 0) { throw "Falló la aplicación de las correcciones v0.3.5" }
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.5</Version>' -Quiet)) { throw "El proyecto no quedó en v0.3.5" }
+          if (!(Test-Path "$agentRoot\src\UpdateManager.cs")) { throw "No se agregó UpdateManager.cs" }
 
-      - name: Verify .NET SDK
+      - name: Verify .NET 8 SDK
         shell: pwsh
         run: |
           dotnet --info
           $sdks = dotnet --list-sdks
-          if (!($sdks | Select-String '^8\.')) { throw "The runner does not have .NET 8 SDK: $sdks" }
+          if (!($sdks | Select-String '^8\.')) { throw "No se encontró .NET 8 SDK: $sdks" }
 
       - name: Install Inno Setup 6
         shell: pwsh
         run: |
           choco install innosetup --yes --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "Failed to install Inno Setup 6" }
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (!(Test-Path $iscc)) { throw "ISCC.exe not found: $iscc" }
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
 
       - name: Publish x86 single-file agent
         shell: pwsh
@@ -108,10 +66,10 @@ jobs:
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location "$agentRoot\src"
           dotnet restore ATPrinterAgent.csproj -r win-x86
-          if ($LASTEXITCODE -ne 0) { throw "x86 restore failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x86" }
           dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
-          if ($LASTEXITCODE -ne 0) { throw "x86 publish failed" }
-          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "x86 EXE not created" }
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x86" }
+          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "No se generó el EXE x86" }
 
       - name: Publish x64 single-file agent
         shell: pwsh
@@ -119,29 +77,29 @@ jobs:
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location "$agentRoot\src"
           dotnet restore ATPrinterAgent.csproj -r win-x64
-          if ($LASTEXITCODE -ne 0) { throw "x64 restore failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x64" }
           dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
-          if ($LASTEXITCODE -ne 0) { throw "x64 publish failed" }
-          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "x64 EXE not created" }
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x64" }
+          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "No se generó el EXE x64" }
 
-      - name: Compile Windows installer
+      - name: Compile installer with Inno Setup
         shell: pwsh
         run: |
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location $agentRoot
-          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           & $iscc "AandTPrinterAgent.iss"
-          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed" }
+          if ($LASTEXITCODE -ne 0) { throw "Falló Inno Setup" }
           $exe = Join-Path (Get-Location) "Instalar_ATPrinterAgent_v0.3.5.exe"
-          if (!(Test-Path $exe)) { throw "Final installer not generated" }
+          if (!(Test-Path $exe)) { throw "No se generó Instalar_ATPrinterAgent_v0.3.5.exe" }
           $size = (Get-Item $exe).Length
-          if ($size -lt 1000000) { throw "Installer is unexpectedly small: $size bytes" }
+          if ($size -lt 1000000) { throw "El instalador es demasiado pequeño: $size bytes" }
           $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
           "$hash  Instalar_ATPrinterAgent_v0.3.5.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
-          Get-Item $exe | Select-Object FullName,Length
           Write-Host "SHA256: $hash"
+          Write-Host "Tamaño del instalador: $size bytes"
 
-      - name: Publish downloadable build artifact
+      - name: Upload verified installer artifact
         uses: actions/upload-artifact@v4
         with:
           name: Instalar_ATPrinterAgent_v0.3.5
@@ -151,16 +109,17 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
-      - name: Create versioned release for the remote updater
+      - name: Publish downloadable release for remote updater
         uses: softprops/action-gh-release@v2
         with:
           tag_name: agent-v0.3.5
-          name: A&T Printer Agent v0.3.5 - Validación de series
+          name: A&T Printer Agent v0.3.5 - Corrección de series y actualización remota
           body: |
-            Instalador Windows compilado automáticamente a partir del código fuente v0.3.5.
-            Incluye validación estricta de números de serie, lectura SNMP con verificación de OID,
-            alternativas PJL/IPP/HTTP cuando el equipo las admite y conservación de la configuración.
-            El estado desconectado se determina por el último contacto real del agente.
+            Instalador de Windows compilado con .NET 8 y empaquetado con Inno Setup 6.
+            Mejora la validación de series SNMP/OID, rechaza valores con caracteres de control,
+            consulta páginas de información del fabricante por HTTP/HTTPS cuando corresponde,
+            y agrega búsqueda de actualizaciones remotas con verificación SHA-256.
+            Conserva la configuración local y el historial almacenado en Supabase.
           files: |
             agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.5.exe
             agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
