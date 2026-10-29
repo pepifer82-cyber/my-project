@@ -1,0 +1,113 @@
+    private static async Task<(string? Identity, string? Serial, long? PageCount)> ProbeHttpPrinterAsync(string ip, HashSet<int> openPorts, int timeoutMs, CancellationToken ct)
+    {
+        string[] printerTerms = ["printer", "laserjet", "officejet", "deskjet", "pagewide", "mfp", "multifunction", "ricoh", "brother", "epson", "canon", "kyocera", "xerox", "lexmark", "pantum", "samsung", "konica", "hewlett", "hp inc", "web image monitor", "bm5100", "sec30"];
+        foreach (var port in new[] { 80, 443 }.Where(openPorts.Contains))
+        {
+            try
+            {
+                using var handler = new HttpClientHandler
+                {
+                    AllowAutoRedirect = false,
+                    ServerCertificateCustomValidationCallback = (_, _, _, _) => true
+                };
+                using var client = new HttpClient(handler) { Timeout = TimeSpan.FromMilliseconds(Math.Clamp(timeoutMs, 500, 1800)) };
+                var scheme = port == 443 ? "https" : "http";
+                var baseUri = new Uri($"{scheme}://{ip}/");
+                var body = await FetchSameHostPageAsync(client, baseUri, ip, ct).ConfigureAwait(false) ?? string.Empty;
+                var sample = body.Length > 160_000 ? body[..160_000] : body;
+                var titleRaw = Regex.Match(sample, @"<title[^>]*>(.*?)</title>", RegexOptions.IgnoreCase | RegexOptions.Singleline).Groups[1].Value;
+                var title = Regex.Replace(WebUtility.HtmlDecode(titleRaw), @"\s+", " ").Trim();
+                var server = string.Empty; // The safe same-host fetch helper does not expose headers.
+                var searchable = (title + " " + server + " " + sample).ToLowerInvariant();
+                var serial = ExtractSerialFromText(sample);
+                var pageCount = ExtractPageCountFromText(sample);
+
+                // Some printer web interfaces expose the serial only on a local
+                // Product/Device Information page, not on the home page.
+                if (serial is null && printerTerms.Any(searchable.Contains))
+                    serial = await ProbeHttpSerialPagesAsync(client, baseUri, ip, sample, ct).ConfigureAwait(false);
+
+                // Keep the HTTP source non-authoritative when it is a generic router page.
+                // A known printer word in the title/header/page is required before this IP
+                // is accepted as a printer by the HTTP fallback.
+                if (!printerTerms.Any(searchable.Contains)) continue;
+
+                var modelFromText = ExtractFriendlyModel(WebUtility.HtmlDecode(sample));
+                var identity = FirstNonBlank(
+                    IsUsablePrinterName(title) ? title : null,
+                    modelFromText,
+                    IsUsablePrinterName(server) ? server : null,
+                    title.Length >= 4 ? title : null,
+                    $"Impresora de red {ip}");
+                return (identity, serial, pageCount);
+            }
+            catch { /* Web UI may reject unauthenticated requests; continue with other detection methods. */ }
+        }
+        return (null, null, null);
+    }
+
+    private static async Task<string?> ProbeHttpSerialPagesAsync(HttpClient client, Uri baseUri, string expectedHost, string homeHtml, CancellationToken ct)
+    {
+        var candidates = new List<Uri>();
+        var relevant = new[] { "device", "product", "serial", "information", "system", "printer", "status", "about", "general" };
+
+        foreach (Match match in Regex.Matches(homeHtml,
+            "<a\\b[^>]*\\bhref\\s*=\\s*(['""])(.*?)\\1[^>]*>(.*?)</a>",
+            RegexOptions.IgnoreCase | RegexOptions.Singleline))
+        {
+            var href = WebUtility.HtmlDecode(match.Groups[2].Value).Trim();
+            var anchorText = Regex.Replace(WebUtility.HtmlDecode(match.Groups[3].Value), "<[^>]+>", " ");
+            var hint = (href + " " + anchorText).ToLowerInvariant();
+            if (!relevant.Any(hint.Contains)) continue;
+            if (string.IsNullOrWhiteSpace(href) || href.StartsWith("#", StringComparison.Ordinal) || href.StartsWith("javascript:", StringComparison.OrdinalIgnoreCase)) continue;
+            if (!Uri.TryCreate(baseUri, href, out var uri)) continue;
+            if (!string.Equals(uri.Host, expectedHost, StringComparison.OrdinalIgnoreCase)) continue;
+            if (uri.Scheme != Uri.UriSchemeHttp && uri.Scheme != Uri.UriSchemeHttps) continue;
+            if (!candidates.Any(x => x.AbsoluteUri.Equals(uri.AbsoluteUri, StringComparison.OrdinalIgnoreCase))) candidates.Add(uri);
+            if (candidates.Count >= 4) break;
+        }
+
+        // Common read-only information routes used by printer web servers.
+        foreach (var path in new[] {
+            "/hp/device/DeviceInformation/View",
+            "/web/guest/en/websys/status/getUnificationStatus.cgi",
+            "/general/information.html",
+            "/product_info.html"
+        })
+        {
+            if (candidates.Count >= 4) break;
+            var uri = new Uri(baseUri, path);
+            if (!candidates.Any(x => x.AbsolutePath.Equals(uri.AbsolutePath, StringComparison.OrdinalIgnoreCase))) candidates.Add(uri);
+        }
+
+        foreach (var uri in candidates.Take(4))
+        {
+            ct.ThrowIfCancellationRequested();
+            var page = await FetchSameHostPageAsync(client, uri, expectedHost, ct).ConfigureAwait(false);
+            var serial = ExtractSerialFromText(page);
+            if (serial is not null) return serial;
+        }
+        return null;
+    }
+
+    private static async Task<string?> FetchSameHostPageAsync(HttpClient client, Uri startUri, string expectedHost, CancellationToken ct)
+    {
+        var current = startUri;
+        for (var redirect = 0; redirect < 3; redirect++)
+        {
+            if (!string.Equals(current.Host, expectedHost, StringComparison.OrdinalIgnoreCase)) return null;
+            using var response = await client.GetAsync(current, ct).ConfigureAwait(false);
+            if ((int)response.StatusCode is >= 300 and < 400 && response.Headers.Location is not null)
+            {
+                if (!Uri.TryCreate(current, response.Headers.Location, out var next)) return null;
+                if (!string.Equals(next.Host, expectedHost, StringComparison.OrdinalIgnoreCase)) return null;
+                current = next;
+                continue;
+            }
+            if (!response.IsSuccessStatusCode) return null;
+            var body = await response.Content.ReadAsStringAsync(ct).ConfigureAwait(false);
+            return body.Length > 160_000 ? body[..160_000] : body;
+        }
+        return null;
+    }
+
