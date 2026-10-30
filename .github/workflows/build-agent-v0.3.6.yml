@@ -42,7 +42,7 @@ jobs:
           if (!(Test-Path ".buildsrc\v035direct\UpdateManager.cs")) { throw "No se encontró el actualizador remoto" }
           pwsh -NoProfile -ExecutionPolicy Bypass -File ".buildsrc\v035direct\apply-patches.ps1" -AgentRoot $agentRoot
           if ($LASTEXITCODE -ne 0) { throw "Falló la aplicación de las correcciones v0.3.6" }
-          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.6</Version>' -Quiet)) { throw "El proyecto no quedó en v0.3.6" }
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.5</Version>' -Quiet)) { throw "El parche base no dejó el proyecto en v0.3.5" }
           if (!(Test-Path "$agentRoot\src\UpdateManager.cs")) { throw "No se agregó UpdateManager.cs" }
 
       - name: Apply remote update command v0.3.6
