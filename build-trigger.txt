@@ -1,1 +1,1 @@
-Build A&T Printer Agent v0.3.6 - MAC identity and Pantum/Ricoh counters
+Build A&T Printer Agent v0.3.6 - MAC identity, Pantum/Ricoh counters, false-zero guard
