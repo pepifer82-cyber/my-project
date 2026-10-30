@@ -1,1 +1,1 @@
-Build A&T Printer Agent v0.3.5 - final counter guard and release overwrite
+Build A&T Printer Agent v0.3.6 - MAC identity and Pantum/Ricoh counters
