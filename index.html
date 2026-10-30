@@ -703,6 +703,12 @@ function mergePrinterRecords(records){
     }
   }
 
+  // Keep technical identity from the strongest row, but show the newest
+  // counter/status sample among all aliases of the same physical MAC.
+  const newest=[...list].sort((a,b)=>new Date(b.reading_at||b.last_seen_at||0).getTime()-new Date(a.reading_at||a.last_seen_at||0).getTime())[0];
+  for(const field of ['reading_at','reading_status','page_count','scanner_count','toner_black_percent','toner_cyan_percent','toner_magenta_percent','toner_yellow_percent','reading_error','counter_source','counter_reading_at','scanner_reading_at','last_status','last_seen_at']){
+    if(newest && newest[field]!==undefined && newest[field]!==null && newest[field]!=='')merged[field]=newest[field];
+  }
   if(realIpOf(list[0]))merged.ip_address=realIpOf(list[0]);
   return merged;
 }
