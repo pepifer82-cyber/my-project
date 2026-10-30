@@ -129,6 +129,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       <button class="app-btn active" data-view="resumen" type="button"><div class="app-icon">◈</div><div class="app-title">Resumen</div><div class="app-sub">Vista general</div></button>
       <button class="app-btn" data-view="inventario" type="button"><div class="app-icon">▦</div><div class="app-title">Inventario</div><div class="app-sub">Equipos y modelos</div></button>
       <button class="app-btn" data-view="tinta" type="button"><div class="app-icon">◉</div><div class="app-title">Tóner</div><div class="app-sub">Niveles de tinta</div></button>
+      <button class="app-btn" data-view="alertas" type="button"><div class="app-icon">✉</div><div class="app-title">Alertas</div><div class="app-sub">Correo y consumibles</div></button>
       <button class="app-btn" data-view="desconectadas" type="button"><div class="app-icon">!</div><div class="app-title">Desconectadas</div><div class="app-sub">Atención requerida</div></button>
       <button class="app-btn" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
       <button class="app-btn" data-view="control-remoto" type="button"><div class="app-icon">📡</div><div class="app-title">Control remoto</div><div class="app-sub">IP · USB · Buscar ahora</div></button>
@@ -175,6 +176,23 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>K Negro</th><th>C Cian</th><th>M Magenta</th><th>Y Amarillo</th><th>Lectura</th><th>Otros consumibles</th><th>Métodos / diagnóstico</th><th>Error</th></tr></thead><tbody id="tonerBody"></tbody></table></div>
     </section>
 
+    <section id="view-alertas" class="content-card hidden">
+      <div class="content-head"><div><h3>Alertas por correo</h3><small>Recibí avisos cuando una impresora falle o un consumible llegue al límite.</small></div></div>
+      <div class="form-grid">
+        <label class="field"><span>Correos destinatarios (separados por coma)</span><input id="alertEmails" type="text" placeholder="soporte@empresa.com, compras@empresa.com"></label>
+        <label class="field"><span>Umbral de consumible (%)</span><input id="alertThreshold" type="number" min="1" max="50" value="10"></label>
+      </div>
+      <div class="form-row" style="display:flex;gap:18px;flex-wrap:wrap;margin:14px 0">
+        <label><input id="alertsEnabled" type="checkbox"> Activar avisos por correo</label>
+        <label><input id="alertFailure" type="checkbox" checked> Avisar fallos / pérdida de comunicación</label>
+        <label><input id="alertLow" type="checkbox" checked> Avisar consumibles al nivel configurado</label>
+      </div>
+      <p class="muted">Se consideran los consumibles que el fabricante exponga mediante el agente. Los que no tengan lectura compatible aparecerán como «No disponible».</p>
+      <button id="saveAlertSettings" class="toolbar-btn primary" type="button">Guardar configuración</button>
+      <span id="alertSettingsMsg" class="auth-msg"></span>
+      <div class="content-head" style="margin-top:24px"><div><h3>Historial de alertas</h3><small>Registro de fallos y niveles bajos detectados.</small></div></div>
+      <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Impresora</th><th>Alerta</th><th>Valor</th><th>Entrega</th></tr></thead><tbody id="alertEventsBody"><tr><td colspan="5" class="empty">Sin alertas.</td></tr></tbody></table></div>
+    </section>
     <section id="view-desconectadas" class="content-card hidden">
       <div class="content-head"><div><h3>Impresoras desconectadas</h3><small id="offlineNote"></small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
       <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Estado</th><th>Último contacto</th><th>Agente</th><th>IP</th><th>Ciudad</th><th></th></tr></thead><tbody id="offlineBody"></tbody></table></div>
@@ -425,6 +443,7 @@ async function loadProjectData(){
     rows=await api('/rest/v1/control_printer_dashboard'+q);rows=Array.isArray(rows)?rows.filter(isRealPrinter):[];
     agentRows=await api('/rest/v1/printer_agents?select=id,agent_code,machine_name,windows_user,app_version,active,last_seen_at,remote_config&project_id=eq.'+encodeURIComponent(currentProjectId)+'&order=last_seen_at.desc.nullslast');agentRows=Array.isArray(agentRows)?agentRows:[];
     renderAll();
+    await loadAlertSettings();
   }catch(e){
     console.error('Error cargando impresoras del proyecto:',e);
     if($('inventoryCount'))$('inventoryCount').textContent='Error al cargar el inventario: '+(e?.message||e);
@@ -894,6 +913,35 @@ async function submitManualPrinter(event){
     $('manualPrinterMsg').className='auth-msg danger';
   }finally{btn.disabled=false;}
 }
+
+async function loadAlertSettings(){
+  if(!currentProjectId)return;
+  try{
+    const data=await api('/rest/v1/printer_alert_settings?select=*&project_id=eq.'+encodeURIComponent(currentProjectId)+'&limit=1');
+    const s=Array.isArray(data)?data[0]:null;
+    $('alertEmails').value=(s?.recipient_emails||[]).join(', ');
+    $('alertThreshold').value=s?.low_consumable_threshold??10;
+    $('alertsEnabled').checked=!!s?.enabled;
+    $('alertFailure').checked=s?.notify_printer_failure!==false;
+    $('alertLow').checked=s?.notify_low_consumable!==false;
+    const events=await api('/rest/v1/printer_alert_events?select=id,printer_id,alert_type,consumable_key,observed_value,threshold,message,created_at,delivery_status&project_id=eq.'+encodeURIComponent(currentProjectId)+'&order=created_at.desc&limit=50');
+    const printerById=new Map(rows.map(r=>[r.printer_id,r.display_name]));
+    $('alertEventsBody').innerHTML=events.length?events.map(e=>'<tr><td>'+escapeHtml(lastContact(e.created_at))+'</td><td>'+escapeHtml(printerById.get(e.printer_id)||'Impresora')+'</td><td>'+escapeHtml(e.alert_type==='consumable_low'?'Consumible bajo':'Fallo de impresora')+'</td><td>'+escapeHtml(e.observed_value==null?'—':e.observed_value+'%')+'</td><td>'+escapeHtml(e.delivery_status||'Pendiente')+'</td></tr>').join(''):'<tr><td colspan="5" class="empty">Sin alertas registradas.</td></tr>';
+  }catch(e){$('alertSettingsMsg').textContent='No se pudo cargar la configuración: '+(e?.message||e);}
+}
+async function saveAlertSettings(){
+  if(!currentProjectId)return;
+  const emails=[...new Set($('alertEmails').value.split(/[;,\s]+/).map(x=>x.trim().toLowerCase()).filter(Boolean))];
+  if(emails.some(x=>!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(x))){$('alertSettingsMsg').textContent='Revisá los correos ingresados.';return;}
+  const threshold=Number($('alertThreshold').value);
+  if(!Number.isFinite(threshold)||threshold<1||threshold>50){$('alertSettingsMsg').textContent='El umbral debe estar entre 1 y 50%.';return;}
+  try{
+    await api('/rest/v1/printer_alert_settings?on_conflict=project_id',{method:'POST',headers:{Prefer:'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({project_id:currentProjectId,enabled:$('alertsEnabled').checked,recipient_emails:emails,low_consumable_threshold:threshold,notify_printer_failure:$('alertFailure').checked,notify_low_consumable:$('alertLow').checked,updated_at:new Date().toISOString()})});
+    $('alertSettingsMsg').textContent='Configuración guardada.';
+    $('alertSettingsMsg').className='auth-msg success';
+  }catch(e){$('alertSettingsMsg').textContent='No se pudo guardar: '+(e?.message||e);$('alertSettingsMsg').className='auth-msg danger';}
+}
+$('saveAlertSettings')?.addEventListener('click',saveAlertSettings);
 
 function renderAll(){
   // Se muestran impresoras USB y de red. Si el mismo equipo aparece
