@@ -65,7 +65,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
 @media(max-width:1180px){.launcher{grid-template-columns:repeat(3,minmax(0,1fr))}.serial-panel{min-width:300px}.summary-grid{grid-template-columns:1fr}}
 @media(max-width:900px){.app-shell{padding:10px;gap:10px}.sidebar{width:220px;flex-basis:220px;top:10px;height:calc(100vh - 20px)}.hero{align-items:stretch;flex-direction:column}.serial-panel{max-width:none}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:700px){.app-shell{display:block}.sidebar{position:static;width:auto;height:auto;margin-bottom:10px}.project-list{max-height:180px}.toolbar-input{min-width:0;flex:1}.content-tools{width:100%}.topbar{flex-wrap:wrap}.launcher{grid-template-columns:repeat(2,minmax(0,1fr))}.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
-</style>
+.stale-date{color:#d71920!important;font-weight:800;background:#fff0f0;border-radius:6px;padding:4px 7px;display:inline-block}.stale-date:before{content:"⚠ ";}\n</style>
 </head>
 <body>
 <div id="auth" class="auth-wrap">
@@ -167,12 +167,12 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
         </form>
         <div id="manualPrinterMsg" class="auth-msg muted" aria-live="polite"></div>
       </div>
-      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Fabricante</th><th>Modelo</th><th>Conexión</th><th>IP / Puerto</th><th>Serie de fábrica</th><th>Estado</th><th>Agente</th><th></th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Descripción</th><th>Ciudad</th><th>Fabricante</th><th>Modelo</th><th>Conexión</th><th>IP / Puerto</th><th>Serie de fábrica</th><th>Estado</th><th>Agente</th><th>Última actualización</th><th></th></tr></thead><tbody id="inventoryBody"></tbody></table></div>
     </section>
 
     <section id="view-tinta" class="content-card hidden">
       <div class="content-head"><div><h3>Niveles de tinta / tóner</h3><small>Lecturas disponibles de cada impresora.</small></div><button class="toolbar-btn" type="button" onclick="exportProjectExcel()">▣ Excel</button></div>
-      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>K Negro</th><th>C Cian</th><th>M Magenta</th><th>Y Amarillo</th><th>Lectura</th><th>Error</th></tr></thead><tbody id="tonerBody"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>K Negro</th><th>C Cian</th><th>M Magenta</th><th>Y Amarillo</th><th>Lectura</th><th>Otros consumibles</th><th>Métodos / diagnóstico</th><th>Error</th></tr></thead><tbody id="tonerBody"></tbody></table></div>
     </section>
 
     <section id="view-desconectadas" class="content-card hidden">
@@ -479,6 +479,28 @@ function ageMinutes(v){if(!v)return Infinity;return (Date.now()-new Date(v).getT
 function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const states=[r.reading_status,r.last_status].map(v=>String(v||'').trim().toLowerCase()).filter(Boolean);if(states.some(s=>s.includes('offline')||s.includes('descon')||s==='unreachable'||s==='not available'))return 'offline';if(ageMinutes(r.last_seen_at)>15)return 'offline';if(states.some(s=>/^(online|connected|conectada|conectado|reachable)$/i.test(s)))return 'online';return 'unknown'}
 function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at);return m<=3?'online':m<=15?'stale':'offline'}
 function statePill(state){const label={online:'Conectada',offline:'Desconectada',stale:'Sincronizando',unknown:'Sin verificar',disabled:'Deshabilitada'}[state]||state;return '<span class="pill '+state+'">'+escapeHtml(label)+'</span>'}
+function staleUpdateInfo(value){
+  if(!value)return {label:'Sin registro',stale:true};
+  const date=new Date(value);
+  if(Number.isNaN(date.getTime()))return {label:'Fecha inválida',stale:true};
+  const hours=(Date.now()-date.getTime())/3600000;
+  return {label:date.toLocaleString('es-PY'),stale:hours>24,hours};
+}
+function consumablesSummary(value){
+  const data=value&&typeof value==='object'?value:{};
+  const entries=Object.entries(data).filter(([k,v])=>v&&typeof v==='object');
+  if(!entries.length)return 'Sin datos adicionales';
+  return entries.map(([k,v])=>{
+    const name=String(v.name||v.label||k).replace(/[_-]+/g,' ');
+    const pct=Number(v.percent??v.level??v.remaining_percent);
+    const state=Number.isFinite(pct)?Math.round(pct)+'%':String(v.status||v.life||'Disponible');
+    return name+': '+state;
+  }).join(' · ');
+}
+function detectionSummary(r){
+  const methods=Array.isArray(r.detection_methods)?r.detection_methods:[];
+  return (methods.length?methods.join(', '):'Sin método informado')+(r.detection_error?' · '+r.detection_error:'');
+}
 function lastContact(v){return v?new Date(v).toLocaleString():'Nunca'}
 function pct(v){return v==null?'—':Math.round(Number(v))+'%'}
 function openPrinterEditor(id){
@@ -902,8 +924,8 @@ function renderAll(){
     r.display_name,r.description,r.city,r.manufacturer,r.model,connectionLabel(r),r.ip_address,r.mac_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
   ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
   if($('inventoryCount'))$('inventoryCount').textContent='Mostrando '+visibleInventory.length+' de '+activeRows.length+' impresoras activas · '+rows.length+' registros en el proyecto';
-  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
-  $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
+  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><span class="'+(staleUpdateInfo(r.last_seen_at).stale?'stale-date':'')+'" title="Último contacto confirmado">'+escapeHtml(staleUpdateInfo(r.last_seen_at).label)+'</span></td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
+  $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(consumablesSummary(r.consumables))+'</td><td>'+escapeHtml(detectionSummary(r))+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Conectada solo significa que el agente confirmó respuesta online. Las colas de Windows en estado inactivo, sin respuesta comprobada, figuran como “Sin verificar”.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
   const retiredTerm=retiredSearch.trim().toLowerCase();
