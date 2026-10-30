@@ -1,1 +1,1 @@
-Build A&T Printer Agent v0.3.6 - retry normalized patch and installer test
+Build A&T Printer Agent v0.3.6 - fix Supabase reported version 0.3.6
