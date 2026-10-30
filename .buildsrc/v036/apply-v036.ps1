@@ -2,7 +2,11 @@ param([Parameter(Mandatory=$true)][string]$AgentRoot)
 $ErrorActionPreference = "Stop"
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 function Replace-Once([string]$Path, [string]$Old, [string]$New, [string]$Label) {
-    $text = [System.IO.File]::ReadAllText($Path)
+    $crlf = [string][char]13 + [string][char]10
+    $lf = [string][char]10
+    $text = ([System.IO.File]::ReadAllText($Path)).Replace($crlf, $lf)
+    $Old = $Old.Replace($crlf, $lf)
+    $New = $New.Replace($crlf, $lf)
     if (-not $text.Contains($Old)) { throw "Patch v0.3.6: no se encontró '$Label' en $Path" }
     $text = $text.Replace($Old, $New)
     [System.IO.File]::WriteAllText($Path, $text, $utf8)
