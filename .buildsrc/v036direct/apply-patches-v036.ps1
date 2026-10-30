@@ -67,6 +67,11 @@ $arp='''    [DllImport("iphlpapi.dll", ExactSpelling = true)]
 Replace-Required $network '    private const int DefaultConcurrency = 32;' ('    private const int DefaultConcurrency = 32;
 
 '+$arp.TrimEnd()) "Windows ARP resolver"
+$knownIpMethod='''    public static Task<PrinterInfo?> ProbeKnownIpAsync(string ip, SnmpClient? snmp, int timeoutMs, CancellationToken ct)
+        => ProbeIpAsync(ip, snmp, timeoutMs, ct);
+
+'''
+Replace-Required $network '    public static string? DetectLocalNetworkRange()' ($knownIpMethod+'    public static string? DetectLocalNetworkRange()') "probe known Windows queue IPs"
 Replace-Required $network '            IpAddress = ip,
             WindowsPrinterName = null,' '            IpAddress = ip,
             MacAddress = ResolveMacAddress(ip),
@@ -132,14 +137,31 @@ $newEnrich='''    private async Task EnrichIpPrintersAsync(List<PrinterInfo> pri
             await gate.WaitAsync(_shutdown.Token).ConfigureAwait(false);
             try
             {
-                // MAC identity is collected independently of SNMP so duplicate
-                // Windows queues can still be tied to one physical network device.
+                // Resolve physical MAC regardless of SNMP settings.
                 printer.MacAddress ??= NetworkPrinterScanner.ResolveMacAddress(printer.IpAddress);
-                if (_config.SnmpEnabled)
+                var snmp = _config.SnmpEnabled ? new SnmpClient(_config.SnmpCommunity, _config.SnmpTimeoutMs) : null;
+                // Windows queues can point to IPs outside the configured discovery ranges.
+                // Probe those known IPs through SNMP/PJL/IPP/HTTP to obtain real identity/meters.
+                if (string.Equals(printer.IdentitySource, "Windows WMI / cola", StringComparison.OrdinalIgnoreCase))
                 {
-                    var client = new SnmpClient(_config.SnmpCommunity, _config.SnmpTimeoutMs);
-                    await client.EnrichAsync(printer, _shutdown.Token).ConfigureAwait(false);
+                    var probe = await NetworkPrinterScanner.ProbeKnownIpAsync(printer.IpAddress!, snmp, _config.SnmpTimeoutMs, _shutdown.Token).ConfigureAwait(false);
+                    if (probe is not null)
+                    {
+                        printer.SerialNumber = Prefer(probe.SerialNumber, printer.SerialNumber);
+                        printer.SerialSource = Prefer(probe.SerialSource, printer.SerialSource);
+                        printer.PageCount = probe.PageCount ?? printer.PageCount;
+                        printer.CounterSource = Prefer(probe.CounterSource, printer.CounterSource);
+                        printer.ScannerCount = probe.ScannerCount ?? printer.ScannerCount;
+                        printer.MacAddress ??= probe.MacAddress;
+                        printer.Manufacturer = Prefer(probe.Manufacturer, printer.Manufacturer);
+                        printer.Model = Prefer(probe.Model, printer.Model);
+                        printer.SnmpName = Prefer(probe.SnmpName, printer.SnmpName);
+                        printer.SnmpReachable |= probe.SnmpReachable;
+                        if (!string.IsNullOrWhiteSpace(probe.SnmpError)) printer.SnmpError = probe.SnmpError;
+                        if (!string.IsNullOrWhiteSpace(probe.LastStatus)) printer.LastStatus = probe.LastStatus;
+                    }
                 }
+                if (snmp is not null) await snmp.EnrichAsync(printer, _shutdown.Token).ConfigureAwait(false);
             }
             finally { gate.Release(); }
         });
