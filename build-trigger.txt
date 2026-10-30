@@ -1,1 +1,1 @@
-Build A&T Printer Agent v0.3.6 - multiprotocol, serial/counter safeguards, dedupe and remote update command
+Build A&T Printer Agent v0.3.6 - retry normalized patch and installer test
