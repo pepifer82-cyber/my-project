@@ -1,1 +1,3 @@
 Build A&T Printer Agent v0.3.6 - MAC identity, full known-IP probing, Pantum/Ricoh counters
+
+Run v0.3.6 build with MAC dedupe, Windows-queue probing, Pantum/Ricoh counters
