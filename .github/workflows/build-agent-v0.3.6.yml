@@ -1,0 +1,133 @@
+name: Build A&T Printer Agent v0.3.6 Windows installer
+
+on:
+  push:
+    branches: ["agent-v0.3.6-test"]
+    paths:
+      - "build-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+
+      - name: Reassemble verified v0.3.3 source
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Se esperaban 23 partes de la fuente base; encontradas: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-base.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Hash de la fuente base incorrecto: $actual" }
+          New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo extraer la fuente base" }
+
+      - name: Apply verified v0.3.6 serial and updater fixes
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "No se encontró el proyecto .NET" }
+          if (!(Test-Path ".buildsrc\v035direct\apply-patches.ps1")) { throw "No se encontró el script de corrección" }
+          if (!(Test-Path ".buildsrc\v035direct\NetworkHttpProbe.txt")) { throw "No se encontró la búsqueda HTTP de series" }
+          if (!(Test-Path ".buildsrc\v035direct\UpdateManager.cs")) { throw "No se encontró el actualizador remoto" }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ".buildsrc\v035direct\apply-patches.ps1" -AgentRoot $agentRoot
+          if ($LASTEXITCODE -ne 0) { throw "Falló la aplicación de las correcciones v0.3.6" }
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.6</Version>' -Quiet)) { throw "El proyecto no quedó en v0.3.6" }
+          if (!(Test-Path "$agentRoot\src\UpdateManager.cs")) { throw "No se agregó UpdateManager.cs" }
+
+      - name: Apply remote update command v0.3.6
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ".buildsrc\v036\apply-v036.ps1" -AgentRoot $agentRoot
+          if ($LASTEXITCODE -ne 0) { throw "Falló la aplicación de las mejoras v0.3.6" }
+
+      - name: Verify .NET 8 SDK
+        shell: pwsh
+        run: |
+          dotnet --info
+          $sdks = dotnet --list-sdks
+          if (!($sdks | Select-String '^8\.')) { throw "No se encontró .NET 8 SDK: $sdks" }
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
+
+      - name: Publish x86 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x86" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x86" }
+          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "No se generó el EXE x86" }
+
+      - name: Publish x64 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x64" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x64" }
+          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "No se generó el EXE x64" }
+
+      - name: Compile installer with Inno Setup
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location $agentRoot
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Falló Inno Setup" }
+          $exe = Join-Path (Get-Location) "Instalar_ATPrinterAgent_v0.3.6.exe"
+          if (!(Test-Path $exe)) { throw "No se generó Instalar_ATPrinterAgent_v0.3.6.exe" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1000000) { throw "El instalador es demasiado pequeño: $size bytes" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Instalar_ATPrinterAgent_v0.3.6.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          Write-Host "SHA256: $hash"
+          Write-Host "Tamaño del instalador: $size bytes"
+
+      - name: Upload verified installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Instalar_ATPrinterAgent_v0.3.6
+          path: |
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.6.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish downloadable release for remote updater
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent-v0.3.6
+          name: A&T Printer Agent v0.3.6 - Corrección de series y actualización remota
+          overwrite_files: true
+          body: |
+            Instalador de Windows compilado con .NET 8 y empaquetado con Inno Setup 6.
+            Mejora la validación de series SNMP/OID, rechaza valores con caracteres de control,
+            consulta páginas de información del fabricante por HTTP/HTTPS cuando corresponde,
+            y agrega búsqueda de actualizaciones remotas con verificación SHA-256.
+            Conserva la configuración local y el historial almacenado en Supabase.
+          files: |
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.6.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
