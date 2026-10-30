@@ -86,6 +86,13 @@ $vendorCounters='''        // Vendor global counters: Pantum BM5100FDW and Ricoh
                 printer.PageCount = vendorCounter.Number;
                 printer.CounterSource = "SNMP Pantum global counter";
             }
+            else if (printer.PageCount == 0)
+            {
+                // Pantum's generic table can expose a misleading zero on some firmware.
+                // Do not publish a false lifetime meter when the vendor OID is unavailable.
+                printer.PageCount = null;
+                printer.CounterSource = null;
+            }
         }
         else if (vendorTextForCounter.Contains("ricoh") || vendorTextForCounter.Contains("mp c306"))
         {
