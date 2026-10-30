@@ -15,11 +15,14 @@ $src = Join-Path $AgentRoot "src"
 $proj = Join-Path $src "ATPrinterAgent.csproj"
 $main = Join-Path $src "MainForm.cs"
 $update = Join-Path $src "UpdateManager.cs"
+$sync = Join-Path $src "SupabaseSync.cs"
 $iss = Join-Path $AgentRoot "AandTPrinterAgent.iss"
 Replace-Once $proj '<Version>0.3.5</Version>' '<Version>0.3.6</Version>' "versión del proyecto"
 Replace-Once $proj '<AssemblyVersion>0.3.5.0</AssemblyVersion>' '<AssemblyVersion>0.3.6.0</AssemblyVersion>' "versión del ensamblado"
 Replace-Once $proj '<FileVersion>0.3.5.0</FileVersion>' '<FileVersion>0.3.6.0</FileVersion>' "versión del archivo"
 Replace-Once $proj '<InformationalVersion>0.3.5-serial-fix-remote-updater</InformationalVersion>' '<InformationalVersion>0.3.6-remote-update-command</InformationalVersion>' "versión informativa"
+Replace-Once $sync 'public static string AppVersion => "0.3.5";' 'public static string AppVersion => "0.3.6";' "versión informada a Supabase"
+Replace-Once $sync 'ATPrinterAgent/0.3.5 (+A&T Informatica)' 'ATPrinterAgent/0.3.6 (+A&T Informatica)' "identificador de sincronización"
 Replace-Once $iss '#define MyAppVersion "0.3.5"' '#define MyAppVersion "0.3.6"' "versión Inno Setup"
 Replace-Once $iss 'OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.5' 'OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.6' "nombre del instalador"
 Replace-Once $main 'Text = "A&T Printer Agent 0.3.5";' 'Text = "A&T Printer Agent 0.3.6";' "título"
@@ -105,6 +108,8 @@ $newEnd = @'
 '@
 Replace-Once $main $oldEnd $newEnd "inicio de actualización luego de acuse"
 if (-not ([System.IO.File]::ReadAllText($proj).Contains('<Version>0.3.6</Version>'))) { throw "El proyecto no quedó en 0.3.6." }
+if (-not ([System.IO.File]::ReadAllText($sync).Contains('public static string AppVersion => "0.3.6";'))) { throw "SupabaseSync no reporta la versión 0.3.6." }
+if (-not ([System.IO.File]::ReadAllText($sync).Contains('ATPrinterAgent/0.3.6 (+A&T Informatica)'))) { throw "El User-Agent de sincronización no quedó en 0.3.6." }
 if (-not ([System.IO.File]::ReadAllText($main).Contains('"update_now"'))) { throw "No se agregó el comando remoto update_now." }
 if (-not ([System.IO.File]::ReadAllText($main).Contains('REMOTE_UPDATE_PENDING'))) { throw "No se agregó el acuse de actualización remota." }
 if (-not ([System.IO.File]::ReadAllText($update).Contains('remoteRequest = false'))) { throw "No quedó habilitado el modo remoto del actualizador." }
