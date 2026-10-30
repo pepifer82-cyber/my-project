@@ -628,11 +628,12 @@ function printerFamilyKey(r){
 }
 
 function printerIdentityKey(r){
+  const serial=String(r?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  if(serial)return 'serial:'+serial;
+  const mac=String(r?.mac_address||'').trim().toLowerCase().replace(/[^a-f0-9]/g,'');
+  if(mac.length===12)return 'mac:'+mac;
   const ip=realIpOf(r);
   if(ip)return 'ip:'+ip.toLowerCase();
-
-  const serial=String(r?.serial_number||'').trim().toLowerCase();
-  if(serial)return 'serial:'+serial;
 
   const connection=String(r?.connection_type||'').trim().toLowerCase();
   const agent=String(r?.agent_code||r?.agent_id||'').trim().toLowerCase();
@@ -711,6 +712,7 @@ function dedupePrinterRows(source){
   const groups=[];
   const used=new Set();
   const normalizedSerial=r=>String(r?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  const normalizedMac=r=>String(r?.mac_address||'').trim().toLowerCase().replace(/[^a-f0-9]/g,'');
   const serialConflict=(a,b)=>{
     const sa=normalizedSerial(a),sb=normalizedSerial(b);
     return !!(sa&&sb&&sa!==sb);
@@ -731,6 +733,21 @@ function dedupePrinterRows(source){
       indexes.forEach(j=>used.add(j));
       groups.push(indexes);
     }
+  }
+
+  // La MAC identifica el hardware aunque cambie de IP o de agente.
+  // Solo se fusiona si no hay números de serie físicos incompatibles.
+  for(let i=0;i<input.length;i++){
+    if(used.has(i))continue;
+    const mac=normalizedMac(input[i]);
+    if(mac.length!==12)continue;
+    const indexes=[];
+    for(let j=i;j<input.length;j++){
+      if(used.has(j)||normalizedMac(input[j])!==mac)continue;
+      if(indexes.some(k=>serialConflict(input[k],input[j])))continue;
+      indexes.push(j);
+    }
+    if(indexes.length>1){indexes.forEach(j=>used.add(j));groups.push(indexes);}
   }
 
   // Después consolidar entradas que comparten una IP real,
@@ -876,7 +893,7 @@ function renderAll(){
   const latest=[...activeRows].map(r=>r.reading_at||r.last_seen_at).filter(Boolean).sort().pop();$('lastSyncText').textContent=latest?new Date(latest).toLocaleString():'Sin lecturas todavía';
   const invTerm=inventorySearch.trim().toLowerCase();
   const visibleInventory=invTerm?activeRows.filter(r=>[
-    r.display_name,r.description,r.city,r.manufacturer,r.model,connectionLabel(r),r.ip_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
+    r.display_name,r.description,r.city,r.manufacturer,r.model,connectionLabel(r),r.ip_address,r.mac_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
   ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
   if($('inventoryCount'))$('inventoryCount').textContent='Mostrando '+visibleInventory.length+' de '+activeRows.length+' impresoras activas · '+rows.length+' registros en el proyecto';
   $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
