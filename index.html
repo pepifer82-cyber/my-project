@@ -423,7 +423,7 @@ function openProject(id){
 }
 function showView(view){
   currentView=view;
-  ['resumen','inventario','tinta','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
+  ['resumen','inventario','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
   if(view==='administrar'&&!isAdmin){showView('resumen');return}
   if(view==='administrar'){populateUserProjectSelect();loadPricing();loadManagedUsers();}
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
