@@ -52,7 +52,7 @@ button{border:0;cursor:pointer}
 .kpi-top{display:flex;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}.kpi-dot{width:8px;height:8px;border-radius:50%;background:#cad5e2}.kpi:nth-child(2) .kpi-dot{background:var(--green)}.kpi:nth-child(3) .kpi-dot{background:var(--red)}.kpi:nth-child(4) .kpi-dot{background:var(--blue)}
 .metric{font-size:30px;font-weight:900;letter-spacing:-.04em;margin-top:5px}
 .content-card{background:#fff;border:1px solid #dfe6ef;border-radius:12px;box-shadow:0 10px 30px #23456b0b;padding:17px;min-height:280px}
-.content-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.content-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.toolbar-input{height:36px;padding:7px 10px;border:1px solid #cfdbe8;border-radius:8px;min-width:220px;outline:none;background:#fff}.toolbar-input:focus{border-color:#7eb1ff;box-shadow:0 0 0 3px #2878ff10}.toolbar-btn{height:36px;padding:0 12px;border-radius:8px;background:#eef4fb;color:#23466b;font-weight:800;border:1px solid #d3dfec}.toolbar-btn.primary{background:#2878ff;color:#fff;border-color:#2878ff}.content-head h2,.content-head h3{margin:0}.content-head small{color:var(--muted)}
+.content-head{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.content-tools{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.toolbar-input{height:36px;padding:7px 10px;border:1px solid #cfdbe8;border-radius:8px;min-width:220px;outline:none;background:#fff}.toolbar-input:focus{border-color:#7eb1ff;box-shadow:0 0 0 3px #2878ff10}.toolbar-btn{height:36px;padding:0 12px;border-radius:8px;background:#eef4fb;color:#23466b;font-weight:800;border:1px solid #d3dfec}.toolbar-btn.primary{background:#2878ff;color:#fff;border-color:#2878ff}.toolbar-btn.delete{background:#fff1f2;color:#a52f42;border-color:#efc3ca}.content-head h2,.content-head h3{margin:0}.content-head small{color:var(--muted)}
 .table-wrap{overflow:auto;border:1px solid var(--line);border-radius:14px;background:#fff}
 table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left;padding:14px 16px;border-bottom:1px solid #e9eef5;font-size:13px;vertical-align:top}td:nth-child(1){min-width:180px}td:nth-child(2){min-width:210px}td:nth-child(3){min-width:150px}th{white-space:nowrap}th{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:#62758c;background:#eef3f8;position:sticky;top:0}tr:last-child td{border-bottom:0}.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 8px;border-radius:999px;font-size:11px;font-weight:800;background:#eef2f7;color:#52647a}.pill:before{content:"";width:6px;height:6px;border-radius:50%;background:#94a3b8}.pill.online{background:#e9fbf4;color:#16815e}.pill.online:before{background:#20ad7a}.pill.offline{background:#fff0f1;color:#be4b5b}.pill.offline:before{background:#e45867}.pill.stale{background:#fff7e7;color:#a36b11}.pill.stale:before{background:#f2a51d}.pill.unknown{background:#eef2f7;color:#52647a}.pill.unknown:before{background:#94a3b8}
 .empty{padding:42px 15px;text-align:center;color:var(--muted)}
@@ -188,7 +188,10 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
         <label><input id="alertLow" type="checkbox" checked> Avisar consumibles al nivel configurado</label>
       </div>
       <p class="muted">Se consideran los consumibles que el fabricante exponga mediante el agente. Los que no tengan lectura compatible aparecerán como «No disponible».</p>
-      <button id="saveAlertSettings" class="toolbar-btn primary" type="button">Guardar configuración</button>
+      <div class="form-row" style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px">
+        <button id="saveAlertSettings" class="toolbar-btn primary" type="button">Guardar configuración</button>
+        <button id="deleteAlertSettings" class="toolbar-btn delete" type="button">Borrar configuración</button>
+      </div>
       <span id="alertSettingsMsg" class="auth-msg"></span>
       <div class="content-head" style="margin-top:24px"><div><h3>Historial de alertas</h3><small>Registro de fallos y niveles bajos detectados.</small></div></div>
       <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Impresora</th><th>Alerta</th><th>Valor</th><th>Entrega</th></tr></thead><tbody id="alertEventsBody"><tr><td colspan="5" class="empty">Sin alertas.</td></tr></tbody></table></div>
@@ -942,6 +945,40 @@ async function saveAlertSettings(){
   }catch(e){$('alertSettingsMsg').textContent='No se pudo guardar: '+(e?.message||e);$('alertSettingsMsg').className='auth-msg danger';}
 }
 $('saveAlertSettings')?.addEventListener('click',saveAlertSettings);
+
+async function deleteAlertSettings(){
+  if(!currentProjectId){
+    $('alertSettingsMsg').textContent='Seleccioná un proyecto antes de borrar la configuración.';
+    $('alertSettingsMsg').className='auth-msg danger';
+    return;
+  }
+  const ok=confirm('¿Borrar la configuración de alertas de este proyecto? Se eliminarán los destinatarios y las opciones guardadas. El historial de alertas NO se borrará.');
+  if(!ok)return;
+  const btn=$('deleteAlertSettings');
+  btn.disabled=true;
+  try{
+    const deleted=await api('/rest/v1/printer_alert_settings?project_id=eq.'+encodeURIComponent(currentProjectId),{
+      method:'DELETE',
+      headers:{'Prefer':'return=representation'}
+    });
+    $('alertEmails').value='';
+    $('alertThreshold').value=10;
+    $('alertsEnabled').checked=false;
+    $('alertFailure').checked=true;
+    $('alertLow').checked=true;
+    const removed=Array.isArray(deleted)?deleted.length:0;
+    $('alertSettingsMsg').textContent=removed
+      ? 'Configuración borrada. El historial de alertas se conservó.'
+      : 'No había una configuración guardada. El formulario quedó restablecido.';
+    $('alertSettingsMsg').className='auth-msg success';
+  }catch(e){
+    $('alertSettingsMsg').textContent='No se pudo borrar la configuración: '+(e?.message||e);
+    $('alertSettingsMsg').className='auth-msg danger';
+  }finally{
+    btn.disabled=false;
+  }
+}
+$('deleteAlertSettings')?.addEventListener('click',deleteAlertSettings);
 
 function renderAll(){
   // Se muestran impresoras USB y de red. Si el mismo equipo aparece
