@@ -1,0 +1,54 @@
+name: Diagnose printer reader source
+on:
+  push:
+    branches: ["agent-reader-diagnostic"]
+    paths: ["diag-trigger.txt"]
+permissions:
+  contents: read
+jobs:
+  inspect:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reassemble verified source
+        shell: pwsh
+        run: |
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Expected 23 source chunks; found $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          [IO.File]::WriteAllBytes("$PWD\agent-base.tar.xz", [Convert]::FromBase64String($encoded))
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
+          $actual = (Get-FileHash "$PWD\agent-base.tar.xz" -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Source archive hash mismatch: $actual" }
+          New-Item -ItemType Directory "$PWD\agent-src" -Force | Out-Null
+          tar -xf "$PWD\agent-base.tar.xz" -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "Source extraction failed" }
+      - name: Apply v0.3.5 and v0.3.6 patches
+        shell: pwsh
+        run: |
+          $root = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ".buildsrc\v035direct\apply-patches.ps1" -AgentRoot $root
+          if ($LASTEXITCODE -ne 0) { throw "v0.3.5 patch failed" }
+          pwsh -NoProfile -ExecutionPolicy Bypass -File ".buildsrc\v036\apply-v036.ps1" -AgentRoot $root
+          if ($LASTEXITCODE -ne 0) { throw "v0.3.6 patch failed" }
+      - name: Dump reader source for review
+        shell: pwsh
+        run: |
+          $src = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL\src"
+          foreach ($name in @("SnmpClient.cs","NetworkPrinterScanner.cs","PrinterInfo.cs")) {
+            $path = Join-Path $src $name
+            if (Test-Path $path) {
+              Write-Output "===== BEGIN $name ====="
+              $lines = Get-Content $path
+              Write-Output "LINES=$($lines.Count) BYTES=$((Get-Item $path).Length)"
+              $lines | ForEach-Object -Begin { $i=0 } -Process { $i++; "{0,5}: {1}" -f $i, $_ }
+              Write-Output "===== END $name ====="
+            }
+          }
+      - name: Upload reader sources
+        uses: actions/upload-artifact@v4
+        with:
+          name: reader-source-diagnostic
+          path: agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/src/*.cs
+          if-no-files-found: error
+          retention-days: 3
