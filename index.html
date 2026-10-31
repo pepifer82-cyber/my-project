@@ -757,6 +757,62 @@ function mergePrinterRecords(records){
   return merged;
 }
 
+function printerPhysicalModelKey(r){
+  const raw=[r?.manufacturer,r?.model,r?.display_name,r?.windows_printer_name].filter(Boolean).join(' ').toLowerCase();
+  const brandAliases=[
+    ['hp',/\\b(?:hp|hewlett[ -]?packard)\\b/i],
+    ['pantum',/\\bpantum\\b/i],
+    ['ricoh',/\\bricoh\\b/i],
+    ['samsung',/\\bsamsung\\b/i],
+    ['brother',/\\bbrother\\b/i],
+    ['canon',/\\bcanon\\b/i],
+    ['epson',/\\bepson\\b/i],
+    ['xerox',/\\bxerox\\b/i],
+    ['kyocera',/\\bkyocera\\b/i],
+    ['lexmark',/\\blexmark\\b/i],
+    ['sharp',/\\bsharp\\b/i],
+    ['oki',/\\boki\\b/i],
+    ['toshiba',/\\btoshiba\\b/i],
+    ['konica-minolta',/\\bkonica[ -]?minolta\\b/i],
+    ['fujifilm',/\\bfujifilm\\b/i]
+  ];
+  const brand=brandAliases.find(([,re])=>re.test(raw))?.[0]||'';
+  if(!brand)return '';
+  const text=raw
+    .replace(/\\b(?:pcl\\s*\\d*|postscript|ps\\s*\\d*|driver|universal|printer|series|copy|copiar|v\\s*\\d+)\\b/gi,' ')
+    .replace(/\\b(?:usb|ipp|wsd|port)[-_ ]?\\d*\\b/gi,' ')
+    .replace(/\\(\\s*(?:copy|copiar)\\s*\\d+\\s*\\)/gi,' ');
+  const tokens=[...text.matchAll(/[a-z]{1,12}[\\s-]*\\d{2,}[a-z0-9]*|\\d{3,}[a-z][a-z0-9]*/gi)]
+    .map(m=>m[0].replace(/[\\s-]/g,'').toLowerCase())
+    .filter(t=>! /^(?:pcl\\d*|ps\\d*|v\\d+|usb\\d*|ipp\\d*|wsd\\d*|port\\d*)$/.test(t));
+  const unique=[...new Set(tokens)].sort();
+  return unique.length?brand+'|'+unique.join('|'):'';
+}
+
+function printerTransportKind(r){
+  const type=String(r?.connection_type||'').toLowerCase();
+  const port=String(r?.windows_port||r?.usb_port||'').trim();
+  if(type.includes('usb')||String(r?.usb_port||'').trim()||/^USB\\d*$/i.test(port))return 'usb';
+  if(realIpOf(r))return 'ip';
+  if(/^(?:IPP|WSD|IP[_-])/i.test(port))return 'queue';
+  return 'other';
+}
+
+function samePhysicalTransportAlias(a,b){
+  const ka=printerTransportKind(a),kb=printerTransportKind(b);
+  const cross=(ka==='usb'&&(kb==='ip'||kb==='queue'))||(kb==='usb'&&(ka==='ip'||ka==='queue'))||
+    ((ka==='ip'&&kb==='queue')||(kb==='ip'&&ka==='queue'));
+  if(!cross)return false;
+  const aa=String(a?.agent_code||a?.agent_id||'').trim().toLowerCase();
+  const bb=String(b?.agent_code||b?.agent_id||'').trim().toLowerCase();
+  if(!aa||!bb||aa!==bb)return false;
+  const ma=printerPhysicalModelKey(a),mb=printerPhysicalModelKey(b);
+  if(!ma||!mb||ma!==mb)return false;
+  const sa=String(a?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  const sb=String(b?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
+  return !(sa&&sb&&sa!==sb);
+}
+
 function dedupePrinterRows(source){
   const input=Array.isArray(source)?source.filter(Boolean):[];
   const groups=[];
@@ -816,19 +872,35 @@ function dedupePrinterRows(source){
     groups.push(indexes);
   }
 
-  // USB conserva su propia ficha si no está duplicado por una ficha de red.
+  // Relacionar USB e IPP/WSD con una única ficha de red cuando hay
+  // una sola impresora física candidata del mismo fabricante/modelo y agente.
+  // Si hay dos equipos iguales, no se fusionan por nombre/modelo solamente.
   for(let i=0;i<input.length;i++){
     if(used.has(i))continue;
-    const r=input[i];
-    const conn=String(r?.connection_type||'').toLowerCase();
-    if(conn.includes('usb')){
+    const kind=printerTransportKind(input[i]);
+    if(kind!=='usb'&&kind!=='queue')continue;
+    const targets=[];
+    for(let g=0;g<groups.length;g++){
+      const network=groups[g].map(k=>input[k]).find(r=>!!realIpOf(r));
+      if(network&&samePhysicalTransportAlias(network,input[i]))targets.push(g);
+    }
+    if(targets.length===1){
+      groups[targets[0]].push(i);
+      used.add(i);
+    }
+  }
+
+  // Los USB sin una única contraparte identificable mantienen su propia ficha.
+  for(let i=0;i<input.length;i++){
+    if(used.has(i))continue;
+    if(printerTransportKind(input[i])==='usb'){
       groups.push([i]);
       used.add(i);
     }
   }
 
-  // WSD/red sin IP se incorpora a una ficha de red con IP cuando
-  // coincide la familia y el agente, evitando duplicar la cola de Windows.
+  // Otros alias WSD/red sin IP: conservar la lógica de familia existente,
+  // pero sin unir registros que tengan seriales físicos incompatibles.
   for(let i=0;i<input.length;i++){
     if(used.has(i))continue;
     const r=input[i];
