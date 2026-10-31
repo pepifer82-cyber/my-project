@@ -757,7 +757,7 @@ function mergePrinterRecords(records){
   // usar el mayor valor disponible evita que una cola USB/IP con lectura nula
   // o cero aparente haga retroceder el contador de la ficha física.
   for(const field of ['page_count','scanner_count']){
-    const values=list.map(r=>Number(r?.[field])).filter(v=>Number.isFinite(v)&&v>=0);
+    const values=list.map(r=>r?.[field]).filter(v=>v!==null&&v!==undefined&&v!=='').map(Number).filter(v=>Number.isFinite(v)&&v>=0);
     if(values.length)merged[field]=Math.max(...values);
   }
 
