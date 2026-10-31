@@ -753,6 +753,22 @@ function mergePrinterRecords(records){
   for(const field of ['reading_at','reading_status','page_count','scanner_count','toner_black_percent','toner_cyan_percent','toner_magenta_percent','toner_yellow_percent','reading_error','counter_source','counter_reading_at','scanner_reading_at','last_status','last_seen_at']){
     if(newest && newest[field]!==undefined && newest[field]!==null && newest[field]!=='')merged[field]=newest[field];
   }
+  // Los contadores acumulados son monotónicos en condiciones normales:
+  // usar el mayor valor disponible evita que una cola USB/IP con lectura nula
+  // o cero aparente haga retroceder el contador de la ficha física.
+  for(const field of ['page_count','scanner_count']){
+    const values=list.map(r=>Number(r?.[field])).filter(v=>Number.isFinite(v)&&v>=0);
+    if(values.length)merged[field]=Math.max(...values);
+  }
+
+  // Unir métodos y consumibles que cada ruta haya podido leer.
+  merged.detection_methods=[...new Set(list.flatMap(r=>Array.isArray(r?.detection_methods)?r.detection_methods:[]))];
+  const consumables={};
+  for(const r of [...list].reverse()){
+    if(r?.consumables&&typeof r.consumables==='object')Object.assign(consumables,r.consumables);
+  }
+  if(Object.keys(consumables).length)merged.consumables=consumables;
+
   if(realIpOf(list[0]))merged.ip_address=realIpOf(list[0]);
   return merged;
 }
