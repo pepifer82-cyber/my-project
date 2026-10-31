@@ -760,31 +760,31 @@ function mergePrinterRecords(records){
 function printerPhysicalModelKey(r){
   const raw=[r?.manufacturer,r?.model,r?.display_name,r?.windows_printer_name].filter(Boolean).join(' ').toLowerCase();
   const brandAliases=[
-    ['hp',/\\b(?:hp|hewlett[ -]?packard)\\b/i],
-    ['pantum',/\\bpantum\\b/i],
-    ['ricoh',/\\bricoh\\b/i],
-    ['samsung',/\\bsamsung\\b/i],
-    ['brother',/\\bbrother\\b/i],
-    ['canon',/\\bcanon\\b/i],
-    ['epson',/\\bepson\\b/i],
-    ['xerox',/\\bxerox\\b/i],
-    ['kyocera',/\\bkyocera\\b/i],
-    ['lexmark',/\\blexmark\\b/i],
-    ['sharp',/\\bsharp\\b/i],
-    ['oki',/\\boki\\b/i],
-    ['toshiba',/\\btoshiba\\b/i],
-    ['konica-minolta',/\\bkonica[ -]?minolta\\b/i],
-    ['fujifilm',/\\bfujifilm\\b/i]
+    ['hp',/\b(?:hp|hewlett[ -]?packard)\b/i],
+    ['pantum',/\bpantum\b/i],
+    ['ricoh',/\bricoh\b/i],
+    ['samsung',/\bsamsung\b/i],
+    ['brother',/\bbrother\b/i],
+    ['canon',/\bcanon\b/i],
+    ['epson',/\bepson\b/i],
+    ['xerox',/\bxerox\b/i],
+    ['kyocera',/\bkyocera\b/i],
+    ['lexmark',/\blexmark\b/i],
+    ['sharp',/\bsharp\b/i],
+    ['oki',/\boki\b/i],
+    ['toshiba',/\btoshiba\b/i],
+    ['konica-minolta',/\bkonica[ -]?minolta\b/i],
+    ['fujifilm',/\bfujifilm\b/i]
   ];
   const brand=brandAliases.find(([,re])=>re.test(raw))?.[0]||'';
   if(!brand)return '';
   const text=raw
-    .replace(/\\b(?:pcl\\s*\\d*|postscript|ps\\s*\\d*|driver|universal|printer|series|copy|copiar|v\\s*\\d+)\\b/gi,' ')
-    .replace(/\\b(?:usb|ipp|wsd|port)[-_ ]?\\d*\\b/gi,' ')
-    .replace(/\\(\\s*(?:copy|copiar)\\s*\\d+\\s*\\)/gi,' ');
-  const tokens=[...text.matchAll(/[a-z]{1,12}[\\s-]*\\d{2,}[a-z0-9]*|\\d{3,}[a-z][a-z0-9]*/gi)]
-    .map(m=>m[0].replace(/[\\s-]/g,'').toLowerCase())
-    .filter(t=>! /^(?:pcl\\d*|ps\\d*|v\\d+|usb\\d*|ipp\\d*|wsd\\d*|port\\d*)$/.test(t));
+    .replace(/\b(?:pcl\s*\d*|postscript|ps\s*\d*|driver|universal|printer|series|copy|copiar|v\s*\d+)\b/gi,' ')
+    .replace(/\b(?:usb|ipp|wsd|port)[-_ ]?\d*\b/gi,' ')
+    .replace(/\(\s*(?:copy|copiar)\s*\d+\s*\)/gi,' ');
+  const tokens=[...text.matchAll(/[a-z]{1,12}[\s-]*\d{2,}[a-z0-9]*|\d{3,}[a-z][a-z0-9]*/gi)]
+    .map(m=>m[0].replace(/[\s-]/g,'').toLowerCase())
+    .filter(t=>! /^(?:pcl\d*|ps\d*|v\d+|usb\d*|ipp\d*|wsd\d*|port\d*)$/.test(t));
   const unique=[...new Set(tokens)].sort();
   return unique.length?brand+'|'+unique.join('|'):'';
 }
@@ -792,7 +792,7 @@ function printerPhysicalModelKey(r){
 function printerTransportKind(r){
   const type=String(r?.connection_type||'').toLowerCase();
   const port=String(r?.windows_port||r?.usb_port||'').trim();
-  if(type.includes('usb')||String(r?.usb_port||'').trim()||/^USB\\d*$/i.test(port))return 'usb';
+  if(type.includes('usb')||String(r?.usb_port||'').trim()||/^USB\d*$/i.test(port))return 'usb';
   if(realIpOf(r))return 'ip';
   if(/^(?:IPP|WSD|IP[_-])/i.test(port))return 'queue';
   return 'other';
