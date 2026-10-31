@@ -792,7 +792,8 @@ function printerPhysicalModelKey(r){
     ['konica-minolta',/\bkonica[ -]?minolta\b/i],
     ['fujifilm',/\bfujifilm\b/i]
   ];
-  const brand=brandAliases.find(([,re])=>re.test(raw))?.[0]||'';
+  const brand=brandAliases.find(([,re])=>re.test(raw))?.[0]||
+    String(r?.manufacturer||'').trim().toLowerCase().replace(/[^a-z0-9]+/g,'');
   if(!brand)return '';
   const text=raw
     .replace(/\b(?:pcl\s*\d*|postscript|ps\s*\d*|driver|universal|printer|series|copy|copiar|v\s*\d+)\b/gi,' ')
@@ -823,7 +824,9 @@ function samePhysicalTransportAlias(a,b){
   const bb=String(b?.agent_code||b?.agent_id||'').trim().toLowerCase();
   if(!aa||!bb||aa!==bb)return false;
   const ma=printerPhysicalModelKey(a),mb=printerPhysicalModelKey(b);
-  if(!ma||!mb||ma!==mb)return false;
+  if(!ma||!mb)return false;
+  const [brandA,...modelsA]=ma.split('|'),[brandB,...modelsB]=mb.split('|');
+  if(brandA!==brandB||!modelsA.some(model=>modelsB.includes(model)))return false;
   const sa=String(a?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
   const sb=String(b?.serial_number||'').trim().toLowerCase().replace(/[^a-z0-9]/g,'');
   return !(sa&&sb&&sa!==sb);
