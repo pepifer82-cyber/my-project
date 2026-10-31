@@ -586,8 +586,10 @@ function isRealPrinter(r){
 }
 
 function ageMinutes(v){if(!v)return Infinity;return (Date.now()-new Date(v).getTime())/60000}
-function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const states=[r.reading_status,r.last_status].map(v=>String(v||'').trim().toLowerCase()).filter(Boolean);if(states.some(s=>s.includes('offline')||s.includes('descon')||s==='unreachable'||s==='not available'))return 'offline';if(ageMinutes(r.last_seen_at)>15)return 'offline';if(states.some(s=>/^(online|connected|conectada|conectado|reachable)$/i.test(s)))return 'online';return 'unknown'}
-function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at);return m<=3?'online':m<=15?'stale':'offline'}
+function configuredSyncMinutes(agent){const seconds=Number(agent?.remote_config?.sync_interval_seconds||1800);return Number.isFinite(seconds)&&seconds>=60?seconds/60:30}
+function printerOfflineLimitMinutes(r){const agent=agentRows.find(a=>String(a.id)===String(r.agent_id));return Math.max(15,configuredSyncMinutes(agent)+10)}
+function printerState(r){if(r.retired===true)return 'disabled';if(r.enabled===false)return 'disabled';const states=[r.reading_status,r.last_status].map(v=>String(v||'').trim().toLowerCase()).filter(Boolean);if(states.some(s=>s.includes('offline')||s.includes('descon')||s==='unreachable'||s==='not available'))return 'offline';if(ageMinutes(r.last_seen_at)>printerOfflineLimitMinutes(r))return 'offline';if(states.some(s=>/^(online|connected|conectada|conectado|reachable)$/i.test(s)))return 'online';return 'unknown'}
+function agentState(a){if(a.active===false)return 'disabled';const m=ageMinutes(a.last_seen_at),interval=configuredSyncMinutes(a);return m<=Math.max(3,interval)?'online':m<=Math.max(15,interval+10)?'stale':'offline'}
 function statePill(state){const label={online:'Conectada',offline:'Desconectada',stale:'Sincronizando',unknown:'Sin verificar',disabled:'Deshabilitada'}[state]||state;return '<span class="pill '+state+'">'+escapeHtml(label)+'</span>'}
 function staleUpdateInfo(value){
   if(!value)return {label:'Sin registro',stale:true};
