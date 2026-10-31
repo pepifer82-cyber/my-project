@@ -2,7 +2,7 @@ name: Build A&T Printer Agent v0.3.8 Windows installer
 
 on:
   push:
-    branches: ["agent-v0.3.8-test"]
+    branches: ["agent-v0.3.8-pc-approval"]
     paths:
       - "build-v038-trigger.txt"
 
