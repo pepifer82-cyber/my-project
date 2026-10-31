@@ -328,11 +328,51 @@ function saveSession(s){if(s?.access_token)localStorage.setItem(ACCESS_KEY,s.acc
 function clearSession(){localStorage.removeItem(ACCESS_KEY);localStorage.removeItem(REFRESH_KEY);currentProjectId=null}
 function authMsg(t,c){$('authMsg').textContent=t||'';$('authMsg').className='auth-msg '+(c||'muted')}
 function escapeHtml(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[c]))}
+
+let sessionRefreshPromise=null;
+function showExpiredSession(message){
+  clearSession();currentUser=null;isAdmin=false;
+  if($('auth'))$('auth').classList.remove('hidden');
+  if($('app'))$('app').classList.add('hidden');
+  authMsg('Tu sesión venció. Iniciá sesión nuevamente. '+(message||''),'danger');
+}
+async function refreshSession(){
+  if(sessionRefreshPromise)return sessionRefreshPromise;
+  const refreshToken=localStorage.getItem(REFRESH_KEY)||'';
+  if(!refreshToken){showExpiredSession('No hay un token de renovación guardado.');throw new Error('Tu sesión venció. Volvé a iniciar sesión.')}
+  sessionRefreshPromise=(async()=>{
+    // No se envía el access_token vencido a GoTrue; la renovación usa el refresh_token.
+    const response=await fetch(SUPABASE_URL+'/auth/v1/token?grant_type=refresh_token',{
+      method:'POST',
+      headers:{'apikey':SUPABASE_KEY,'Content-Type':'application/json'},
+      body:JSON.stringify({refresh_token:refreshToken})
+    });
+    const raw=await response.text();let data=null;try{data=raw?JSON.parse(raw):null}catch{}
+    if(!response.ok||!data?.access_token||!data?.refresh_token){
+      const reason=data?.msg||data?.message||data?.error_description||data?.error||raw||('HTTP '+response.status);
+      throw new Error(reason);
+    }
+    saveSession(data);
+    if(data.user)currentUser=data.user;
+    return data.access_token;
+  })().catch(error=>{
+    showExpiredSession(error?.message||'No se pudo renovar la sesión.');
+    throw new Error('Tu sesión venció y no se pudo renovar automáticamente. Iniciá sesión nuevamente.');
+  }).finally(()=>{sessionRefreshPromise=null});
+  return sessionRefreshPromise;
+}
 async function api(path,opts={}){
   const headers=Object.assign({'apikey':SUPABASE_KEY,'Content-Type':'application/json'},opts.headers||{});
   if(token())headers.Authorization='Bearer '+token();
-  const res=await fetch(SUPABASE_URL+path,Object.assign({},opts,{headers}));
-  const textBody=await res.text();let data=null;try{data=textBody?JSON.parse(textBody):null}catch{}
+  let res=await fetch(SUPABASE_URL+path,Object.assign({},opts,{headers}));
+  let textBody=await res.text();let data=null;try{data=textBody?JSON.parse(textBody):null}catch{}
+  const jwtExpired=res.status===401&&/jwt expired|token is expired|expired jwt|invalid jwt/i.test(String(data?.message||data?.msg||data?.error_description||data?.error||textBody));
+  if(jwtExpired){
+    const freshToken=await refreshSession();
+    const retryHeaders=Object.assign({},headers,{Authorization:'Bearer '+freshToken});
+    res=await fetch(SUPABASE_URL+path,Object.assign({},opts,{headers:retryHeaders}));
+    textBody=await res.text();data=null;try{data=textBody?JSON.parse(textBody):null}catch{}
+  }
   if(!res.ok)throw new Error(data?.message||data?.msg||data?.error_description||data?.error||textBody||('HTTP '+res.status));
   return data;
 }
