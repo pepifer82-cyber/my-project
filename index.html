@@ -175,7 +175,7 @@ table{width:100%;border-collapse:collapse;min-width:1120px}th,td{text-align:left
     <section id="view-seriales" class="content-card hidden">
       <div class="content-head"><div><h3>Identificación de impresoras</h3><small id="serialsCount">Seriales de fábrica registrados en este proyecto.</small></div><div class="content-tools"><button class="toolbar-btn" type="button" onclick="showView('control-remoto')">Configurar búsqueda</button></div></div>
       <p class="muted" style="font-size:12px;margin:0 0 12px">Se incluyen impresoras activas y retiradas que el agente ya descubrió. Las que todavía no están conectadas aparecerán después de que el agente las detecte; no se inventan números de serie. “Pendiente de lectura” significa que el equipo fue detectado, pero aún no entregó un serial válido.</p>
-      <div class="table-wrap"><table><thead><tr><th>Impresora</th><th>Fabricante / modelo</th><th>Serie de fábrica</th><th>Lectura</th><th>Origen del serial</th><th>Conexión / IP</th><th>Estado</th><th>Agente</th><th>Última detección</th></tr></thead><tbody id="serialsBody"></tbody></table></div>
+      <div class="table-wrap"><table><thead><tr><th>Proyecto</th><th>Impresora</th><th>Fabricante / modelo</th><th>Serie de fábrica</th><th>Lectura</th><th>Origen del serial</th><th>Conexión / IP</th><th>Estado</th><th>Agente</th><th>Última detección</th></tr></thead><tbody id="serialsBody"></tbody></table></div>
     </section>
 
     <section id="view-tinta" class="content-card hidden">
@@ -433,9 +433,10 @@ function openProject(id){
 }
 function showView(view){
   currentView=view;
-  ['resumen','inventario','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
+  ['resumen','inventario','seriales','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
   if(view==='administrar'&&!isAdmin){showView('resumen');return}
   if(view==='administrar'){populateUserProjectSelect();loadPricing();loadManagedUsers();}
+  if(view==='seriales')loadAllProjectSerials();
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
 $('counterExcelBtn').addEventListener('click',exportCountersExcel);
 $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
@@ -446,6 +447,45 @@ document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.d
   // Al abrir Contadores, consultar el período predeterminado automáticamente.
   if(view==='contadores')loadCounterHistory(true);
 }
+async function loadAllProjectSerials(){
+  const body=$('serialsBody');
+  if(!body)return;
+  const allowedProjects=Array.isArray(projects)?projects.filter(p=>p?.id):[];
+  if(!allowedProjects.length){body.innerHTML='<tr><td colspan="10" class="empty">No hay proyectos disponibles para consultar.</td></tr>';return}
+  body.innerHTML='<tr><td colspan="10" class="empty">Consultando impresoras de todos tus proyectos…</td></tr>';
+  try{
+    const ids=allowedProjects.map(p=>p.id);
+    const q='?select=*&project_id=in.('+ids.map(encodeURIComponent).join(',')+')&order=last_seen_at.desc.nullslast';
+    const found=await api('/rest/v1/control_printer_dashboard'+q);
+    const byProject=new Map();
+    (Array.isArray(found)?found:[]).filter(isRealPrinter).forEach(r=>{
+      const key=String(r.project_id||'');
+      if(!byProject.has(key))byProject.set(key,[]);
+      byProject.get(key).push(r);
+    });
+    const projectNames=new Map(allowedProjects.map(p=>[String(p.id),p.name||'Proyecto']));
+    const all=[];
+    for(const [projectId,projectRows] of byProject){
+      const active=dedupePrinterRows(projectRows.filter(r=>r.retired!==true));
+      const retired=dedupePrinterRows(projectRows.filter(r=>r.retired===true));
+      [...active,...retired].forEach(r=>all.push({...r,project_name:projectNames.get(projectId)||'Proyecto'}));
+    }
+    all.sort((a,b)=>String(a.project_name).localeCompare(String(b.project_name),'es')||String(a.display_name||'').localeCompare(String(b.display_name||''),'es'));
+    const valid=all.filter(r=>{const v=String(r.serial_number||'').trim();return !!v&&!/[\\x00-\\x1F\\x7F]/.test(v)}).length;
+    if($('serialsCount'))$('serialsCount').textContent=all.length+' impresoras en '+byProject.size+' proyectos · '+valid+' con serial válido · '+(all.length-valid)+' pendientes de lectura';
+    body.innerHTML=all.length?all.map(r=>{
+      const serial=String(r.serial_number||'').trim();
+      const validSerial=!!serial&&!/[\\x00-\\x1F\\x7F]/.test(serial);
+      const readState=validSerial?'Serial leído':(r.detection_error?'Error de lectura':'Pendiente de lectura');
+      const source=r.serial_source||r.identity_source||'No informado por el agente';
+      const status=r.retired===true?'Retirada':(printerState(r)==='online'?'Conectada':printerState(r)==='offline'?'Desconectada':'Sin verificar');
+      return '<tr><td>'+escapeHtml(r.project_name)+'</td><td>'+escapeHtml(r.display_name||'Impresora detectada')+'</td><td>'+escapeHtml([r.manufacturer,r.model].filter(Boolean).join(' / ')||'—')+'</td><td><code>'+escapeHtml(validSerial?serial:'—')+'</code></td><td>'+escapeHtml(readState)+'</td><td>'+escapeHtml(source)+'</td><td>'+escapeHtml(connectionLabel(r)+' · '+printerIpPort(r))+'</td><td>'+escapeHtml(status)+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td></tr>';
+    }).join(''):'<tr><td colspan="10" class="empty">Todavía no se detectaron impresoras. Cuando conectes una impresora y el agente la descubra, aparecerá aquí.</td></tr>';
+  }catch(e){
+    body.innerHTML='<tr><td colspan="10" class="empty">No se pudo consultar el inventario global: '+escapeHtml(e.message||e)+'</td></tr>';
+  }
+}
+
 async function loadProjectData(){
   if(!currentProjectId)return;
   try{
