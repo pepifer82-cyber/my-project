@@ -2190,32 +2190,64 @@ async function loadCounterHistory(showMessage=true){
       headers:{'Prefer':'return=representation'},
       body:JSON.stringify({p_project_id:currentProjectId,p_from:dates.from,p_to:dates.to})
     });
-    const reportKeys=new Set();
-    // Los contadores históricos solo se muestran si la impresora sigue activa
-    // en el inventario actual del proyecto. El historial permanece guardado.
-    const activeDevices=new Map(rows.filter(isActivePrinterRecord).map(device=>[String(device.printer_id),device]));
-    const dailyRows=Array.isArray(result)?result.filter(isRealPrinter)
-      .filter(r=>!isRetiredPrinterRecord(r)&&activeDevices.has(String(r.printer_id)))
-      .map(r=>{
-        const device=activeDevices.get(String(r.printer_id));
-        return {
-          ...r,
-          manufacturer:r.manufacturer||device?.manufacturer||'',
-          model:r.model||device?.model||'',
-          serial_number:r.serial_number||device?.serial_number||'',
-          ip_address:device?.ip_address?String(device.ip_address):(r.ip_address||'')
-        };
-      }).filter(r=>{
+    // Vincula cada lectura con el equipo activo real del inventario.
+    // Windows puede guardar varias colas (WSD/PCL/driver) para una sola impresora.
+    const activeDevices=rows.filter(r=>isActivePrinterRecord(r)&&isRealPrinter(r));
+    const activeById=new Map(activeDevices.map(device=>[String(device.printer_id),device]));
+    const completeness=r=>{
+      let score=0;
+      if(realIpOf(r))score+=1000;
+      if(String(r?.serial_number||'').trim())score+=500;
+      if(String(r?.mac_address||'').trim())score+=400;
+      if(r?.page_count!=null||r?.total_general_pages!=null)score+=100;
+      if(r?.scanner_count!=null||r?.total_scans!=null)score+=80;
+      if(String(r?.model||r?.printer||'').trim())score+=30;
+      if(String(r?.manufacturer||'').trim())score+=20;
+      return score;
+    };
+    const mappedRows=[];
+    for(const history of (Array.isArray(result)?result:[])){
+      if(!isRealPrinter(history)||isRetiredPrinterRecord(history))continue;
+      let device=activeById.get(String(history.printer_id));
+      if(!device){
+        // Solo asociar por familia cuando existe exactamente un equipo activo
+        // compatible en el mismo agente; nunca unir dos impresoras iguales.
+        const peers=activeDevices.filter(candidate=>sameNetworkFamily(history,candidate));
+        if(peers.length===1)device=peers[0];
+      }
+      if(!device)continue;
+      const best=completeness(device)>=completeness(history)?device:history;
+      mappedRows.push({
+        ...history,
+        printer_id:device.printer_id,
+        printer:best.printer||best.display_name||history.printer||device.display_name||'',
+        manufacturer:history.manufacturer||device.manufacturer||'',
+        model:history.model||device.model||'',
+        serial_number:history.serial_number||device.serial_number||'',
+        ip_address:realIpOf(device)||realIpOf(history)||'',
+        mac_address:history.mac_address||device.mac_address||''
+      });
+    }
+    // Una sola fila por equipo físico y día. No se suman lecturas duplicadas:
+    // se conserva la lectura más completa y se rellenan únicamente campos vacíos.
+    const dailyByDeviceDay=new Map();
+    for(const r of mappedRows){
       const day=String(r.reading_day||'').trim();
-      if(!/^\d{4}-\d{2}-\d{2}$/.test(day))return false;
-      const serial=String(r.serial_number||'').trim().toLowerCase();
-      const ip=String(r.ip_address||'').trim().toLowerCase();
-      const physicalKey=serial?'serial:'+serial:(ip?'ip:'+ip:'id:'+String(r.printer_id));
-      const key=physicalKey+'|'+day;
-      if(reportKeys.has(key))return false;
-      reportKeys.add(key);
-      return true;
-    }):[];
+      if(!/^\d{4}-\d{2}-\d{2}$/.test(day))continue;
+      const key=String(r.printer_id)+'|'+day;
+      const previous=dailyByDeviceDay.get(key);
+      if(!previous){dailyByDeviceDay.set(key,{...r});continue;}
+      const winner=completeness(r)>completeness(previous)?r:previous;
+      const merged={...winner};
+      for(const [field,value] of Object.entries(winner===r?previous:r)){
+        if((merged[field]===null||merged[field]===undefined||merged[field]==='')&&value!==null&&value!==undefined&&value!=='')merged[field]=value;
+      }
+      dailyByDeviceDay.set(key,merged);
+    }
+    const dailyRows=[...dailyByDeviceDay.values()].sort((a,b)=>
+      String(a.reading_day).localeCompare(String(b.reading_day))||
+      String(a.printer||'').localeCompare(String(b.printer||''),'es')
+    );
     const dayCount=new Set(dailyRows.map(r=>String(r.reading_day))).size;
     counterRows=aggregateCounterPeriodRows(dailyRows);
     renderCounterRows();
