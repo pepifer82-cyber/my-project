@@ -60,6 +60,40 @@ jobs:
           $ErrorActionPreference = "Stop"
           $parts = Get-ChildItem ".buildsrc\v039\overlay" -Filter "part*.b64" | Sort-Object Name
           if ($parts.Count -ne 27) { throw "Se esperaban 27 fragmentos de la capa v0.3.9; encontrados: $($parts.Count)" }
+          $expectedPartHashes = @{
+            "part001.b64"="94cdade9071c3e9de57ae097286c60d976cb77e7c0f925e3ca69aa1c1a0b8573"
+            "part002.b64"="531ee07684216a2dc1b804fa0ef35c7bc6581f7a0e0b6528a8de626c15c6e0e8"
+            "part003.b64"="2c1f3f0d693af30fa420f5d4ae25471f49ee5f9d9d383b7c545fc899ea8c3aaf"
+            "part004.b64"="c193a0404d6341caee8f6ec312ad4af18c61563a2d41a3dbaac457419b042383"
+            "part005.b64"="7519e5037ddacf4a4c973b9b64dfe197a8f3533925bf2f322d1b6342d7d790a7"
+            "part006.b64"="4a25c6397aaac89f64027d5890723439052fba03129f19d3d19fe66f74ada82a"
+            "part007.b64"="d12dfa9fc894f6e3693bd5fb3880f10eddef013f327546de0166e48f79623c28"
+            "part008.b64"="8a2fceca339d1ee289c94ba5dc1bfbb4b4ab18f07c41dca95035f2cb573b042d"
+            "part009.b64"="ff8b869a3a41ae1f92b5c9d9ab763c8f6a9525e5f32bdd04a748e8584342537b"
+            "part010.b64"="da9a645ca1a2f231b25c4513ab595ce151c71640fc7bff19af110a070ee4fd47"
+            "part011.b64"="7eb684bd5bb894b46858fc3c18564be1c669aa228b5153f774e6aff6a9979667"
+            "part012.b64"="3836dac5533404b387e33f592bf8c80938919a781e742f01532ec33aea7852b3"
+            "part013.b64"="78dccff04cb51ba926ea21a7da6eb87124122337620cd2c09ab41c3fcfd42692"
+            "part014.b64"="897e17195f75a6e50da2ac2451fd5be0094f1d033decded5badeabdc0a43e521"
+            "part015.b64"="4f030c3525de28378f5968244954f6900cc60b1ac8327cc7bfda20ba26a6bf5b"
+            "part016.b64"="fdd3ed4d2bd601c813d3bb1310c544bcf06da7fe90df46a0ba46abeae168ea60"
+            "part017.b64"="05b191b146eac6e1a587b3d3470e009269eb60405d7622423c8a73bf866112a1"
+            "part018.b64"="43608ca427d804faa96d9551e41d32b89c2504522358f0b47efa1c8deebf9bdd"
+            "part019a.b64"="e89364bcd5b98d6a3ebec15754d281e0f74e0869772ec2a1933a094daf4d5008"
+            "part019b.b64"="b77114de8f4f9191605abd0778c63dcf29de52f4e2d803def6fd1963cf5047fe"
+            "part019c.b64"="da4d4f5e22388b6041e2b7ccf04f09693fd99308db56576d5e3fdf2acec4010f"
+            "part020a.b64"="16c7b39a0de5885ce9e0efb72970f1adc94a5e6d02e037a84d0f3feeef3a7e60"
+            "part020b1.b64"="8841adbc059a28c6e031ff293ddce114ef5b5dae7cd1892a6036f1a4d774ce8c"
+            "part020b2.b64"="152a035562d0cce96c8e77e38d6cc12d7aeee9b4d4e9af5d0dc2a6759237c939"
+            "part020c1.b64"="051708eb53fc399a4bb28ae86f154cf45518e9a48494dc1374bb26c77b137afb"
+            "part020c2.b64"="6ac47eb1df5b7ddf7751a970b0df3af8d2d8926b0394a9ebf5b8837a140bb417"
+            "part021.b64"="0cc61af1779f2d5d65644aa1e9a6a985a103c1d50753d530076c92299542689b"
+          }
+          foreach ($part in $parts) {
+            $actualPartHash = (Get-FileHash $part.FullName -Algorithm SHA256).Hash.ToLower()
+            $expectedPartHash = $expectedPartHashes[$part.Name]
+            if ($actualPartHash -ne $expectedPartHash) { throw "Fragmento incorrecto $($part.Name): $actualPartHash" }
+          }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
           if ($encoded.Length -ne 90080) { throw "Longitud Base64 incorrecta: $($encoded.Length)" }
           $zipBytes = [Convert]::FromBase64String($encoded)
