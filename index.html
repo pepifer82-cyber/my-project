@@ -2210,12 +2210,22 @@ async function loadCounterHistory(showMessage=true){
       if(!isRealPrinter(history)||isRetiredPrinterRecord(history))continue;
       let device=activeById.get(String(history.printer_id));
       if(!device){
-        // Solo asociar por familia cuando existe exactamente un equipo activo
-        // compatible en el mismo agente; nunca unir dos impresoras iguales.
         const peers=activeDevices.filter(candidate=>sameNetworkFamily(history,candidate));
         if(peers.length===1)device=peers[0];
       }
       if(!device)continue;
+
+      // Aunque la lectura coincida por printer_id, ese ID puede pertenecer
+      // a una cola WSD/PCL separada. Reasignarla al registro de red completo
+      // cuando hay una única contraparte física compatible en el inventario.
+      if(!realIpOf(device)){
+        const networkPeers=activeDevices.filter(candidate=>
+          String(candidate.printer_id)!==String(device.printer_id) &&
+          !!realIpOf(candidate) &&
+          (sameNetworkFamily(device,candidate)||samePhysicalTransportAlias(device,candidate))
+        );
+        if(networkPeers.length===1)device=networkPeers[0];
+      }
       const best=completeness(device)>=completeness(history)?device:history;
       mappedRows.push({
         ...history,
