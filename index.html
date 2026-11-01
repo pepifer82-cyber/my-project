@@ -1597,8 +1597,7 @@ function printerInventoryLabel(r){
     const variants=[manufacturer];
     if(/\bhp\b|hewlett/i.test(manufacturer))variants.push('HP','Hewlett-Packard','Hewlett Packard');
     for(const brand of variants){
-      const escaped=brand.replace(/[.*+?^${}()|[\]\\]/g,'\\function printerIpPort(r){');
-      name=name.replace(new RegExp('^'+escaped+'\\s+','i'),'');
+      if(name.toLowerCase().startsWith(brand.toLowerCase()+' '))name=name.slice(brand.length).trim();
     }
   }
   return name||'Ver ficha';
