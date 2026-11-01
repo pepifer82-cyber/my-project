@@ -3016,15 +3016,15 @@ function applyAccountEntitlements(data){
   if($('projectSidebarTitle'))$('projectSidebarTitle').textContent=isAdmin?'Clientes y proyectos':'Mis proyectos';
   const serialPanel=document.querySelector('.serial-panel');
   if(serialPanel)serialPanel.classList.toggle('hidden',!isAdmin);
-  document.querySelectorAll('[data-view="seriales"],[data-view="agentes"]').forEach(el=>el.classList.toggle('hidden',!isAdmin));
   const setFeatureView=(name,on)=>{
     document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
     const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
   };
-  ['inventario','seriales','tinta','desconectadas','agentes','retiradas'].forEach(name=>setFeatureView(name,enabled('inventory')));
+  ['inventario','tinta','desconectadas','retiradas'].forEach(name=>setFeatureView(name,enabled('inventory')));
   setFeatureView('contadores',enabled('counters'));
   setFeatureView('alertas',enabled('alerts'));
   setFeatureView('control-remoto',enabled('remote_control'));
+  document.querySelectorAll('[data-view="seriales"],[data-view="agentes"]').forEach(el=>el.classList.toggle('hidden',!isAdmin));
   const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
   document.querySelectorAll('#exportExcelBtn,#counterExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
     .forEach(el=>el.classList.toggle('hidden',!enabled('exports')));
