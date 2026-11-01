@@ -422,6 +422,16 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
 .password-recovery-panel label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:750;color:var(--muted)}
 .password-recovery-panel input{width:100%;min-height:42px;border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--panel-solid);color:var(--text);font:inherit}
 
+
+/* Navegación por empresa y gestión de proyectos de clientes */
+.sidebar-company-filter{padding:0 12px 10px}
+.sidebar-company-filter label{display:block;font-size:10px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 6px}
+.sidebar-company-filter select{width:100%;min-width:0}
+.project-group{margin:12px 0 5px}
+.project-group-title{padding:7px 9px 5px;font-size:10px;font-weight:900;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);white-space:normal;overflow-wrap:anywhere}
+.project-empty-hint{padding:14px 10px;color:var(--muted);font-size:12px;line-height:1.45}
+html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:#e5f0ff;border-color:#34506d}
+
 </style></style>
 </head>
 <body>
@@ -463,13 +473,17 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
       <span id="clientPlanSummary"></span>
       <span id="clientLicenseSummary"></span>
     </div>
-    <div class="side-section">Proyectos</div>
+    <div id="projectSidebarTitle" class="side-section">Proyectos</div>
+    <div id="adminCompanyFilterWrap" class="sidebar-company-filter hidden">
+      <label for="sidebarCompanyFilter">Cliente / empresa</label>
+      <select id="sidebarCompanyFilter" class="project-search"><option value="all">Todos los clientes</option></select>
+    </div>
     <input id="projectSearch" class="project-search" type="search" placeholder="Buscar proyecto">
     <div id="projectList" class="project-list"></div>
     <div id="projectEmpty" class="empty hidden">No hay proyectos.</div>
     <div class="side-bottom">
-      <button id="newProjectBtn" class="side-action" type="button">＋ Nuevo proyecto</button>
-      <button id="archiveProjectBtn" class="side-danger" type="button" disabled>Retirar proyecto seleccionado</button><button id="adminNavBtn" class="side-action hidden" type="button" style="margin-top:8px">⚙ Administrar</button>
+      <button id="newProjectBtn" class="side-action hidden" type="button">＋ Agregar proyecto</button>
+      <button id="archiveProjectBtn" class="side-danger hidden" type="button" disabled>Retirar proyecto seleccionado</button><button id="adminNavBtn" class="side-action hidden" type="button" style="margin-top:8px">⚙ Administrar</button>
     </div>
   </aside>
 
@@ -510,7 +524,7 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
       <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
       <button id="companiesTile" class="app-btn hidden" data-view="empresas" type="button"><div class="app-icon">🏢</div><div class="app-title">Empresas</div><div class="app-sub">Clientes y proyectos</div></button>
       <button id="commercialTile" class="app-btn hidden" data-view="comercial" type="button"><div class="app-icon">💼</div><div class="app-title">Ventas y planes</div><div class="app-sub">Licencias y cobros</div></button>
-      <button id="assistantTile" class="app-btn" data-view="asistente" type="button"><div class="app-icon">✦</div><div class="app-title">Asistente IA</div><div class="app-sub">Consultas del panel</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
+      <button id="assistantTile" class="app-btn" data-view="asistente" type="button"><div class="app-icon">✦</div><div class="app-title">Asistente IA</div><div class="app-sub">Consultas del panel</div></button>
     </section>
 
     <section class="kpis">
@@ -674,7 +688,7 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
         <label>Importe acordado (Gs.)<input id="companyPrice" class="toolbar-input" type="number" min="0" step="1" value="0"></label>
         <label>Estado inicial<select id="companySubscriptionStatus" class="toolbar-input"><option value="trial">Prueba gratuita</option><option value="active">Activo</option></select></label>
         <label>Días de prueba<input id="companyTrialDays" class="toolbar-input" type="number" min="1" max="90" value="15"></label>
-        <label>Primer proyecto<input id="companyFirstProject" class="toolbar-input" maxlength="120" value="Proyecto principal" placeholder="Ej. Sucursal Central"></label>
+        <label>Primer proyecto (opcional)<input id="companyFirstProject" class="toolbar-input" maxlength="120" value="" placeholder="Opcional: sucursal inicial"></label>
       </div>
       <div class="biz-actions"><button id="createCompanyBtn" class="toolbar-btn primary" type="button">＋ Crear empresa y generar acceso</button><span id="companyCreateMsg" class="muted" aria-live="polite"></span></div>
       <div id="companySerialOutput" class="biz-serial-output hidden"></div>
@@ -824,7 +838,7 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
-let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
+let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],projectCompanies=[],sidebarCompanyFilter='all',serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
 const $=id=>document.getElementById(id);
 let currentPrinterDetailId=null,printerManualEntries=[];
 let printerPhotoSearchSequence=0;
@@ -1001,7 +1015,7 @@ async function loadApp(){
     await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
     const adminCheck=await api('/rest/v1/rpc/control_is_global_admin',{method:'POST',body:'{}'}).catch(()=>false);
     isAdmin=adminCheck===true || (Array.isArray(adminCheck)&&adminCheck[0]===true);
-    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);$('companiesTile').classList.toggle('hidden',!isAdmin);$('commercialTile').classList.toggle('hidden',!isAdmin);
+    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);$('companiesTile').classList.toggle('hidden',!isAdmin);$('commercialTile').classList.toggle('hidden',!isAdmin);if($('adminCompanyFilterWrap'))$('adminCompanyFilterWrap').classList.toggle('hidden',!isAdmin);
     await loadAccountEntitlements();
     await loadProjects();
     return true;
@@ -1013,21 +1027,92 @@ async function loadApp(){
   }
 }
 async function loadProjects(selectId){
-  projects=await api('/rest/v1/control_projects?select=id,name,active,created_at&active=eq.true&order=created_at.asc');projects=Array.isArray(projects)?projects:[];
+  projects=await api('/rest/v1/control_projects?select=id,name,active,created_at,company_id&active=eq.true&order=created_at.asc');
+  projects=Array.isArray(projects)?projects:[];
+  if(isAdmin){
+    projectCompanies=await api('/rest/v1/control_companies?select=id,name,company_code,status&status=eq.active&order=name.asc');
+    projectCompanies=Array.isArray(projectCompanies)?projectCompanies:[];
+    renderSidebarCompanyFilter();
+  }else{
+    projectCompanies=[];sidebarCompanyFilter='all';
+    $('adminCompanyFilterWrap')?.classList.add('hidden');
+    if($('projectSidebarTitle'))$('projectSidebarTitle').textContent='Mis proyectos';
+  }
   const serials=await api('/rest/v1/control_project_serials?select=project_id,serial,serial_last4,active,created_at&active=eq.true&order=created_at.asc');
   serialByProject=new Map();
   for(const item of (serials||[])){if(!serialByProject.has(item.project_id))serialByProject.set(item.project_id,[]);serialByProject.get(item.project_id).push(item);}
   renderProjectList();
-  if(!projects.length){currentProjectId=null;rows=[];agentRows=[];serialByProject.clear();$('projectEmpty').classList.remove('hidden');$('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';$('projectMeta').textContent='Creá un proyecto para comenzar.';$('serialValue').textContent='—';$('serialList').innerHTML='';$('archiveProjectBtn').disabled=true;renderAll();return}
+  if(!projects.length){
+    currentProjectId=null;rows=[];agentRows=[];serialByProject.clear();
+    $('projectEmpty').classList.remove('hidden');
+    $('projectEmpty').textContent=isAdmin?'Todavía no hay proyectos de clientes.':'Todavía no tenés proyectos. Usá “Agregar proyecto” para crear el primero.';
+    $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
+    $('projectMeta').textContent='Cuando agregues un proyecto aparecerá aquí.';
+    $('serialValue').textContent='—';$('serialList').innerHTML='';
+    $('archiveProjectBtn').disabled=true;renderAll();return;
+  }
   $('projectEmpty').classList.add('hidden');
-  openProject(selectId||currentProjectId||projects[0].id);
+  const preferred=projects.some(p=>p.id===selectId)?selectId:
+    (projects.some(p=>p.id===currentProjectId)?currentProjectId:projects[0].id);
+  openProject(preferred);
+}
+function renderSidebarCompanyFilter(){
+  const wrap=$('adminCompanyFilterWrap'),select=$('sidebarCompanyFilter');
+  if(!wrap||!select)return;
+  wrap.classList.toggle('hidden',!isAdmin);
+  if($('projectSidebarTitle'))$('projectSidebarTitle').textContent='Clientes y proyectos';
+  const previous=sidebarCompanyFilter;
+  select.innerHTML='<option value="all">Todos los clientes</option>'+
+    projectCompanies.map(company=>{
+      const label=company.company_code==='AT-EMP-000001'?'Operación interna A&T':company.name;
+      return '<option value="'+escapeHtml(company.id)+'">'+escapeHtml(label)+'</option>';
+    }).join('');
+  if(previous!=='all'&&projectCompanies.some(x=>x.id===previous))select.value=previous;
+  else{sidebarCompanyFilter='all';select.value='all'}
 }
 function renderProjectList(){
   const term=projectSearch.trim().toLowerCase();
-  const visible=term?projects.filter(p=>String(p.name||'').toLowerCase().includes(term)):projects;
-  $('projectList').innerHTML=visible.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+p.id+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('');
-  document.querySelectorAll('.project-item').forEach(b=>b.addEventListener('click',()=>openProject(b.dataset.project)));
-  if(!visible.length){$('projectList').innerHTML='<div class="empty" style="padding:25px 8px">No coincide ningún proyecto.</div>';}
+  const visible=projects.filter(p=>
+    (!isAdmin||sidebarCompanyFilter==='all'||String(p.company_id)===String(sidebarCompanyFilter)) &&
+    (!term||String(p.name||'').toLowerCase().includes(term))
+  );
+  if(isAdmin){
+    const companyMap=new Map(projectCompanies.map(c=>[String(c.id),c]));
+    const groups=new Map();
+    for(const p of visible){
+      const key=String(p.company_id||'sin-empresa');
+      if(!groups.has(key))groups.set(key,[]);
+      groups.get(key).push(p);
+    }
+    $('projectList').innerHTML=[...groups.entries()].map(([key,items])=>{
+      const company=companyMap.get(key);
+      const name=company?(company.company_code==='AT-EMP-000001'?'Operación interna A&T':company.name):'Empresa sin identificar';
+      return '<div class="project-group"><div class="project-group-title">'+escapeHtml(name)+'</div>'+
+        items.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+escapeHtml(p.id)+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('')+
+      '</div>';
+    }).join('');
+  }else{
+    $('projectList').innerHTML=visible.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+escapeHtml(p.id)+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('');
+  }
+  $('projectList').querySelectorAll('.project-item').forEach(b=>b.addEventListener('click',()=>openProject(b.dataset.project)));
+  if(!visible.length){
+    $('projectList').innerHTML='<div class="project-empty-hint">'+
+      (isAdmin?'Esta empresa todavía no tiene proyectos activos.':'Todavía no hay proyectos. Podés agregar el primero desde el botón inferior.')+
+    '</div>';
+  }
+}
+function changeSidebarCompanyFilter(value){
+  sidebarCompanyFilter=value||'all';
+  const matching=projects.filter(p=>sidebarCompanyFilter==='all'||String(p.company_id)===String(sidebarCompanyFilter));
+  if(currentProjectId&&!matching.some(p=>p.id===currentProjectId)){
+    if(matching.length)openProject(matching[0].id);
+    else{
+      currentProjectId=null;rows=[];agentRows=[];
+      $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
+      $('projectMeta').textContent='Esta empresa todavía no tiene proyectos activos.';
+      $('archiveProjectBtn').disabled=true;renderProjectList();renderAll();
+    }
+  }else renderProjectList();
 }
 function openProject(id){
   const p=projects.find(x=>x.id===id);if(!p)return;
@@ -1038,10 +1123,12 @@ function openProject(id){
   $('serialValue').textContent=serials.length?serials[serials.length-1].serial:'Sin serial visible';
   $('serialList').innerHTML=serials.map((s,i)=>'<div class="serial-item"><code>'+escapeHtml(s.serial)+'</code><button class="serial-copy" type="button" data-serial="'+escapeHtml(s.serial)+'" onclick="copyProjectSerial(this.dataset.serial)">Copiar</button></div>').join('');
   $('archiveProjectBtn').disabled=false;
+  $('archiveProjectBtn').classList.toggle('hidden',!isAdmin&&!['owner','admin'].includes(accountEntitlements?.role));
   setDefaultCounterDates();
   showView('resumen');renderProjectList();loadProjectData();
 }
 function showView(view){
+  if(!isAdmin&&['seriales','agentes'].includes(view)){showView('resumen');return}
   closePrinterDetailLayout();
   currentView=view;
   ['resumen','inventario','seriales','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar','empresas','comercial','asistente'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
@@ -1054,6 +1141,7 @@ function showView(view){
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
 $('counterExcelBtn').addEventListener('click',exportCountersExcel);
 $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
+$('sidebarCompanyFilter').addEventListener('change',e=>changeSidebarCompanyFilter(e.target.value));
 $('inventorySearch').addEventListener('input',e=>{inventorySearch=e.target.value;renderAll()});
 $('refreshBtn').addEventListener('click',()=>currentPrinterDetailId?reloadPrinterDetail():loadProjectData());
 $('exportExcelBtn').addEventListener('click',exportProjectExcel);
@@ -2869,7 +2957,7 @@ async function copySerial(){
 }
 async function archiveProject(){
   const p=projects.find(x=>x.id===currentProjectId);if(!p)return;
-  if(!confirm('¿Retirar el proyecto «'+p.name+'»? Se desactivarán sus seriales y agentes. El inventario y el historial se conservarán, pero el proyecto dejará de aparecer en la lista.'))return;
+  if(!confirm('¿Retirar el proyecto «'+p.name+'» de tu empresa? Se desactivarán su agente y seriales. Los datos históricos se conservarán y no se borrarán.'))return;
   const btn=$('archiveProjectBtn');btn.disabled=true;btn.textContent='Retirando…';
   try{
     await api('/rest/v1/rpc/control_archive_project',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});
@@ -2907,19 +2995,25 @@ function applyAccountEntitlements(data){
   const enabled=name=>isAdmin||(data?features[name]===true:['inventory','counters'].includes(name));
   const canManageCompany=isAdmin||['owner','admin'].includes(data?.role);
   if($('newProjectBtn'))$('newProjectBtn').classList.toggle('hidden',!canManageCompany);
+  if($('archiveProjectBtn'))$('archiveProjectBtn').classList.toggle('hidden',!canManageCompany);
+  if($('newProjectBtn'))$('newProjectBtn').textContent=isAdmin?'＋ Nuevo proyecto':'＋ Agregar proyecto';
+  if($('projectSidebarTitle'))$('projectSidebarTitle').textContent=isAdmin?'Clientes y proyectos':'Mis proyectos';
+  const serialPanel=document.querySelector('.serial-panel');
+  if(serialPanel)serialPanel.classList.toggle('hidden',!isAdmin);
+  document.querySelectorAll('[data-view="seriales"],[data-view="agentes"]').forEach(el=>el.classList.toggle('hidden',!isAdmin));
   const setFeatureView=(name,on)=>{
     document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
     const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
   };
   ['inventario','seriales','tinta','desconectadas','agentes','retiradas'].forEach(name=>setFeatureView(name,enabled('inventory')));
-  setFeatureView('contadores',enabled('counters')&&enabled('history'));
+  setFeatureView('contadores',enabled('counters'));
   setFeatureView('alertas',enabled('alerts'));
   setFeatureView('control-remoto',enabled('remote_control'));
   const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
   document.querySelectorAll('#exportExcelBtn,#counterExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
     .forEach(el=>el.classList.toggle('hidden',!enabled('exports')));
-  if(!enabled('inventory')&&['inventario','seriales','tinta','desconectadas','agentes','retiradas'].includes(currentView))showView('resumen');
-  if(!enabled('history')&&currentView==='contadores')showView('resumen');
+  if(!enabled('inventory')&&['inventario','tinta','desconectadas','retiradas'].includes(currentView))showView('resumen');
+  if(!enabled('counters')&&currentView==='contadores')showView('resumen');
   if(!enabled('remote_control')&&currentView==='control-remoto')showView('resumen');
   if(!enabled('alerts')&&currentView==='alertas')showView('resumen');
   if(!enabled('ai')&&currentView==='asistente')showView('resumen');
