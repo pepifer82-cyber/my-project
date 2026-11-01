@@ -1,1 +1,1 @@
-Build v0.3.9 run 9 - initialize setup checks previous install folder without premature app constant
+Build v0.3.9 run 10 - verify old version uninstall, new install and final cleanup using registered UninstallString
