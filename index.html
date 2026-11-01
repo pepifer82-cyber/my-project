@@ -242,6 +242,112 @@ html[data-theme="dark"] .auth-wrap{background:transparent}
 @media(prefers-reduced-motion:reduce){.theme-toggle{transition:none}.theme-toggle:hover{transform:none}}
 /* === END THEME SWITCH === */
 
+
+/* === A&T PRINTER DETAIL PAGE === */
+.printer-model-link{
+  appearance:none;background:transparent;border:0;padding:0;margin:0;
+  color:#1768d5;font:inherit;font-weight:850;text-align:left;cursor:pointer;
+  text-decoration:underline;text-decoration-color:#83b8fa;text-underline-offset:3px
+}
+.printer-model-link:hover{color:#009acb;text-decoration-color:#009acb}
+.printer-detail-page{min-height:60vh}
+.printer-detail-toolbar{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:18px}
+.printer-detail-heading{display:flex;align-items:center;justify-content:space-between;gap:15px;padding:8px 2px 18px;border-bottom:1px solid var(--line);margin-bottom:16px}
+.printer-detail-eyebrow{font-size:10px;letter-spacing:.16em;font-weight:900;color:#2878ff}
+.printer-detail-heading h2{margin:5px 0 4px;font-size:26px}
+.printer-detail-subtitle{font-size:12px;color:var(--muted)}
+.printer-detail-section{border:1px solid var(--line);border-radius:15px;padding:16px;margin-top:14px;background:#f9fbff}
+.printer-detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
+.printer-detail-section-head h3{font-size:17px;margin:0 0 4px}
+.printer-detail-section-head p{font-size:12px;color:var(--muted);margin:0}
+.printer-detail-metrics{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+.printer-detail-metric{padding:15px;border-radius:13px;background:linear-gradient(135deg,#eaf3ff,#f8fbff);border:1px solid #d8e8ff;display:flex;flex-direction:column;gap:5px;min-width:0}
+.printer-detail-metric span{font-size:10px;letter-spacing:.08em;font-weight:900;color:#58708b}
+.printer-detail-metric b{font-size:24px;font-weight:900;color:#12345a;overflow-wrap:anywhere}
+.printer-detail-metric small{font-size:11px;color:#6b7c93}
+.printer-detail-metric.metric-cyan{background:linear-gradient(135deg,#e7faff,#f7fdff);border-color:#c8f0fa}
+.printer-detail-metric.metric-purple{background:linear-gradient(135deg,#f1ebff,#fcfaff);border-color:#e2d5ff}
+.printer-detail-metric .metric-date{font-size:14px;line-height:1.3}
+.printer-toner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.printer-toner-item{border:1px solid var(--line);background:#fff;border-radius:12px;padding:13px}
+.printer-toner-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:13px;font-weight:800}
+.printer-toner-head>span{display:flex;align-items:center;gap:8px}
+.printer-toner-head b{font-size:15px}
+.toner-dot{display:inline-block;width:12px;height:12px;border-radius:50%;box-shadow:0 0 0 3px #64748b18}
+.toner-unavailable{font-size:11px!important;color:var(--muted)}
+.printer-toner-track,.printer-extra-track{height:12px;background:#e9eef5;border-radius:999px;overflow:hidden}
+.printer-toner-track i,.printer-extra-track i{display:block;height:100%;border-radius:999px;box-shadow:0 0 12px #0ea5e955}
+.printer-toner-item small{display:block;color:var(--muted);font-size:10px;margin-top:7px}
+.printer-detail-extra{margin-top:16px}
+.printer-detail-extra h4{font-size:13px;margin:0 0 9px}
+.printer-extra-consumables{display:flex;gap:9px;flex-wrap:wrap}
+.printer-extra-chip{min-width:150px;flex:1;border:1px solid var(--line);border-radius:10px;background:#fff;padding:10px;display:grid;grid-template-columns:1fr auto;gap:8px;font-size:11px;text-transform:capitalize}
+.printer-extra-chip b{font-size:12px}
+.printer-extra-track{grid-column:1/-1;height:7px}
+.printer-extra-track i{background:linear-gradient(90deg,#8b5cf6,#20b8ef)}
+.printer-detail-muted{font-size:12px;color:var(--muted)}
+.printer-detail-fields{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.printer-detail-field{min-width:0;padding:10px;border:1px solid var(--line);border-radius:10px;background:#fff;display:flex;flex-direction:column;gap:5px}
+.printer-detail-field span{font-size:10px;color:var(--muted);font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.printer-detail-field b{font-size:12px;overflow-wrap:anywhere}
+.printer-manual-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;align-items:end}
+.printer-manual-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:800;color:#52647a}
+.printer-manual-form label b{display:inline;color:#dc425c}
+.printer-manual-form input{width:100%;min-width:0;padding:10px 11px;border:1px solid #cbd8e6;border-radius:9px;background:#fff;color:#152b45}
+.printer-manual-form input:focus{outline:none;border-color:#3b91ff;box-shadow:0 0 0 3px #2878ff18}
+.printer-manual-form .manual-note-field{grid-column:1/-1}
+.manual-form-actions{grid-column:1/-1;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.manual-history-heading{margin-top:22px}
+.printer-manual-history{border:1px solid var(--line);border-radius:11px;overflow:auto;background:#fff}
+.printer-manual-history-list{min-width:560px}
+.printer-manual-history-row{display:grid;grid-template-columns:1.4fr .8fr .8fr 1.5fr;gap:12px;align-items:center;padding:11px 13px;border-bottom:1px solid var(--line);font-size:12px}
+.printer-manual-history-row:last-child{border-bottom:0}
+.printer-manual-history-row>div{display:flex;flex-direction:column;gap:3px;min-width:0}
+.printer-manual-history-row span,.printer-manual-history-row small{color:var(--muted);font-size:10px}
+.printer-manual-history-row b{font-size:12px;overflow-wrap:anywhere}
+.manual-history-note{color:var(--muted);overflow-wrap:anywhere}
+html[data-theme="dark"] .printer-model-link{color:#82dfff;text-decoration-color:#368fca}
+html[data-theme="dark"] .printer-detail-section{background:linear-gradient(145deg,#0e2544,#0b1c36);border-color:#1c4d78}
+html[data-theme="dark"] .printer-detail-eyebrow{color:#5edbff}
+html[data-theme="dark"] .printer-detail-metric{background:linear-gradient(135deg,#102d50,#102344);border-color:#245782}
+html[data-theme="dark"] .printer-detail-metric span,
+html[data-theme="dark"] .printer-detail-metric small{color:#9dc3e6}
+html[data-theme="dark"] .printer-detail-metric b{color:#f0f8ff}
+html[data-theme="dark"] .printer-detail-metric.metric-cyan{background:linear-gradient(135deg,#0d3549,#10283f);border-color:#17617b}
+html[data-theme="dark"] .printer-detail-metric.metric-purple{background:linear-gradient(135deg,#29204b,#152140);border-color:#58408a}
+html[data-theme="dark"] .printer-toner-item,
+html[data-theme="dark"] .printer-extra-chip,
+html[data-theme="dark"] .printer-detail-field,
+html[data-theme="dark"] .printer-manual-history{background:#0b1b34;border-color:#1b4770;color:#e6f4ff}
+html[data-theme="dark"] .printer-toner-track,
+html[data-theme="dark"] .printer-extra-track{background:#203d5c}
+html[data-theme="dark"] .printer-manual-form label{color:#b4cde8}
+html[data-theme="dark"] .printer-manual-form input{background:#08172d;color:#e8f4ff;border-color:#24527a}
+html[data-theme="dark"] .printer-manual-history-row{border-color:#1c3f61}
+html[data-theme="dark"] .printer-detail-field span,
+html[data-theme="dark"] .printer-detail-subtitle,
+html[data-theme="dark"] .printer-detail-section-head p,
+html[data-theme="dark"] .printer-detail-muted,
+html[data-theme="dark"] .printer-manual-history-row span,
+html[data-theme="dark"] .printer-manual-history-row small,
+html[data-theme="dark"] .manual-history-note{color:#94b1d1}
+@media(max-width:900px){
+  .printer-detail-fields{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .printer-detail-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .printer-manual-form{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .printer-detail-heading{align-items:flex-start;flex-direction:column}
+  .printer-detail-heading h2{font-size:21px}
+  .printer-detail-metrics{grid-template-columns:1fr}
+  .printer-toner-grid{grid-template-columns:1fr}
+  .printer-detail-fields{grid-template-columns:1fr}
+  .printer-manual-form{grid-template-columns:1fr}
+  .printer-manual-form .manual-note-field,.manual-form-actions{grid-column:1}
+  .printer-detail-toolbar .toolbar-btn{flex:1}
+}
+/* === END A&T PRINTER DETAIL PAGE === */
+
 </style>
 </head>
 <body>
@@ -459,7 +565,26 @@ html[data-theme="dark"] .auth-wrap{background:transparent}
       <div id="usersListMsg" class="muted" style="font-size:12px;margin-bottom:10px">Seleccioná un proyecto para ver sus usuarios.</div>
       <div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Correo</th><th>Nueva contraseña (opcional)</th><th>Tipo de acceso</th><th>Acciones</th></tr></thead><tbody id="managedUsersBody"></tbody></table></div>
     </section>
-  </main>
+  
+    <section id="printerDetailPage" class="content-card hidden printer-detail-page">
+      <div class="printer-detail-toolbar">
+        <button class="toolbar-btn" type="button" onclick="closePrinterDetail()">← Volver al inventario</button>
+        <button class="toolbar-btn primary" type="button" onclick="reloadPrinterDetail()">↻ Actualizar ficha</button>
+      </div>
+      <div class="printer-detail-heading">
+        <div>
+          <div class="printer-detail-eyebrow">FICHA TÉCNICA · A&T PRINTER CONTROL</div>
+          <h2 id="printerDetailTitle">Impresora</h2>
+          <div id="printerDetailSubtitle" class="printer-detail-subtitle">Información detallada del equipo</div>
+        </div>
+        <div id="printerDetailStatus"></div>
+      </div>
+      <div id="printerDetailContent">
+        <div class="empty">Seleccioná una impresora para ver sus datos.</div>
+      </div>
+    </section>
+
+</main>
 </div>
 
 <div id="projectModal" class="modal-back hidden">
@@ -502,6 +627,7 @@ const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
 let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
 const $=id=>document.getElementById(id);
+let currentPrinterDetailId=null,printerManualEntries=[];
 const THEME_KEY='atpc_theme';
 function applyTheme(theme,persist=true){
   const selected=theme==='light'?'light':'dark';
@@ -668,6 +794,7 @@ function openProject(id){
   showView('resumen');renderProjectList();loadProjectData();
 }
 function showView(view){
+  closePrinterDetailLayout();
   currentView=view;
   ['resumen','inventario','seriales','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
   if(view==='administrar'&&!isAdmin){showView('resumen');return}
@@ -677,7 +804,7 @@ function showView(view){
 $('counterExcelBtn').addEventListener('click',exportCountersExcel);
 $('projectSearch').addEventListener('input',e=>{projectSearch=e.target.value;renderProjectList()});
 $('inventorySearch').addEventListener('input',e=>{inventorySearch=e.target.value;renderAll()});
-$('refreshBtn').addEventListener('click',()=>loadProjectData());
+$('refreshBtn').addEventListener('click',()=>currentPrinterDetailId?reloadPrinterDetail():loadProjectData());
 $('exportExcelBtn').addEventListener('click',exportProjectExcel);
 document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.dataset.view===view));
   // Al abrir Contadores, consultar el período predeterminado automáticamente.
@@ -811,6 +938,222 @@ function detectionSummary(r){
 }
 function lastContact(v){return v?new Date(v).toLocaleString():'Nunca'}
 function pct(v){return v==null?'—':Math.round(Number(v))+'%'}
+
+function closePrinterDetailLayout(){
+  currentPrinterDetailId=null;
+  const page=$('printerDetailPage');
+  if(page)page.classList.add('hidden');
+  ['.hero','#launcher','.kpis'].forEach(selector=>{
+    const el=document.querySelector(selector);
+    if(el)el.classList.remove('hidden');
+  });
+}
+function closePrinterDetail(){
+  closePrinterDetailLayout();
+  showView('inventario');
+}
+function openPrinterDetail(printerId){
+  const r=rows.find(x=>String(x.printer_id)===String(printerId));
+  if(!r){alert('No se encontró la impresora en el proyecto actual. Actualizá el inventario e intentá nuevamente.');return}
+  currentPrinterDetailId=String(printerId);
+  ['.hero','#launcher','.kpis'].forEach(selector=>{
+    const el=document.querySelector(selector);
+    if(el)el.classList.add('hidden');
+  });
+  document.querySelectorAll('[id^="view-"]').forEach(el=>el.classList.add('hidden'));
+  $('printerDetailPage').classList.remove('hidden');
+  document.querySelectorAll('.app-btn').forEach(b=>b.classList.toggle('active',b.dataset.view==='inventario'));
+  renderPrinterDetail(r);
+  loadPrinterManualHistory(printerId);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+async function reloadPrinterDetail(){
+  const id=currentPrinterDetailId;
+  if(!id)return;
+  const button=document.querySelector('#printerDetailPage .printer-detail-toolbar .primary');
+  if(button){button.disabled=true;button.textContent='Actualizando…'}
+  try{
+    await loadProjectData();
+    const r=rows.find(x=>String(x.printer_id)===String(id));
+    if(!r)throw new Error('La impresora ya no aparece en el inventario de este proyecto.');
+    renderPrinterDetail(r);
+    await loadPrinterManualHistory(id);
+  }catch(e){
+    const msg=$('printerDetailSubtitle');
+    if(msg)msg.textContent='No se pudo actualizar la ficha: '+(e.message||e);
+  }finally{
+    if(button){button.disabled=false;button.textContent='↻ Actualizar ficha'}
+  }
+}
+function printerDetailValue(label,value){
+  const shown=value===null||value===undefined||value===''?'—':String(value);
+  return '<div class="printer-detail-field"><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(shown)+'</b></div>';
+}
+function printerDetailCount(value){
+  if(value===null||value===undefined||value===''||!Number.isFinite(Number(value)))return 'Sin lectura';
+  return Math.trunc(Number(value)).toLocaleString('es-PY');
+}
+function printerDetailDate(value){
+  if(!value)return 'Sin registro';
+  const d=new Date(value);
+  return Number.isNaN(d.getTime())?'Fecha no válida':d.toLocaleString('es-PY');
+}
+function localDateTimeInputValue(value){
+  const d=value?new Date(value):new Date();
+  if(Number.isNaN(d.getTime()))return '';
+  return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+}
+function printerTonerGauge(label,value,color,shortName){
+  const n=value===null||value===undefined||value===''?NaN:Number(value);
+  if(!Number.isFinite(n)){
+    return '<div class="printer-toner-item"><div class="printer-toner-head"><span><i class="toner-dot" style="background:'+color+'"></i>'+escapeHtml(label)+'</span><b class="toner-unavailable">Sin lectura</b></div><div class="printer-toner-track"><i style="width:0%;background:'+color+'"></i></div><small>El agente no informó este nivel.</small></div>';
+  }
+  const width=Math.max(0,Math.min(100,n));
+  return '<div class="printer-toner-item"><div class="printer-toner-head"><span><i class="toner-dot" style="background:'+color+'"></i>'+escapeHtml(label)+'</span><b>'+escapeHtml(Math.round(n)+'%')+'</b></div><div class="printer-toner-track"><i style="width:'+width+'%;background:'+color+'"></i></div><small>'+escapeHtml(shortName)+'</small></div>';
+}
+function printerOtherConsumables(value){
+  const data=value&&typeof value==='object'?value:{};
+  const items=Object.entries(data).filter(([k,v])=>v&&typeof v==='object');
+  if(!items.length)return '<div class="printer-detail-muted">No hay otros consumibles informados por el equipo.</div>';
+  return '<div class="printer-extra-consumables">'+items.map(([key,v])=>{
+    const label=String(v.name||v.label||key).replace(/[_-]+/g,' ');
+    const raw=v.percent??v.level??v.remaining_percent;
+    const numeric=raw===null||raw===undefined||raw===''?NaN:Number(raw);
+    const valueText=Number.isFinite(numeric)?Math.round(numeric)+'%':String(v.status||v.life||'Dato disponible');
+    const width=Number.isFinite(numeric)?Math.max(0,Math.min(100,numeric)):0;
+    return '<div class="printer-extra-chip"><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(valueText)+'</b>'+(Number.isFinite(numeric)?'<div class="printer-extra-track"><i style="width:'+width+'%"></i></div>':'')+'</div>';
+  }).join('')+'</div>';
+}
+function renderPrinterDetail(r){
+  const title=[r.manufacturer,r.model].filter(Boolean).join(' ')||r.display_name||'Impresora';
+  $('printerDetailTitle').textContent=title;
+  $('printerDetailSubtitle').textContent=(r.display_name||'Equipo')+' · '+connectionLabel(r)+' · '+printerIpPort(r);
+  $('printerDetailStatus').innerHTML=statePill(printerState(r));
+  const info=[
+    printerDetailValue('Nombre del equipo',r.display_name),
+    printerDetailValue('Fabricante',r.manufacturer),
+    printerDetailValue('Modelo',r.model),
+    printerDetailValue('Serie de fábrica',r.serial_number),
+    printerDetailValue('Descripción / ubicación',r.description),
+    printerDetailValue('Ciudad',r.city),
+    printerDetailValue('Conexión',connectionLabel(r)),
+    printerDetailValue('Dirección IP',r.ip_address),
+    printerDetailValue('Puerto Windows',r.windows_port),
+    printerDetailValue('Puerto USB',r.usb_port),
+    printerDetailValue('Nombre de cola Windows',r.windows_printer_name),
+    printerDetailValue('Dirección MAC',r.mac_address),
+    printerDetailValue('Agente',r.agent_code),
+    printerDetailValue('Computadora',r.machine_name),
+    printerDetailValue('Usuario Windows',r.windows_user),
+    printerDetailValue('Versión del agente',r.app_version),
+    printerDetailValue('Estado informado',r.last_status||r.reading_status),
+    printerDetailValue('Último contacto',printerDetailDate(r.last_seen_at)),
+    printerDetailValue('Última lectura automática',printerDetailDate(r.reading_at)),
+    printerDetailValue('Última comprobación',printerDetailDate(r.last_probe_at)),
+    printerDetailValue('Origen del contador',r.counter_source),
+    printerDetailValue('Métodos de detección',Array.isArray(r.detection_methods)?r.detection_methods.join(', '):'—'),
+    printerDetailValue('Resultado de detección',r.detection_result),
+    printerDetailValue('Error de detección',r.detection_error||r.reading_error)
+  ].join('');
+  const pageCount=printerDetailCount(r.page_count);
+  const scannerCount=printerDetailCount(r.scanner_count);
+  const content=
+    '<div class="printer-detail-metrics">'+
+      '<div class="printer-detail-metric metric-blue"><span>CONTADOR AUTOMÁTICO</span><b>'+escapeHtml(pageCount)+'</b><small>Páginas reportadas por el agente</small></div>'+
+      '<div class="printer-detail-metric metric-cyan"><span>CONTADOR DE ESCÁNER</span><b>'+escapeHtml(scannerCount)+'</b><small>Escaneos reportados por el agente</small></div>'+
+      '<div class="printer-detail-metric metric-purple"><span>ÚLTIMA LECTURA</span><b class="metric-date">'+escapeHtml(printerDetailDate(r.reading_at))+'</b><small>Lectura automática más reciente</small></div>'+
+    '</div>'+
+    '<div class="printer-detail-section"><div class="printer-detail-section-head"><div><h3>🖨️ Niveles de tóner / tinta</h3><p>Los porcentajes se muestran únicamente cuando la impresora los informa.</p></div></div>'+
+      '<div class="printer-toner-grid">'+
+        printerTonerGauge('Negro',r.toner_black_percent,'#283447','K · Black')+
+        printerTonerGauge('Cian',r.toner_cyan_percent,'#00bde8','C · Cyan')+
+        printerTonerGauge('Magenta',r.toner_magenta_percent,'#e34a9a','M · Magenta')+
+        printerTonerGauge('Amarillo',r.toner_yellow_percent,'#eab308','Y · Yellow')+
+      '</div>'+
+      '<div class="printer-detail-extra"><h4>Otros consumibles</h4>'+printerOtherConsumables(r.consumables)+'</div>'+
+    '</div>'+
+    '<div class="printer-detail-section"><div class="printer-detail-section-head"><div><h3>📋 Datos completos de la impresora</h3><p>Identificación, conexión, ubicación y comunicación del agente.</p></div></div><div class="printer-detail-fields">'+info+'</div></div>'+
+    '<div class="printer-detail-section"><div class="printer-detail-section-head"><div><h3>✍️ Registrar contador manual</h3><p>Este registro queda identificado como manual y no reemplaza ni modifica la lectura automática del agente.</p></div></div>'+
+      '<form id="printerManualCounterForm" class="printer-manual-form" onsubmit="saveManualPrinterCounter(event)">'+
+        '<label>Contador de páginas <b>*</b><input id="manualPrinterPageCount" type="number" min="0" max="9007199254740991" step="1" required placeholder="Ej. 25480"></label>'+
+        '<label>Contador de escáner<input id="manualPrinterScannerCount" type="number" min="0" max="9007199254740991" step="1" placeholder="Opcional"></label>'+
+        '<label>Fecha y hora de lectura<input id="manualPrinterRecordedAt" type="datetime-local" required value="'+localDateTimeInputValue()+'"></label>'+
+        '<label class="manual-note-field">Observación<input id="manualPrinterNote" type="text" maxlength="1000" placeholder="Ej. Lectura tomada desde el panel de la impresora"></label>'+
+        '<div class="manual-form-actions"><button id="saveManualPrinterCounterBtn" class="toolbar-btn primary" type="submit">Guardar lectura manual</button><span id="manualPrinterCounterMessage" class="auth-msg muted" aria-live="polite"></span></div>'+
+      '</form>'+
+      '<div class="printer-detail-section-head manual-history-heading"><div><h3>Historial de lecturas manuales</h3><p>Registros ingresados por los usuarios autorizados de este proyecto.</p></div></div>'+
+      '<div id="printerManualCounterHistory" class="printer-manual-history"><div class="empty">Cargando historial manual…</div></div>'+
+    '</div>';
+  $('printerDetailContent').innerHTML=content;
+}
+async function loadPrinterManualHistory(printerId){
+  const target=$('printerManualCounterHistory');
+  if(!target)return;
+  target.innerHTML='<div class="empty">Consultando historial manual…</div>';
+  try{
+    const q='?select=id,recorded_at,page_count,scanner_count,note,created_at&project_id=eq.'+encodeURIComponent(currentProjectId)+'&printer_id=eq.'+encodeURIComponent(printerId)+'&order=recorded_at.desc,id.desc&limit=20';
+    const found=await api('/rest/v1/printer_manual_counter_entries'+q);
+    if(String(currentPrinterDetailId)!==String(printerId))return;
+    printerManualEntries=Array.isArray(found)?found:[];
+    target.innerHTML=printerManualEntries.length?
+      '<div class="printer-manual-history-list">'+printerManualEntries.map(entry=>
+        '<div class="printer-manual-history-row">'+
+          '<div class="manual-history-date"><b>'+escapeHtml(printerDetailDate(entry.recorded_at))+'</b><small>Registro manual</small></div>'+
+          '<div><span>Páginas</span><b>'+escapeHtml(printerDetailCount(entry.page_count))+'</b></div>'+
+          '<div><span>Escaneos</span><b>'+escapeHtml(entry.scanner_count===null?'—':printerDetailCount(entry.scanner_count))+'</b></div>'+
+          '<div class="manual-history-note">'+escapeHtml(entry.note||'Sin observación')+'</div>'+
+        '</div>').join('')+'</div>':
+      '<div class="empty">Todavía no hay contadores ingresados manualmente para esta impresora.</div>';
+  }catch(e){
+    target.innerHTML='<div class="empty">No se pudo consultar el historial manual: '+escapeHtml(e.message||e)+'</div>';
+  }
+}
+async function saveManualPrinterCounter(event){
+  event.preventDefault();
+  const printerId=currentPrinterDetailId;
+  if(!printerId||!currentProjectId)return;
+  const pageRaw=$('manualPrinterPageCount').value.trim();
+  const scannerRaw=$('manualPrinterScannerCount').value.trim();
+  const pageCount=Number(pageRaw);
+  const scannerCount=scannerRaw===''?null:Number(scannerRaw);
+  if(!Number.isSafeInteger(pageCount)||pageCount<0){alert('Ingresá un contador de páginas entero y no negativo.');return}
+  if(scannerCount!==null&&(!Number.isSafeInteger(scannerCount)||scannerCount<0)){alert('El contador del escáner debe ser un entero no negativo.');return}
+  const latest=printerManualEntries[0];
+  if(latest&&pageCount<Number(latest.page_count)&&!confirm('El contador ingresado es menor que la última lectura manual. ¿Querés guardar igualmente?'))return;
+  const recordedValue=$('manualPrinterRecordedAt').value;
+  const recordedDate=recordedValue?new Date(recordedValue):new Date();
+  if(Number.isNaN(recordedDate.getTime())){alert('La fecha y hora no son válidas.');return}
+  const payload={
+    project_id:currentProjectId,
+    printer_id:printerId,
+    page_count:pageCount,
+    scanner_count:scannerCount,
+    recorded_at:recordedDate.toISOString(),
+    note:$('manualPrinterNote').value.trim()||null
+  };
+  const btn=$('saveManualPrinterCounterBtn');
+  const msg=$('manualPrinterCounterMessage');
+  btn.disabled=true;msg.textContent='Guardando lectura…';msg.className='auth-msg muted';
+  try{
+    const saved=await api('/rest/v1/printer_manual_counter_entries',{
+      method:'POST',
+      headers:{'Prefer':'return=representation'},
+      body:JSON.stringify(payload)
+    });
+    if(!Array.isArray(saved)||!saved.length)throw new Error('La base de datos no confirmó el nuevo registro.');
+    msg.textContent='Lectura manual guardada correctamente.';msg.className='auth-msg ok';
+    $('manualPrinterPageCount').value='';
+    $('manualPrinterScannerCount').value='';
+    $('manualPrinterNote').value='';
+    $('manualPrinterRecordedAt').value=localDateTimeInputValue();
+    await loadPrinterManualHistory(printerId);
+  }catch(e){
+    msg.textContent='No se pudo guardar: '+(e.message||e);msg.className='auth-msg danger';
+  }finally{
+    btn.disabled=false;
+  }
+}
+
 function openPrinterEditor(id){
   const r=rows.find(x=>x.printer_id===id);if(!r)return;
   $('editPrinterId').value=id;
@@ -1386,7 +1729,7 @@ function renderAll(){
     r.display_name,r.description,r.city,r.manufacturer,r.model,connectionLabel(r),r.ip_address,r.mac_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
   ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
   if($('inventoryCount'))$('inventoryCount').textContent='Mostrando '+visibleInventory.length+' de '+activeRows.length+' impresoras activas · '+rows.length+' registros en el proyecto';
-  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(r.manufacturer)+'</td><td>'+escapeHtml(r.model)+'</td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><span class="'+(staleUpdateInfo(r.last_seen_at).stale?'stale-date':'')+'" title="Último contacto confirmado">'+escapeHtml(staleUpdateInfo(r.last_seen_at).label)+'</span></td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
+  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><button class="printer-model-link" type="button" onclick="openPrinterDetail('+escapeHtml(JSON.stringify(r.printer_id))+')" title="Abrir ficha completa de la impresora">'+escapeHtml(r.model||r.display_name||'Ver ficha')+'</button></td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td><span class="'+(staleUpdateInfo(r.last_seen_at).stale?'stale-date':'')+'" title="Último contacto confirmado">'+escapeHtml(staleUpdateInfo(r.last_seen_at).label)+'</span></td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button> <button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></td></tr>').join(''):'<tr><td colspan="11" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
   $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(consumablesSummary(r.consumables))+'</td><td>'+escapeHtml(detectionSummary(r))+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Conectada solo significa que el agente confirmó respuesta online. Las colas de Windows en estado inactivo, sin respuesta comprobada, figuran como “Sin verificar”.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
