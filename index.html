@@ -1044,7 +1044,7 @@ function printerColorMode(r){
     /\b(?:brother\s*)?(?:hl|dcp|mfc)[- ]?l?\d{3,5}(?:cdw|cdn)\b|\bdcp-t\d|\bmfc-j\d/,
     /\b(?:canon\s*)?(?:lbp|mf)\s*\d{3,4}c\w*|\bimage(?:runner)?\s*(?:advance\s*)?c\s*\d/,
     /\bcanon\b.*\bg\d{4}\b/,
-    /\b(?:epson\s*)?(?:et-?\d{3,5}|l\d{3,5})\b/,
+    /\bepson\s+(?:et-?\d{3,5}|l\d{3,5})\b/,
     /\blaserjet.*\b(?:m452|m454|m477|m479|m553|m555|m577|m578|m652|m653|m681|m682)\b/
   ];
   if(colorPatterns.some(pattern=>pattern.test(modelText)))return 'color';
