@@ -565,7 +565,7 @@ html[data-theme="dark"] .manual-history-note{color:#94b1d1}
       </div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
-        <th>Proyecto</th><th>Modelo</th><th>IP</th><th>Impresora</th><th>Serie</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total general de impresión</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
+        <th>Proyecto</th><th>Impresora</th><th>Modelo</th><th>Serie</th><th>IP</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total general de impresión</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
       </tr></thead><tbody id="counterBody"></tbody></table></div>
     </section>
 
@@ -2349,10 +2349,10 @@ function renderCounterRows(){
   body.innerHTML=counterRows.map(r=>{
     return '<tr>'+
       '<td>'+escapeHtml(r.project_name||'—')+'</td>'+
-      '<td>'+escapeHtml(r.model||r.printer||'—')+'</td>'+
-      '<td>'+escapeHtml(r.ip_address||'—')+'</td>'+
       '<td>'+escapeHtml(r.manufacturer||'—')+'</td>'+
-      '<td><input class="inline-edit serial-edit" type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
+      '<td>'+escapeHtml(r.model||r.printer||'—')+'</td>'+
+      '<td><input class="inline-edit serial-edit"
+      '<td>'+escapeHtml(r.ip_address||'—')+'</td>'+ type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
       '<td>'+escapeHtml(dt(r.first_reading_at))+'</td>'+
       '<td>'+escapeHtml(dt(r.last_reading_at))+'</td>'+
       '<td>'+escapeHtml(show(r.first_page_count))+'</td>'+
@@ -2381,10 +2381,10 @@ async function exportCountersExcel(){
   const dt=v=>v?new Date(v).toLocaleString('es-PY'):'';
   const report=data.map(r=>({
     Proyecto:r.project_name||p?.name||'',
-    Modelo:r.model||r.printer||'',
-    IP:r.ip_address||'',
     Impresora:r.manufacturer||'',
+    Modelo:r.model||r.printer||'',
     Serie:r.serial_number||'',
+    IP:r.ip_address||'',
     'Primera Lectura desde':dt(r.first_reading_at),
     'Última lectura hasta':dt(r.last_reading_at),
     'Contador impresión desde':val(r.first_page_count),
