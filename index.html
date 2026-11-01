@@ -1616,7 +1616,10 @@ function printerIpPort(r){
   if(ip)return ip;
   const winPort=String(r?.windows_port||'').trim();
   const usbPort=String(r?.usb_port||'').trim();
-  return winPort||usbPort||String(r?.ip_address||'').trim()||'—';
+  const port=winPort||usbPort||'';
+  // Los identificadores largos WSD son internos de Windows y no ayudan a identificar la impresora.
+  if(/^WSD(?:[-_\\s].*)?$/i.test(port))return 'WSD';
+  return port||String(r?.ip_address||'').trim()||'—';
 }
 function toggleManualPrinterForm(show){
   const panel=$('manualPrinterPanel');
