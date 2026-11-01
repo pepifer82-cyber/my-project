@@ -71,9 +71,15 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Falló restore del agente 0.3.8 x64" }
           dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o "$legacyRoot\publish-x64"
           if ($LASTEXITCODE -ne 0) { throw "Falló publish del agente 0.3.8 x64" }
-          foreach ($file in @("ATPrinterAgent.iss","README.txt")) {
-            if (!(Test-Path "$agentRoot\$file")) { throw "Falta $file de la instalación histórica 0.3.8" }
-            Copy-Item "$agentRoot\$file" "$legacyRoot\$file" -Force
+          # The historical installer script is sourced from the verified v0.3.8 files,
+          # because the reconstructed source tree contains only the application project.
+          $legacyIssSource = ".buildsrc\v038\AandTPrinterAgent.iss"
+          if (!(Test-Path $legacyIssSource)) { throw "Falta el script histórico verificado: $legacyIssSource" }
+          Copy-Item $legacyIssSource "$legacyRoot\AandTPrinterAgent.iss" -Force
+          if (Test-Path "$agentRoot\README.txt") {
+            Copy-Item "$agentRoot\README.txt" "$legacyRoot\README.txt" -Force
+          } else {
+            Set-Content -Path "$legacyRoot\README.txt" -Value "A&T Printer Agent 0.3.8" -Encoding UTF8
           }
           Copy-Item "$agentRoot\src\app.ico" "$legacyRoot\src\app.ico" -Force
           if ((Get-Item "$legacyRoot\publish-x64\ATPrinterAgent.exe").VersionInfo.FileVersion -notlike "0.3.8*") { throw "El binario de prueba x64 no es 0.3.8" }
