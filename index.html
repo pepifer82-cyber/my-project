@@ -359,6 +359,54 @@ html[data-theme="dark"] .launcher .app-btn.active .app-icon{
 }
 
 
+
+/* === A&T · CORRECCIÓN DEFINITIVA DE TAMAÑO DE ICONOS === */
+/* Reglas finales con prioridad para sustituir los tamaños anteriores. */
+#app .launcher{
+  grid-template-columns:repeat(5,minmax(0,1fr)) !important;
+  gap:11px !important;
+}
+#app .launcher .app-btn{
+  min-height:118px !important;
+  padding:13px !important;
+  border-radius:14px !important;
+}
+#app .launcher .app-btn .app-icon{
+  box-sizing:border-box !important;
+  display:grid !important;
+  place-items:center !important;
+  width:50px !important;
+  height:50px !important;
+  min-width:50px !important;
+  min-height:50px !important;
+  margin:0 0 10px !important;
+  border-radius:14px !important;
+  font-size:27px !important;
+  line-height:1 !important;
+}
+#app .launcher .app-btn .app-title{font-size:14px !important}
+#app .launcher .app-btn .app-sub{font-size:11px !important}
+@media(max-width:1180px){
+  #app .launcher{grid-template-columns:repeat(4,minmax(0,1fr)) !important}
+}
+@media(max-width:900px){
+  #app .launcher{grid-template-columns:repeat(3,minmax(0,1fr)) !important}
+  #app .launcher .app-btn .app-icon{
+    width:48px !important;height:48px !important;min-width:48px !important;min-height:48px !important;
+    font-size:25px !important;
+  }
+}
+@media(max-width:700px){
+  #app .launcher{grid-template-columns:repeat(2,minmax(0,1fr)) !important;gap:9px !important}
+  #app .launcher .app-btn{min-height:108px !important;padding:11px !important}
+  #app .launcher .app-btn .app-icon{
+    width:44px !important;height:44px !important;min-width:44px !important;min-height:44px !important;
+    font-size:23px !important;margin-bottom:8px !important;
+  }
+  #app .launcher .app-btn .app-title{font-size:13px !important}
+  #app .launcher .app-btn .app-sub{font-size:10px !important}
+}
+
 </style>
 </head>
 <body>
