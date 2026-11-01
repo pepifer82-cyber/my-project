@@ -160,6 +160,95 @@ jobs:
           if (Test-Path $unitTests) { Remove-Item $unitTests -Recurse -Force }
           New-Item -ItemType Directory -Path $unitTests -Force | Out-Null
           Copy-Item "$overlayRoot\tests\ATPrinterAgent.Snmp.Tests\*" $unitTests -Recurse -Force
+
+          # Brother brInfoCounter is a binary OCTET STRING, not an integer or text.
+          $modelsPath = "$agentRoot\src\Models.cs"
+          $snmpPath = "$agentRoot\src\SnmpClient.cs"
+          $testPath = "$unitTests\SnmpMibTests.cs"
+          $models = Get-Content $modelsPath -Raw
+          $modelsOld = "    public string? Text { get; init; }"
+          if (!$models.Contains($modelsOld)) { throw "No se encontró SnmpResult.Text" }
+          $models = $models.Replace($modelsOld, $modelsOld + "`r`n    public byte[]? RawData { get; init; }")
+          [IO.File]::WriteAllText($modelsPath, $models, [Text.Encoding]::UTF8)
+
+          $snmp = Get-Content $snmpPath -Raw
+          $rawTextOld = '0x04 => new SnmpResult { Success = true, Oid = responseOid, Text = DecodeText(value.Value) },'
+          $rawTextNew = '0x04 => new SnmpResult { Success = true, Oid = responseOid, Text = DecodeText(value.Value), RawData = value.Value },'
+          if (!$snmp.Contains($rawTextOld)) { throw "No se encontró el decodificador de OCTET STRING SNMP v1/v2c" }
+          $snmp = $snmp.Replace($rawTextOld, $rawTextNew)
+
+          $brotherOld = @'
+          var value = await GetAsync(ip, OidsPublic.BrotherPageCounter, ct).ConfigureAwait(false);
+          var count = ReadCounterNumber(value);
+          if (count is >= 0) return count;
+          '@
+          $brotherNew = @'
+          var value = await GetAsync(ip, OidsPublic.BrotherPageCounter, ct).ConfigureAwait(false);
+          var count = ReadCounterNumber(value) ?? ParseBrotherPageCounter(value.RawData);
+          if (count is >= 0) return count;
+          '@
+          $brotherOld = $brotherOld.TrimEnd()
+          $brotherNew = $brotherNew.TrimEnd()
+          if (!$snmp.Contains($brotherOld)) { throw "No se encontró el bloque Brother brInfoCounter" }
+          $snmp = $snmp.Replace($brotherOld, $brotherNew)
+
+          $helperAnchor = @'
+          private static long? ReadCounterNumber(SnmpResult? value)
+          '@
+          $helper = @'
+          internal static long? ParseBrotherPageCounter(byte[]? raw)
+          {
+              // BROTHER-MIB brInfoCounter: records are code, encoding=1, length=4,
+              // then a big-endian UInt32. Record code 0 is the total page counter.
+              if (raw is null || raw.Length < 7 || raw[0] != 0x00 || raw[1] != 0x01 || raw[2] != 0x04)
+                  return null;
+              return (long)BinaryPrimitives.ReadUInt32BigEndian(raw.AsSpan(3, 4));
+          }
+
+          private static long? ReadCounterNumber(SnmpResult? value)
+          '@
+          $helperAnchor = $helperAnchor.TrimEnd()
+          $helper = $helper.TrimEnd()
+          if (!$snmp.Contains($helperAnchor)) { throw "No se encontró ReadCounterNumber para insertar el parser Brother" }
+          $snmp = $snmp.Replace($helperAnchor, $helper)
+          $v3Old = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text };'
+          $v3New = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text, RawData = variable.Data.ToBytes() };'
+          if (!$snmp.Contains($v3Old)) { throw "No se encontró el retorno numérico SNMPv3" }
+          $snmp = $snmp.Replace($v3Old, $v3New)
+          $v3TextOld = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text };'
+          $v3TextNew = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text, RawData = variable.Data.ToBytes() };'
+          if (!$snmp.Contains($v3TextOld)) { throw "No se encontró el retorno de texto SNMPv3" }
+          $snmp = $snmp.Replace($v3TextOld, $v3TextNew)
+          [IO.File]::WriteAllText($snmpPath, $snmp, [Text.Encoding]::UTF8)
+
+          $testAdd = @'
+          public sealed class BrotherCounterTests
+          {
+              [Fact]
+              public void ParsesBrotherPageCounterFromBinaryOctetString()
+              {
+                  var raw = Convert.FromHexString("0001040000000906010400000006FFFFFFFF");
+                  Assert.Equal(9L, SnmpClient.ParseBrotherPageCounter(raw));
+              }
+
+              [Theory]
+              [InlineData("00020400000009")]
+              [InlineData("0001010009")]
+              [InlineData("FFFFFFFF")]
+              [InlineData("")]
+              public void RejectsUnexpectedBrotherCounterPayloads(string hex)
+              {
+                  Assert.Null(SnmpClient.ParseBrotherPageCounter(Convert.FromHexString(hex)));
+              }
+          }
+
+          '@
+          $testAnchor = "public sealed class SnmpV3SecurityTests"
+          $tests = Get-Content $testPath -Raw
+          if (!$tests.Contains($testAnchor)) { throw "No se encontró el punto para insertar prueba del contador Brother" }
+          $tests = $tests.Replace($testAnchor, $testAdd + $testAnchor)
+          [IO.File]::WriteAllText($testPath, $tests, [Text.Encoding]::UTF8)
+
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.9</Version>' -Quiet)) { throw "La fuente no quedó en versión 0.3.9" }
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern 'Lextm.SharpSnmpLib' -Quiet)) { throw "Falta la biblioteca SNMP v3" }
 
