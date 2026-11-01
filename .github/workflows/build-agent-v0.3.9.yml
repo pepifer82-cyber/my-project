@@ -68,11 +68,15 @@ jobs:
           Expand-Archive -Path $zipPath -DestinationPath $overlay -Force
           $overlayRoot = Join-Path $overlay "agent039-overlay"
           if (!(Test-Path "$overlayRoot\src\SnmpClient.cs")) { throw "No se encontró la implementación SNMP v0.3.9" }
+          if (!(Test-Path "$overlayRoot\src\SnmpV3Support.cs")) { throw "Falta el módulo de SNMP v3" }
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Copy-Item "$overlayRoot\src\*" "$agentRoot\src" -Recurse -Force
           Copy-Item "$overlayRoot\AandTPrinterAgent.iss" "$agentRoot\AandTPrinterAgent.iss" -Force
           Copy-Item "$overlayRoot\README.txt" "$agentRoot\README.txt" -Force
-          Copy-Item "$overlayRoot\tests" "$agentRoot\tests" -Recurse -Force
+          $selfTests = "$agentRoot\tests\AgentSelfTests"
+          if (Test-Path $selfTests) { Remove-Item $selfTests -Recurse -Force }
+          New-Item -ItemType Directory -Path $selfTests -Force | Out-Null
+          Copy-Item "$overlayRoot\tests\AgentSelfTests\*" $selfTests -Recurse -Force
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.9</Version>' -Quiet)) { throw "La fuente no quedó en versión 0.3.9" }
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern 'Lextm.SharpSnmpLib' -Quiet)) { throw "Falta la biblioteca SNMP v3" }
 
@@ -89,15 +93,19 @@ jobs:
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           dotnet restore "$agentRoot\src\ATPrinterAgent.csproj"
           if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de dependencias" }
-          dotnet restore "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj"
-          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de pruebas" }
+          dotnet restore "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de pruebas de integración" }
+          dotnet restore "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\ATPrinterAgent.Snmp.Tests.csproj"
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de pruebas unitarias" }
 
       - name: Run automated SNMP, serial and DPAPI tests
         shell: pwsh
         run: |
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
-          dotnet run --project "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -c Release -r win-x64 -p:Platform=x64
-          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas automatizadas; no se generará el instalador" }
+          dotnet test "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\ATPrinterAgent.Snmp.Tests.csproj" -c Release -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas unitarias Printer-MIB/SNMPv3; no se generará el instalador" }
+          dotnet run --project "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -c Release -r win-x64 -p:Platform=x64 --no-restore
+          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas SNMP loopback/DPAPI; no se generará el instalador" }
 
       - name: Publish x86 single-file agent
         shell: pwsh
@@ -189,8 +197,12 @@ jobs:
           $uninstallRoot = if ([Environment]::Is64BitOperatingSystem) { "HKLM:\$key" } else { "HKLM:\$key" }
           $displayVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
           if ($displayVersion -ne "0.3.9") { throw "El registro de Windows no muestra la versión 0.3.9: $displayVersion" }
-          $installDir = (Get-ItemProperty -Path $uninstallRoot -Name InstallLocation).InstallLocation
-          if (!(Test-Path (Join-Path $installDir "ATPrinterAgent.exe"))) { throw "Falta el ejecutable instalado" }
+          $installDir = (Get-ItemProperty -Path $uninstallRoot -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
+          if ([string]::IsNullOrWhiteSpace($installDir)) { $installDir = Join-Path $env:ProgramFiles "AT Printer Agent" }
+          $installedExe = Join-Path $installDir "ATPrinterAgent.exe"
+          if (!(Test-Path $installedExe)) { throw "Falta el ejecutable instalado" }
+          $fileVersion = (Get-Item $installedExe).VersionInfo.FileVersion
+          if ($fileVersion -notlike "0.3.9*") { throw "El ejecutable instalado no es v0.3.9: $fileVersion" }
           $configHashAfter = (Get-FileHash $configPath -Algorithm SHA256).Hash
           if ($configHashAfter -ne $configHashBefore) { throw "La configuración se modificó o perdió durante la actualización" }
 
