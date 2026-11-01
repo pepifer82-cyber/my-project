@@ -1038,7 +1038,7 @@ async function loadProjects(selectId){
     $('adminCompanyFilterWrap')?.classList.add('hidden');
     if($('projectSidebarTitle'))$('projectSidebarTitle').textContent='Mis proyectos';
   }
-  const serials=await api('/rest/v1/control_project_serials?select=project_id,serial,serial_last4,active,created_at&active=eq.true&order=created_at.asc');
+  const serials=isAdmin?await api('/rest/v1/control_project_serials?select=project_id,serial,serial_last4,active,created_at&active=eq.true&order=created_at.asc'):[];
   serialByProject=new Map();
   for(const item of (serials||[])){if(!serialByProject.has(item.project_id))serialByProject.set(item.project_id,[]);serialByProject.get(item.project_id).push(item);}
   renderProjectList();
@@ -3118,7 +3118,7 @@ async function createCompanyFromPanel(){
     }else{$('companySerialOutput').textContent='La empresa se creó sin proyecto inicial. Podés crear su primer proyecto debajo.'}
     ['companyName','companyLegalName','companyTaxId','companyEmail','companyPassword','companyPhone','companyCity','companyAddress'].forEach(id=>$(id).value='');
     await loadBusinessWorkspace();
-    if(project)await loadProjects(project.id);
+    await loadProjects(project?.id);
   }catch(e){$('companyCreateMsg').textContent='No se pudo crear la empresa: '+e.message}
   finally{btn.disabled=false}
 }
@@ -3137,7 +3137,7 @@ async function createProjectForCompany(){
 async function toggleCompanyStatus(companyId,status){
   const word=status==='active'?'reactivar':'suspender';
   if(!confirm('¿Querés '+word+' esta empresa? El inventario y el historial se conservarán.'))return;
-  try{await businessAdminRequest({action:'set_company_status',company_id:companyId,status});await loadBusinessWorkspace()}
+  try{await businessAdminRequest({action:'set_company_status',company_id:companyId,status});await loadBusinessWorkspace();await loadProjects(currentProjectId)}
   catch(e){alert('No se pudo cambiar el estado: '+e.message)}
 }
 function editBusinessPlan(planId){
