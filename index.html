@@ -2220,9 +2220,9 @@ async function loadCounterHistory(showMessage=true){
       mappedRows.push({
         ...history,
         printer_id:device.printer_id,
-        printer:best.printer||best.display_name||history.printer||device.display_name||'',
-        manufacturer:history.manufacturer||device.manufacturer||'',
-        model:history.model||device.model||'',
+        printer:device.display_name||device.model||best.printer||best.display_name||history.printer||'',
+        manufacturer:device.manufacturer||history.manufacturer||'',
+        model:device.model||history.model||'',
         serial_number:history.serial_number||device.serial_number||'',
         ip_address:realIpOf(device)||realIpOf(history)||'',
         mac_address:history.mac_address||device.mac_address||''
