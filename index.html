@@ -1026,6 +1026,21 @@ async function loadApp(){
     return true;
   }
 }
+function emptyProjectCompanyName(){
+  if(!isAdmin){
+    const name=String(accountEntitlements?.company_name||'').trim();
+    return name||'Mi empresa';
+  }
+  if(sidebarCompanyFilter!=='all'){
+    const company=projectCompanies.find(item=>String(item.id)===String(sidebarCompanyFilter));
+    if(company?.name)return company.name;
+  }
+  return 'Sin proyectos';
+}
+function setEmptyProjectHeader(meta){
+  $('projectName').textContent=emptyProjectCompanyName();
+  $('projectMeta').textContent=meta||'Cuando agregues un proyecto aparecerá aquí.';
+}
 async function loadProjects(selectId){
   projects=await api('/rest/v1/control_projects?select=id,name,active,created_at,company_id&active=eq.true&order=created_at.asc');
   projects=Array.isArray(projects)?projects:[];
@@ -1046,8 +1061,7 @@ async function loadProjects(selectId){
     currentProjectId=null;rows=[];agentRows=[];serialByProject.clear();
     $('projectEmpty').classList.remove('hidden');
     $('projectEmpty').textContent=isAdmin?'Todavía no hay proyectos de clientes.':'Todavía no tenés proyectos. Usá “Agregar proyecto” para crear el primero.';
-    $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
-    $('projectMeta').textContent='Cuando agregues un proyecto aparecerá aquí.';
+    $('topProjectName').textContent='Panel';setEmptyProjectHeader('Cuando agregues un proyecto aparecerá aquí.');
     $('serialValue').textContent='—';$('serialList').innerHTML='';
     $('archiveProjectBtn').disabled=true;renderAll();return;
   }
@@ -1057,8 +1071,7 @@ async function loadProjects(selectId){
     :projects;
   if(!scopedProjects.length){
     currentProjectId=null;rows=[];agentRows=[];
-    $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
-    $('projectMeta').textContent=isAdmin?'Esta empresa todavía no tiene proyectos activos.':'Todavía no tenés proyectos activos.';
+    $('topProjectName').textContent='Panel';setEmptyProjectHeader('Esta empresa todavía no tiene proyectos activos.');
     $('serialValue').textContent='—';$('serialList').innerHTML='';
     $('archiveProjectBtn').disabled=true;
     renderProjectList();renderAll();return;
@@ -1121,8 +1134,7 @@ function changeSidebarCompanyFilter(value){
     if(matching.length)openProject(matching[0].id);
     else{
       currentProjectId=null;rows=[];agentRows=[];
-      $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
-      $('projectMeta').textContent='Esta empresa todavía no tiene proyectos activos.';
+      $('topProjectName').textContent='Panel';setEmptyProjectHeader('Esta empresa todavía no tiene proyectos activos.');
       $('serialValue').textContent='—';$('serialList').innerHTML='';
       $('archiveProjectBtn').disabled=true;renderProjectList();renderAll();
     }
