@@ -1,1 +1,1 @@
-Build A&T Printer Agent v0.3.9 - verify every source fragment after correcting part 017 - run 3
+Build A&T Printer Agent v0.3.9 - authentic v038 install then v039 uninstall and config preservation - run 4
