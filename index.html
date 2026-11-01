@@ -1193,7 +1193,12 @@ async function loadProjectAgentSerial(projectId){
 }
 function openProject(id){
   const p=projects.find(x=>x.id===id);if(!p)return;
-  if(id!==currentProjectId){inventorySearch='';const search=$('inventorySearch');if(search)search.value='';}
+  if(id!==currentProjectId){
+    inventorySearch='';const search=$('inventorySearch');if(search)search.value='';
+    aiHistory=[];
+    const aiLog=$('aiChatLog');if(aiLog)aiLog.innerHTML='';
+    const aiMessage=$('aiMessage');if(aiMessage)aiMessage.textContent='Asistente limitado al proyecto: '+p.name+'.';
+  }
   currentProjectId=id;currentView='resumen';
   $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id+' · Cargando serial…';clearProjectAgentSerial();
   clearProjectAgentSerial();
@@ -3328,6 +3333,10 @@ function appendAiMessage(role,content,pending){
 async function askAtpcAssistant(prefill){
   const question=String(prefill??$('aiQuestion').value).trim();
   if(!question)return;
+  if(!currentProjectId||!projects.some(p=>String(p.id)===String(currentProjectId))){
+    $('aiMessage').textContent='Seleccioná primero un proyecto para consultar sus impresoras.';
+    return;
+  }
   if(question.length>1600){$('aiMessage').textContent='La consulta supera el máximo de 1600 caracteres.';return}
   const btn=$('aiSendBtn');if(btn.disabled)return;
   $('aiQuestion').value='';appendAiMessage('user',question);
@@ -3336,7 +3345,7 @@ async function askAtpcAssistant(prefill){
   try{
     const response=await fetch(SUPABASE_URL+'/functions/v1/atpc-assistant',{
       method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token()},
-      body:JSON.stringify({question,history:aiHistory})
+      body:JSON.stringify({question,project_id:currentProjectId,history:aiHistory})
     });
     const result=await response.json().catch(()=>({}));
     if(!response.ok||!result.ok)throw new Error(result.error||('HTTP '+response.status));
