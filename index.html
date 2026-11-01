@@ -39,6 +39,10 @@ button{border:0;cursor:pointer}
 .hero{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;background:linear-gradient(135deg,#10233b,#155b88);color:#fff;border-radius:12px;padding:18px 19px;box-shadow:0 18px 44px #0d1b2e22;overflow:hidden;position:relative}
 .hero:after{content:"";position:absolute;width:300px;height:300px;border-radius:50%;right:-70px;top:-135px;background:#54b8ff1a;box-shadow:0 0 100px #4eb9ff2b}
 .hero h1{margin:0;font-size:27px;letter-spacing:-.02em}.hero p{margin:7px 0 0;color:#c7d9ed;font-size:13px}
+.project-meta-serial{display:inline-block;margin:0 4px;padding:3px 7px;border:1px solid #ffffff35;border-radius:6px;background:#ffffff12;color:#fff;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;font-weight:800;overflow-wrap:anywhere;word-break:break-all;vertical-align:middle}
+.project-meta-copy{margin-left:5px;padding:3px 7px;border:1px solid #ffffff45;border-radius:6px;background:#ffffff16;color:#fff;font-size:11px;font-weight:800;cursor:pointer;vertical-align:middle}
+.project-meta-copy:hover{background:#ffffff28}
+
 .serial-panel{position:relative;z-index:1;min-width:330px;max-width:420px;background:#ffffff12;border:1px solid #ffffff1e;border-radius:17px;padding:13px 14px;backdrop-filter:blur(10px)}
 .serial-label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#a9c4df;font-weight:800}.serial-value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;margin:7px 0;word-break:break-all}.serial-actions{display:flex;gap:8px;flex-wrap:wrap}.serial-btn{padding:9px 11px;border-radius:10px;font-weight:800}.copy{background:#fff;color:#163457}.new{background:#1e9ee7;color:#fff}.serial-hint{font-size:11px;color:#aac2da;margin-top:8px}
 .launcher{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:10px}
@@ -1140,18 +1144,61 @@ function changeSidebarCompanyFilter(value){
     }
   }else renderProjectList();
 }
+function setProjectMetaSerial(projectId,serial){
+  const meta=$('projectMeta');
+  meta.textContent='Proyecto activo · '+projectId+' · Serial del agente: ';
+  const code=document.createElement('code');
+  code.className='project-meta-serial';
+  code.textContent=serial;
+  meta.appendChild(code);
+  const copy=document.createElement('button');
+  copy.type='button';
+  copy.className='project-meta-copy';
+  copy.textContent='Copiar';
+  copy.addEventListener('click',()=>copyProjectSerial(serial));
+  meta.appendChild(copy);
+}
+async function loadProjectAgentSerial(projectId){
+  if(currentProjectId!==projectId)return;
+  const local=serialByProject.get(projectId)||[];
+  if(isAdmin){
+    const serial=local.length?local[local.length-1].serial:'';
+    if(serial)setProjectMetaSerial(projectId,serial);
+    else $('projectMeta').textContent='Proyecto activo · '+projectId+' · Sin serial activo';
+    return;
+  }
+  if(!['owner','admin'].includes(accountEntitlements?.role)){
+    $('projectMeta').textContent='Proyecto activo · '+projectId+' · Serial disponible para propietarios y administradores';
+    return;
+  }
+  $('projectMeta').textContent='Proyecto activo · '+projectId+' · Cargando serial…';
+  try{
+    const result=await api('/rest/v1/rpc/control_get_project_agent_serial',{
+      method:'POST',
+      body:JSON.stringify({p_project_id:projectId})
+    });
+    if(currentProjectId!==projectId)return;
+    const row=Array.isArray(result)?result[0]:result;
+    if(row?.serial)setProjectMetaSerial(projectId,row.serial);
+    else $('projectMeta').textContent='Proyecto activo · '+projectId+' · Sin serial activo';
+  }catch(error){
+    if(currentProjectId!==projectId)return;
+    $('projectMeta').textContent='Proyecto activo · '+projectId+' · No se pudo cargar el serial';
+    console.warn('No se pudo cargar el serial del proyecto:',error);
+  }
+}
 function openProject(id){
   const p=projects.find(x=>x.id===id);if(!p)return;
   if(id!==currentProjectId){inventorySearch='';const search=$('inventorySearch');if(search)search.value='';}
   currentProjectId=id;currentView='resumen';
-  $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id;
+  $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id+' · Cargando serial…';
   const serials=serialByProject.get(id)||[];
   $('serialValue').textContent=serials.length?serials[serials.length-1].serial:'Sin serial visible';
   $('serialList').innerHTML=serials.map((s,i)=>'<div class="serial-item"><code>'+escapeHtml(s.serial)+'</code><button class="serial-copy" type="button" data-serial="'+escapeHtml(s.serial)+'" onclick="copyProjectSerial(this.dataset.serial)">Copiar</button></div>').join('');
   $('archiveProjectBtn').disabled=false;
   $('archiveProjectBtn').classList.toggle('hidden',!isAdmin&&!['owner','admin'].includes(accountEntitlements?.role));
   setDefaultCounterDates();
-  showView('resumen');renderProjectList();loadProjectData();
+  showView('resumen');renderProjectList();loadProjectAgentSerial(id);loadProjectData();
 }
 function showView(view){
   if(!isAdmin&&['seriales','agentes'].includes(view)){showView('resumen');return}
