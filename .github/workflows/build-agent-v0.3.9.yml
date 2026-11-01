@@ -1,0 +1,244 @@
+name: Build and validate A&T Printer Agent v0.3.9
+
+on:
+  push:
+    branches: ["agent-v0.3.9-snmp-mib"]
+    paths:
+      - "build-v039-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact source and version patches
+        uses: actions/checkout@v4
+
+      - name: Reassemble and verify original source archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Se esperaban 23 partes de fuente base; encontradas: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-base.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Hash de la fuente base incorrecto: $actual" }
+          New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo extraer la fuente base" }
+
+      - name: Apply the exact v0.3.8 source patches
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $steps = @(
+            @{ File = ".buildsrc\v035direct\apply-patches.ps1"; Extra = @(".buildsrc\v035direct\NetworkHttpProbe.txt", ".buildsrc\v035direct\UpdateManager.cs") },
+            @{ File = ".buildsrc\v036\apply-v036.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v037\apply-v037.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v037-post\apply-post.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v038\apply-v038.ps1"; Extra = @() }
+          )
+          foreach ($step in $steps) {
+            if (!(Test-Path $step.File)) { throw "Falta el parche original: $($step.File)" }
+            foreach ($item in $step.Extra) { if (!(Test-Path $item)) { throw "Falta el archivo auxiliar: $item" } }
+            pwsh -NoProfile -ExecutionPolicy Bypass -File $step.File -AgentRoot $agentRoot
+            if ($LASTEXITCODE -ne 0) { throw "Falló el parche original $($step.File)" }
+          }
+          $version38 = Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.8</Version>'
+          if (!$version38) { throw "No se reconstruyó la fuente de la versión 0.3.8" }
+
+      - name: Reassemble verified v0.3.9 source overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc\v039\overlay" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -lt 1) { throw "No se encontraron partes del código v0.3.9" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $zipBytes = [Convert]::FromBase64String($encoded)
+          $zipPath = "$PWD\agent-v039-overlay.zip"
+          [IO.File]::WriteAllBytes($zipPath, $zipBytes)
+          $overlay = "$PWD\agent-v039-overlay"
+          Expand-Archive -Path $zipPath -DestinationPath $overlay -Force
+          $overlayRoot = Join-Path $overlay "agent039-overlay"
+          if (!(Test-Path "$overlayRoot\src\SnmpClient.cs")) { throw "No se encontró la implementación SNMP v0.3.9" }
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Copy-Item "$overlayRoot\src\*" "$agentRoot\src" -Recurse -Force
+          Copy-Item "$overlayRoot\AandTPrinterAgent.iss" "$agentRoot\AandTPrinterAgent.iss" -Force
+          Copy-Item "$overlayRoot\README.txt" "$agentRoot\README.txt" -Force
+          Copy-Item "$overlayRoot\tests" "$agentRoot\tests" -Recurse -Force
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.9</Version>' -Quiet)) { throw "La fuente no quedó en versión 0.3.9" }
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern 'Lextm.SharpSnmpLib' -Quiet)) { throw "Falta la biblioteca SNMP v3" }
+
+      - name: Verify .NET 8 SDK
+        shell: pwsh
+        run: |
+          dotnet --info
+          $sdks = dotnet --list-sdks
+          if (!($sdks | Select-String '^8\.')) { throw "No se encontró .NET 8 SDK: $sdks" }
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          dotnet restore "$agentRoot\src\ATPrinterAgent.csproj"
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de dependencias" }
+          dotnet restore "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj"
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de pruebas" }
+
+      - name: Run automated SNMP, serial and DPAPI tests
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          dotnet run --project "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -c Release -r win-x64 -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas automatizadas; no se generará el instalador" }
+
+      - name: Publish x86 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x86" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x86" }
+          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "No se generó el EXE x86" }
+
+      - name: Publish x64 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x64" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x64" }
+          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "No se generó el EXE x64" }
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
+
+      - name: Build a previous-version installer for upgrade testing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $iss = Get-Content "$agentRoot\AandTPrinterAgent.iss" -Raw
+          $iss = $iss.Replace('#define MyAppVersion "0.3.9"', '#define MyAppVersion "0.3.8"')
+          $iss = $iss.Replace('OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.9', 'OutputBaseFilename=Test_Legacy_ATPrinterAgent_v0.3.8')
+          $legacyIss = "$agentRoot\Test_Legacy_ATPrinterAgent.iss"
+          Set-Content -Path $legacyIss -Value $iss -Encoding utf8
+          Set-Location $agentRoot
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "Test_Legacy_ATPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo compilar instalador anterior de prueba" }
+          if (!(Test-Path "Test_Legacy_ATPrinterAgent_v0.3.8.exe")) { throw "No se generó instalador anterior de prueba" }
+
+      - name: Compile final v0.3.9 installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location $agentRoot
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Falló Inno Setup al generar el instalador final" }
+          $exe = Join-Path (Get-Location) "Instalar_ATPrinterAgent_v0.3.9.exe"
+          if (!(Test-Path $exe)) { throw "No se generó Instalar_ATPrinterAgent_v0.3.9.exe" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1000000) { throw "El instalador es demasiado pequeño: $size bytes" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Instalar_ATPrinterAgent_v0.3.9.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          Write-Host "SHA256: $hash"
+          Write-Host "Tamaño del instalador: $size bytes"
+
+      - name: Test real uninstall-then-install upgrade and config preservation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location $agentRoot
+          $legacyExe = Join-Path $agentRoot "Test_Legacy_ATPrinterAgent_v0.3.8.exe"
+          $newExe = Join-Path $agentRoot "Instalar_ATPrinterAgent_v0.3.9.exe"
+
+          $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL" -Wait -PassThru
+          if ($oldInstall.ExitCode -ne 0) { throw "Falló la instalación previa simulada: $($oldInstall.ExitCode)" }
+
+          $configDir = Join-Path $env:LOCALAPPDATA "ATPrinterAgent"
+          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+          $configPath = Join-Path $configDir "config.json"
+          $configText = '{"install_id":"upgrade-preservation-test","serial":"AT-TEST-PRESERVE","network_ips":["192.0.2.10"]}'
+          [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
+          $configHashBefore = (Get-FileHash $configPath -Algorithm SHA256).Hash
+
+          $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL" -Wait -PassThru
+          if ($newInstall.ExitCode -ne 0) { throw "La actualización no desinstaló la versión anterior correctamente: $($newInstall.ExitCode)" }
+
+          $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
+          $uninstallRoot = if ([Environment]::Is64BitOperatingSystem) { "HKLM:\$key" } else { "HKLM:\$key" }
+          $displayVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
+          if ($displayVersion -ne "0.3.9") { throw "El registro de Windows no muestra la versión 0.3.9: $displayVersion" }
+          $installDir = (Get-ItemProperty -Path $uninstallRoot -Name InstallLocation).InstallLocation
+          if (!(Test-Path (Join-Path $installDir "ATPrinterAgent.exe"))) { throw "Falta el ejecutable instalado" }
+          $configHashAfter = (Get-FileHash $configPath -Algorithm SHA256).Hash
+          if ($configHashAfter -ne $configHashBefore) { throw "La configuración se modificó o perdió durante la actualización" }
+
+          $uninstaller = Join-Path $installDir "unins000.exe"
+          if (!(Test-Path $uninstaller)) { throw "No se encontró el desinstalador de v0.3.9" }
+          $remove = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
+          if ($remove.ExitCode -ne 0) { throw "Falló la desinstalación de verificación: $($remove.ExitCode)" }
+          if (Test-Path (Join-Path $installDir "ATPrinterAgent.exe")) { throw "Quedó el ejecutable después de desinstalar" }
+          if (!(Test-Path $configPath)) { throw "La desinstalación eliminó config.json; eso no está permitido" }
+          Write-Host "PASS: v0.3.8 se desinstaló antes de instalar v0.3.9."
+          Write-Host "PASS: config.json sobrevivió a actualización y desinstalación."
+
+      - name: Package source and installer
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $sourceZip = "$PWD\ATPrinterAgent_v0.3.9-source.zip"
+          if (Test-Path $sourceZip) { Remove-Item $sourceZip -Force }
+          Compress-Archive -Path "$agentRoot\*" -DestinationPath $sourceZip -CompressionLevel Optimal
+          if (!(Test-Path $sourceZip)) { throw "No se generó el ZIP de fuente" }
+
+      - name: Upload verified build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATPrinterAgent-v0.3.9-validated
+          path: |
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.9.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
+            ATPrinterAgent_v0.3.9-source.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish verified release for remote updater
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent-v0.3.9
+          name: A&T Printer Agent v0.3.9 - SNMP v3, Printer-MIB and verified upgrade
+          overwrite_files: true
+          body: |
+            A&T Printer Agent v0.3.9.
+            - SNMP v2c first, SNMP v1 fallback.
+            - Optional SNMP v3 with authenticated user, SHA/MD5 authentication and AES/DES privacy.
+            - Windows DPAPI protection for SNMP v3 secrets.
+            - Dynamic Printer-MIB tables for marker counters and all consumable rows.
+            - Documented OID profiles for HP, Brother, Canon, Pantum, Samsung and Ricoh, with existing HTTP/IPP/PJL/WMI fallbacks preserved.
+            - Installer performs a real previous-version uninstall before installing new files, preserving %LOCALAPPDATA%\ATPrinterAgent configuration.
+            - Automated loopback SNMP tests, DPAPI tests, x86/x64 compilation, and upgrade/uninstall integration test must pass before release.
+          files: |
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.3.9.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
+            ATPrinterAgent_v0.3.9-source.zip
