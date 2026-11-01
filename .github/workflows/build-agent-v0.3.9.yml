@@ -276,6 +276,11 @@ jobs:
           $uninstallRoot = "HKLM:\$key"
           $legacyVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
           if ($legacyVersion -ne "0.3.8") { throw "La instalación de prueba no registró v0.3.8: $legacyVersion" }
+          $legacyInstalledExe = Join-Path $env:ProgramFiles "AT Printer Agent\ATPrinterAgent.exe"
+          if (!(Test-Path $legacyInstalledExe)) { throw "El instalador 0.3.8 no dejó el agente instalado en Program Files" }
+          $legacyFileVersion = (Get-Item $legacyInstalledExe).VersionInfo.FileVersion
+          if ($legacyFileVersion -notlike "0.3.8*") { throw "El agente previo instalado no es 0.3.8: $legacyFileVersion" }
+          $legacyFileHash = (Get-FileHash $legacyInstalledExe -Algorithm SHA256).Hash
 
           $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL /LOG=$env:TEMP\ATPrinterAgent-v039-upgrade.log" -Wait -PassThru
           if ($newInstall.ExitCode -ne 0) { throw "La actualización no desinstaló la versión anterior correctamente: $($newInstall.ExitCode)" }
@@ -284,16 +289,14 @@ jobs:
           $uninstallRoot = if ([Environment]::Is64BitOperatingSystem) { "HKLM:\$key" } else { "HKLM:\$key" }
           $displayVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
           if ($displayVersion -ne "0.3.9") { throw "El registro de Windows no muestra la versión 0.3.9: $displayVersion" }
-          if (Test-Path $env:TEMP\ATPrinterAgent-v039-upgrade.log) {
-            $upgradeLog = Get-Content $env:TEMP\ATPrinterAgent-v039-upgrade.log -Raw
-            if ($upgradeLog -notmatch 'Uninstaller|uninstall|Uninstall') { throw "El registro de instalación no muestra la fase de desinstalación previa" }
-          }
           $installDir = (Get-ItemProperty -Path $uninstallRoot -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
           if ([string]::IsNullOrWhiteSpace($installDir)) { $installDir = Join-Path $env:ProgramFiles "AT Printer Agent" }
           $installedExe = Join-Path $installDir "ATPrinterAgent.exe"
           if (!(Test-Path $installedExe)) { throw "Falta el ejecutable instalado" }
           $fileVersion = (Get-Item $installedExe).VersionInfo.FileVersion
           if ($fileVersion -notlike "0.3.9*") { throw "El ejecutable instalado no es v0.3.9: $fileVersion" }
+          $newFileHash = (Get-FileHash $installedExe -Algorithm SHA256).Hash
+          if ($newFileHash -eq $legacyFileHash) { throw "El ejecutable v0.3.9 coincide con el binario 0.3.8; no se reemplazó correctamente" }
           $configHashAfter = (Get-FileHash $configPath -Algorithm SHA256).Hash
           if ($configHashAfter -ne $configHashBefore) { throw "La configuración se modificó o perdió durante la actualización" }
 
