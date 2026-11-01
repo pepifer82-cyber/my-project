@@ -440,8 +440,16 @@ jobs:
           $configHashAfter = (Get-FileHash $configPath -Algorithm SHA256).Hash
           if ($configHashAfter -ne $configHashBefore) { throw "La configuración se modificó o perdió durante la actualización" }
 
-          $uninstaller = Join-Path $installDir "unins000.exe"
-          if (!(Test-Path $uninstaller)) { throw "No se encontró el desinstalador de v0.3.9" }
+          $uninstallInfo = Get-ItemProperty -Path $uninstallRoot
+          $uninstallCommand = $uninstallInfo.UninstallString
+          if ([string]::IsNullOrWhiteSpace($uninstallCommand)) { throw "Windows no registró UninstallString para v0.3.9." }
+          if ($uninstallCommand -match '^\s*"([^"]+)"') {
+            $uninstaller = $Matches[1]
+          } else {
+            $uninstaller = ($uninstallCommand -split '\s+', 2)[0]
+          }
+          Write-Host "Registered uninstall command: $uninstallCommand"
+          if (!(Test-Path $uninstaller)) { throw "No se encontró el desinstalador registrado: $uninstaller" }
           Write-Host "TEST STEP 3: uninstalling v0.3.9 to confirm clean removal."
           $remove = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
           if (!$remove.WaitForExit(90000)) {
