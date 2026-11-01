@@ -41,11 +41,12 @@ button{border:0;cursor:pointer}
 .hero-title-area{flex:1;min-width:0;position:relative;z-index:1}
 .hero-title-row{display:flex;align-items:center;justify-content:space-between;gap:18px;flex-wrap:wrap}
 .hero h1{margin:0;font-size:27px;letter-spacing:-.02em}.hero p{margin:7px 0 0;color:#c7d9ed;font-size:13px}
-.project-agent-serial-wrap{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0;max-width:65%;text-align:right}
-.project-agent-serial-label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:#a9c4df;font-weight:800;white-space:nowrap}
-.project-agent-serial{display:inline-block;padding:5px 8px;border:1px solid #ffffff35;border-radius:6px;background:#ffffff12;color:#fff;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;font-weight:800;overflow-wrap:anywhere;word-break:break-all;text-align:left}
-.project-agent-serial-copy{flex:0 0 auto;padding:5px 8px;border:1px solid #ffffff45;border-radius:6px;background:#ffffff16;color:#fff;font-size:11px;font-weight:800;cursor:pointer}
-.project-agent-serial-copy:hover{background:#ffffff28}
+.project-agent-serial-wrap{margin-left:auto;display:flex;align-items:center;justify-content:flex-end;gap:6px;min-width:0;max-width:65%;text-align:right;flex-wrap:wrap}
+.project-agent-serial-label{font-size:10px;text-transform:uppercase;letter-spacing:.07em;color:#a9c4df;font-weight:800;white-space:nowrap}
+.project-agent-serial{display:inline-block;padding:4px 7px;border:1px solid #ffffff35;border-radius:6px;background:#ffffff12;color:#fff;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:11px;font-weight:800;overflow-wrap:anywhere;word-break:break-all;text-align:left}
+.project-agent-serial-copy,.project-agent-serial-generate{flex:0 0 auto;padding:4px 7px;border:1px solid #ffffff45;border-radius:6px;background:#ffffff16;color:#fff;font-size:10px;font-weight:800;cursor:pointer;line-height:1.25}
+.project-agent-serial-copy:hover,.project-agent-serial-generate:hover{background:#ffffff28}
+.serial-panel{display:none!important}
 @media(max-width:760px){.hero-title-row{align-items:flex-start}.project-agent-serial-wrap{width:100%;max-width:100%;margin-left:0;justify-content:flex-start;text-align:left;flex-wrap:wrap}.project-agent-serial{max-width:100%}}
 .serial-panel{position:relative;z-index:1;min-width:330px;max-width:420px;background:#ffffff12;border:1px solid #ffffff1e;border-radius:17px;padding:13px 14px;backdrop-filter:blur(10px)}
 .serial-label{font-size:11px;text-transform:uppercase;letter-spacing:.12em;color:#a9c4df;font-weight:800}.serial-value{font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-weight:800;margin:7px 0;word-break:break-all}.serial-actions{display:flex;gap:8px;flex-wrap:wrap}.serial-btn{padding:9px 11px;border-radius:10px;font-weight:800}.copy{background:#fff;color:#163457}.new{background:#1e9ee7;color:#fff}.serial-hint{font-size:11px;color:#aac2da;margin-top:8px}
@@ -1163,7 +1164,7 @@ function setProjectMetaSerial(projectId,serial){
   wrap.replaceChildren();
   const label=document.createElement('span');
   label.className='project-agent-serial-label';
-  label.textContent='Serial del agente';
+  label.textContent='Serial de activación';
   const code=document.createElement('code');
   code.className='project-agent-serial';
   code.textContent=serial;
@@ -1171,8 +1172,18 @@ function setProjectMetaSerial(projectId,serial){
   copy.type='button';
   copy.className='project-agent-serial-copy';
   copy.textContent='Copiar';
+  copy.title='Copiar serial del agente';
   copy.addEventListener('click',()=>copyProjectSerial(serial));
   wrap.append(label,code,copy);
+  if(isAdmin){
+    const generate=document.createElement('button');
+    generate.type='button';
+    generate.className='project-agent-serial-generate';
+    generate.textContent='Generar otro';
+    generate.title='Generar otro serial de activación';
+    generate.addEventListener('click',generateSerial);
+    wrap.appendChild(generate);
+  }
   wrap.classList.remove('hidden');
 }
 async function loadProjectAgentSerial(projectId){
@@ -1212,7 +1223,7 @@ function openProject(id){
   $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id+' · Cargando serial…';clearProjectAgentSerial();
   const serials=serialByProject.get(id)||[];
   $('serialValue').textContent=serials.length?serials[serials.length-1].serial:'Sin serial visible';
-  $('serialList').innerHTML=serials.map((s,i)=>'<div class="serial-item"><code>'+escapeHtml(s.serial)+'</code><button class="serial-copy" type="button" data-serial="'+escapeHtml(s.serial)+'" onclick="copyProjectSerial(this.dataset.serial)">Copiar</button></div>').join('');
+  $('serialList').innerHTML='';
   $('archiveProjectBtn').disabled=false;
   $('archiveProjectBtn').classList.toggle('hidden',!isAdmin&&!['owner','admin'].includes(accountEntitlements?.role));
   setDefaultCounterDates();
@@ -3106,7 +3117,7 @@ function applyAccountEntitlements(data){
   if($('newProjectBtn'))$('newProjectBtn').textContent=isAdmin?'＋ Nuevo proyecto':'＋ Agregar proyecto';
   if($('projectSidebarTitle'))$('projectSidebarTitle').textContent=isAdmin?'Clientes y proyectos':'Mis proyectos';
   const serialPanel=document.querySelector('.serial-panel');
-  if(serialPanel)serialPanel.classList.toggle('hidden',!isAdmin);
+  if(serialPanel)serialPanel.classList.add('hidden');
   const setFeatureView=(name,on)=>{
     document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
     const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
