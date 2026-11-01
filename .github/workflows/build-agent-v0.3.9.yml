@@ -77,6 +77,10 @@ jobs:
           if (Test-Path $selfTests) { Remove-Item $selfTests -Recurse -Force }
           New-Item -ItemType Directory -Path $selfTests -Force | Out-Null
           Copy-Item "$overlayRoot\tests\AgentSelfTests\*" $selfTests -Recurse -Force
+          $unitTests = "$agentRoot\tests\ATPrinterAgent.Snmp.Tests"
+          if (Test-Path $unitTests) { Remove-Item $unitTests -Recurse -Force }
+          New-Item -ItemType Directory -Path $unitTests -Force | Out-Null
+          Copy-Item "$overlayRoot\tests\ATPrinterAgent.Snmp.Tests\*" $unitTests -Recurse -Force
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.9</Version>' -Quiet)) { throw "La fuente no quedó en versión 0.3.9" }
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern 'Lextm.SharpSnmpLib' -Quiet)) { throw "Falta la biblioteca SNMP v3" }
 
