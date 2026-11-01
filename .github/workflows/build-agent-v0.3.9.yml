@@ -156,6 +156,36 @@ jobs:
           if (!$iss.Contains($setupAnchor)) { throw "No se encontró el bloque de desinstalación anterior" }
           $setupReplacement = $setupAnchor + "`r`n    Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ATPrinterAgent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, KillCode);"
           $iss = $iss.Replace($setupAnchor, $setupReplacement)
+
+          # Inno Setup 6 does not support the "ignoreerrors" run flag.
+          # Stop the old process before uninstall; on uninstall use cmd.exe so
+          # taskkill returning "process not found" is treated as a harmless no-op.
+          $killLine = 'Filename: "{sys}\taskkill.exe"; Parameters: "/IM ATPrinterAgent.exe /T /F"; Flags: runhidden waituntilterminated ignoreerrors'
+          $firstKill = $iss.IndexOf($killLine)
+          if ($firstKill -lt 0) { throw "No se encontró la línea taskkill original en [Run]." }
+          $firstNewline = $iss.IndexOf("`n", $firstKill)
+          if ($firstNewline -lt 0) { throw "No se pudo delimitar la línea taskkill de [Run]." }
+          $iss = $iss.Remove($firstKill, $firstNewline - $firstKill + 1)
+          if (!$iss.Contains($killLine)) { throw "No se encontró la segunda línea taskkill en [UninstallRun]." }
+          $safeKillLine = 'Filename: "{sys}\cmd.exe"; Parameters: "/C ""taskkill /IM ATPrinterAgent.exe /T /F >NUL 2>&1 & exit /b 0"""; Flags: runhidden waituntilterminated; RunOnceId: "StopAgent"'
+          $iss = $iss.Replace($killLine, $safeKillLine)
+
+          $regLine = 'Filename: "{sys}\reg.exe"; Parameters: "delete ""HKCU\Software\Microsoft\Windows\CurrentVersion\Run"" /v ATPrinterAgent /f"; Flags: runhidden waituntilterminated ignoreerrors'
+          $regAt = $iss.IndexOf($regLine)
+          if ($regAt -lt 0) { throw "No se encontró la línea de limpieza del inicio de Windows." }
+          $regEnd = $iss.IndexOf("`n", $regAt)
+          if ($regEnd -lt 0) { $regEnd = $iss.Length - 1 }
+          $iss = $iss.Remove($regAt, $regEnd - $regAt + 1)
+
+          $uninstallCode = @'
+          procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+          begin
+            if CurUninstallStep = usUninstall then
+              RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'ATPrinterAgent');
+          end;
+          '@
+          $iss = $iss.TrimEnd() + "`r`n`r`n" + $uninstallCode
+          if ($iss.Contains("ignoreerrors")) { throw "Quedó una bandera ignoreerrors inválida en Inno Setup." }
           [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
 
           $selfTests = "$agentRoot\tests\AgentSelfTests"
