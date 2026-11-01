@@ -59,7 +59,7 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $parts = Get-ChildItem ".buildsrc\v039\overlay" -Filter "part*.b64" | Sort-Object Name
-          if ($parts.Count -ne 27) { throw "Se esperaban 27 fragmentos de la capa v0.3.9; encontrados: $($parts.Count)" }
+          if ($parts.Count -ne 29) { throw "Se esperaban 29 fragmentos de la capa v0.3.9; encontrados: $($parts.Count)" }
           $expectedPartHashes = @{
             "part001.b64"="94cdade9071c3e9de57ae097286c60d976cb77e7c0f925e3ca69aa1c1a0b8573"
             "part002.b64"="531ee07684216a2dc1b804fa0ef35c7bc6581f7a0e0b6528a8de626c15c6e0e8"
@@ -77,7 +77,9 @@ jobs:
             "part014.b64"="897e17195f75a6e50da2ac2451fd5be0094f1d033decded5badeabdc0a43e521"
             "part015.b64"="4f030c3525de28378f5968244954f6900cc60b1ac8327cc7bfda20ba26a6bf5b"
             "part016.b64"="fdd3ed4d2bd601c813d3bb1310c544bcf06da7fe90df46a0ba46abeae168ea60"
-            "part017.b64"="05b191b146eac6e1a587b3d3470e009269eb60405d7622423c8a73bf866112a1"
+            "part017.b64"="cf82187c385f3472ef52c991455c1494b16fe9e0106bf222d87eb61179c677d6"
+            "part017b.b64"="d71b1db945992f24a6ad7b38f10857a78d53e1fffc5a1d4da82b46148c8f78f5"
+            "part017c.b64"="28d3dab61399761f9bee51f5660885e8f2377582588331c7f9c68225660ecabf"
             "part018.b64"="43608ca427d804faa96d9551e41d32b89c2504522358f0b47efa1c8deebf9bdd"
             "part019a.b64"="e89364bcd5b98d6a3ebec15754d281e0f74e0869772ec2a1933a094daf4d5008"
             "part019b.b64"="b77114de8f4f9191605abd0778c63dcf29de52f4e2d803def6fd1963cf5047fe"
