@@ -2844,7 +2844,7 @@ function applyAccountEntitlements(data){
     }
   }
   const features=data?.features||{};
-  const enabled=name=>isAdmin||features[name]===true;
+  const enabled=name=>isAdmin||!data||features[name]===true;
   const setFeatureView=(name,on)=>{
     document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
     const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
