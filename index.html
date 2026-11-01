@@ -1123,6 +1123,7 @@ function changeSidebarCompanyFilter(value){
       currentProjectId=null;rows=[];agentRows=[];
       $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
       $('projectMeta').textContent='Esta empresa todavía no tiene proyectos activos.';
+      $('serialValue').textContent='—';$('serialList').innerHTML='';
       $('archiveProjectBtn').disabled=true;renderProjectList();renderAll();
     }
   }else renderProjectList();
