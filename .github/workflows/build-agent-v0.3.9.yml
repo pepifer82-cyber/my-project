@@ -59,11 +59,15 @@ jobs:
         run: |
           $ErrorActionPreference = "Stop"
           $parts = Get-ChildItem ".buildsrc\v039\overlay" -Filter "part*.b64" | Sort-Object Name
-          if ($parts.Count -lt 1) { throw "No se encontraron partes del código v0.3.9" }
+          if ($parts.Count -ne 27) { throw "Se esperaban 27 fragmentos de la capa v0.3.9; encontrados: $($parts.Count)" }
           $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          if ($encoded.Length -ne 90080) { throw "Longitud Base64 incorrecta: $($encoded.Length)" }
           $zipBytes = [Convert]::FromBase64String($encoded)
           $zipPath = "$PWD\agent-v039-overlay.zip"
           [IO.File]::WriteAllBytes($zipPath, $zipBytes)
+          $expectedOverlayHash = "e341abef6baf2f402fbe5ad97830a7675f8ca15270652331182dffdf5375a959"
+          $actualOverlayHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          if ($actualOverlayHash -ne $expectedOverlayHash) { throw "Hash SHA-256 de la capa v0.3.9 incorrecto: $actualOverlayHash" }
           $overlay = "$PWD\agent-v039-overlay"
           Expand-Archive -Path $zipPath -DestinationPath $overlay -Force
           $overlayRoot = Join-Path $overlay "agent039-overlay"
