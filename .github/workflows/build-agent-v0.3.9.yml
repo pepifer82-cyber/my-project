@@ -138,6 +138,20 @@ jobs:
           Copy-Item "$overlayRoot\src\*" "$agentRoot\src" -Recurse -Force
           Copy-Item "$overlayRoot\AandTPrinterAgent.iss" "$agentRoot\AandTPrinterAgent.iss" -Force
           Copy-Item "$overlayRoot\README.txt" "$agentRoot\README.txt" -Force
+
+          # Stop the previous running agent BEFORE invoking its uninstaller.
+          $issPath = "$agentRoot\AandTPrinterAgent.iss"
+          $iss = Get-Content $issPath -Raw
+          $varAnchor = "  ResultCode: Integer;"
+          if (!$iss.Contains($varAnchor)) { throw "No se encontró la sección de variables InitializeSetup" }
+          $iss = $iss.Replace($varAnchor, $varAnchor + "`r`n  KillCode: Integer;")
+          $setupAnchor = "  if FoundPrevious then`r`n  begin"
+          if (!$iss.Contains($setupAnchor)) { $setupAnchor = "  if FoundPrevious then`n  begin" }
+          if (!$iss.Contains($setupAnchor)) { throw "No se encontró el bloque de desinstalación anterior" }
+          $setupReplacement = $setupAnchor + "`r`n    Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ATPrinterAgent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, KillCode);"
+          $iss = $iss.Replace($setupAnchor, $setupReplacement)
+          [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
+
           $selfTests = "$agentRoot\tests\AgentSelfTests"
           if (Test-Path $selfTests) { Remove-Item $selfTests -Recurse -Force }
           New-Item -ItemType Directory -Path $selfTests -Force | Out-Null
