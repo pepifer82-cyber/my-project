@@ -54,6 +54,31 @@ jobs:
           $version38 = Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.8</Version>'
           if (!$version38) { throw "No se reconstruyó la fuente de la versión 0.3.8" }
 
+      - name: Build the genuine v0.3.8 installer payload before any upgrade
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $legacyRoot = "$agentRoot\legacy-v038"
+          New-Item -ItemType Directory -Path "$legacyRoot\publish-x86","$legacyRoot\publish-x64","$legacyRoot\src" -Force | Out-Null
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.8</Version>' -Quiet)) { throw "El binario de prueba anterior no tiene versión 0.3.8" }
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore del agente 0.3.8 x86" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o "$legacyRoot\publish-x86"
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish del agente 0.3.8 x86" }
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore del agente 0.3.8 x64" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o "$legacyRoot\publish-x64"
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish del agente 0.3.8 x64" }
+          foreach ($file in @("ATPrinterAgent.iss","README.txt")) {
+            if (!(Test-Path "$agentRoot\$file")) { throw "Falta $file de la instalación histórica 0.3.8" }
+            Copy-Item "$agentRoot\$file" "$legacyRoot\$file" -Force
+          }
+          Copy-Item "$agentRoot\src\app.ico" "$legacyRoot\src\app.ico" -Force
+          if ((Get-Item "$legacyRoot\publish-x64\ATPrinterAgent.exe").VersionInfo.FileVersion -notlike "0.3.8*") { throw "El binario de prueba x64 no es 0.3.8" }
+          if ((Get-Item "$legacyRoot\publish-x86\ATPrinterAgent.exe").VersionInfo.FileVersion -notlike "0.3.8*") { throw "El binario de prueba x86 no es 0.3.8" }
+
       - name: Reassemble verified v0.3.9 source overlay
         shell: pwsh
         run: |
@@ -148,7 +173,7 @@ jobs:
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           dotnet test "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\ATPrinterAgent.Snmp.Tests.csproj" -c Release -p:Platform=x64
           if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas unitarias Printer-MIB/SNMPv3; no se generará el instalador" }
-          dotnet run --project "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -c Release -r win-x64 -p:Platform=x64 --no-restore
+          dotnet run --project "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -c Release -p:Platform=x64
           if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas SNMP loopback/DPAPI; no se generará el instalador" }
 
       - name: Publish x86 single-file agent
@@ -181,21 +206,18 @@ jobs:
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
 
-      - name: Build a previous-version installer for upgrade testing
+      - name: Compile the genuine v0.3.8 installer for upgrade testing
         shell: pwsh
         run: |
           $ErrorActionPreference = "Stop"
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
-          $iss = Get-Content "$agentRoot\AandTPrinterAgent.iss" -Raw
-          $iss = $iss.Replace('#define MyAppVersion "0.3.9"', '#define MyAppVersion "0.3.8"')
-          $iss = $iss.Replace('OutputBaseFilename=Instalar_ATPrinterAgent_v0.3.9', 'OutputBaseFilename=Test_Legacy_ATPrinterAgent_v0.3.8')
-          $legacyIss = "$agentRoot\Test_Legacy_ATPrinterAgent.iss"
-          Set-Content -Path $legacyIss -Value $iss -Encoding utf8
-          Set-Location $agentRoot
+          $legacyRoot = "$agentRoot\legacy-v038"
+          Set-Location $legacyRoot
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
-          & $iscc "Test_Legacy_ATPrinterAgent.iss"
-          if ($LASTEXITCODE -ne 0) { throw "No se pudo compilar instalador anterior de prueba" }
-          if (!(Test-Path "Test_Legacy_ATPrinterAgent_v0.3.8.exe")) { throw "No se generó instalador anterior de prueba" }
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo compilar el instalador original 0.3.8" }
+          $legacyExe = Join-Path $legacyRoot "Instalar_ATPrinterAgent_v0.3.8.exe"
+          if (!(Test-Path $legacyExe)) { throw "No se generó el instalador real de v0.3.8" }
 
       - name: Compile final v0.3.9 installer
         shell: pwsh
@@ -221,11 +243,10 @@ jobs:
           $ErrorActionPreference = "Stop"
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location $agentRoot
-          $legacyExe = Join-Path $agentRoot "Test_Legacy_ATPrinterAgent_v0.3.8.exe"
           $newExe = Join-Path $agentRoot "Instalar_ATPrinterAgent_v0.3.9.exe"
 
-          $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL" -Wait -PassThru
-          if ($oldInstall.ExitCode -ne 0) { throw "Falló la instalación previa simulada: $($oldInstall.ExitCode)" }
+          $legacyExe = Join-Path $agentRoot "legacy-v038\Instalar_ATPrinterAgent_v0.3.8.exe"
+          if (!(Test-Path $legacyExe)) { throw "Falta el instalador de prueba genuino v0.3.8" }
 
           $configDir = Join-Path $env:LOCALAPPDATA "ATPrinterAgent"
           New-Item -ItemType Directory -Path $configDir -Force | Out-Null
@@ -234,13 +255,25 @@ jobs:
           [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
           $configHashBefore = (Get-FileHash $configPath -Algorithm SHA256).Hash
 
-          $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL" -Wait -PassThru
+          $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
+          if ($oldInstall.ExitCode -ne 0) { throw "Falló la instalación real previa v0.3.8: $($oldInstall.ExitCode)" }
+
+          $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
+          $uninstallRoot = "HKLM:\$key"
+          $legacyVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
+          if ($legacyVersion -ne "0.3.8") { throw "La instalación de prueba no registró v0.3.8: $legacyVersion" }
+
+          $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL /LOG=$env:TEMP\ATPrinterAgent-v039-upgrade.log" -Wait -PassThru
           if ($newInstall.ExitCode -ne 0) { throw "La actualización no desinstaló la versión anterior correctamente: $($newInstall.ExitCode)" }
 
           $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
           $uninstallRoot = if ([Environment]::Is64BitOperatingSystem) { "HKLM:\$key" } else { "HKLM:\$key" }
           $displayVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
           if ($displayVersion -ne "0.3.9") { throw "El registro de Windows no muestra la versión 0.3.9: $displayVersion" }
+          if (Test-Path $env:TEMP\ATPrinterAgent-v039-upgrade.log) {
+            $upgradeLog = Get-Content $env:TEMP\ATPrinterAgent-v039-upgrade.log -Raw
+            if ($upgradeLog -notmatch 'Uninstaller|uninstall|Uninstall') { throw "El registro de instalación no muestra la fase de desinstalación previa" }
+          }
           $installDir = (Get-ItemProperty -Path $uninstallRoot -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
           if ([string]::IsNullOrWhiteSpace($installDir)) { $installDir = Join-Path $env:ProgramFiles "AT Printer Agent" }
           $installedExe = Join-Path $installDir "ATPrinterAgent.exe"
