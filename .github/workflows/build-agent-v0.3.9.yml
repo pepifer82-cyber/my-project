@@ -150,11 +150,22 @@ jobs:
           $iss = Get-Content $issPath -Raw
           $varAnchor = "  ResultCode: Integer;"
           if (!$iss.Contains($varAnchor)) { throw "No se encontró la sección de variables InitializeSetup" }
-          $iss = $iss.Replace($varAnchor, $varAnchor + "`r`n  KillCode: Integer;")
+          $iss = $iss.Replace($varAnchor, $varAnchor + "`r`n  KillCode: Integer;`r`n  PreviousInstallDir: String;")
           $setupAnchor = "  if FoundPrevious then`r`n  begin"
           if (!$iss.Contains($setupAnchor)) { $setupAnchor = "  if FoundPrevious then`n  begin" }
           if (!$iss.Contains($setupAnchor)) { throw "No se encontró el bloque de desinstalación anterior" }
           $setupReplacement = $setupAnchor + "`r`n    Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ATPrinterAgent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, KillCode);"
+          $uninstallerPathAnchor = "    UninstallerExe := ExtractUninstallerPath(UninstallCommand);"
+          if (!$iss.Contains($uninstallerPathAnchor)) { throw "No se encontró la extracción de la ruta del desinstalador anterior." }
+          $iss = $iss.Replace($uninstallerPathAnchor, $uninstallerPathAnchor + "`r`n    PreviousInstallDir := ExtractFileDir(UninstallerExe);")
+          $oldPreviousCheck = "    if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newPreviousCheck = "    if FileExists(PreviousInstallDir + '\ATPrinterAgent.exe') then"
+          if (!$iss.Contains($oldPreviousCheck)) { throw "No se encontró la comprobación del ejecutable anterior." }
+          $iss = $iss.Replace($oldPreviousCheck, $newPreviousCheck)
+          $oldOrphanCheck = "  else if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newOrphanCheck = "  else if FileExists(ExpandConstant('{autopf}\AT Printer Agent\ATPrinterAgent.exe')) then"
+          if (!$iss.Contains($oldOrphanCheck)) { throw "No se encontró la comprobación de archivos sin desinstalador." }
+          $iss = $iss.Replace($oldOrphanCheck, $newOrphanCheck)
           $iss = $iss.Replace($setupAnchor, $setupReplacement)
 
           # Inno Setup 6 does not support the "ignoreerrors" run flag.
@@ -186,6 +197,8 @@ jobs:
           '@
           $iss = $iss.TrimEnd() + "`r`n`r`n" + $uninstallCode
           if ($iss.Contains("ignoreerrors")) { throw "Quedó una bandera ignoreerrors inválida en Inno Setup." }
+          if ($iss.Contains("FileExists(ExpandConstant('{app}")) { throw "No debe expandirse {app} dentro de InitializeSetup." }
+          if (!$iss.Contains("PreviousInstallDir := ExtractFileDir(UninstallerExe);")) { throw "No se está comprobando la carpeta real de la versión anterior." }
           [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
 
           $selfTests = "$agentRoot\tests\AgentSelfTests"
