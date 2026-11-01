@@ -718,6 +718,7 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
         <label class="biz-check"><input id="featExports" type="checkbox"> Exportación Excel</label>
         <label class="biz-check"><input id="featAi" type="checkbox"> Asistente IA</label>
         <label class="biz-check"><input id="featMultiuser" type="checkbox"> Varios usuarios</label>
+        <label class="biz-check"><input id="featRemoteControl" type="checkbox"> Control remoto de agentes</label>
       </div>
       <div class="biz-actions"><button id="savePlanBtn" class="toolbar-btn primary" type="button">Guardar plan</button><button id="clearPlanBtn" class="toolbar-btn" type="button">Limpiar formulario</button><span id="plansMsg" class="muted"></span></div>
       <div class="table-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Periodicidad</th><th>Proyectos</th><th>Impresoras</th><th>Funciones</th><th>Estado</th><th></th></tr></thead><tbody id="plansBody"></tbody></table></div>
@@ -2908,14 +2909,16 @@ function applyAccountEntitlements(data){
     document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
     const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
   };
-  setFeatureView('inventario',enabled('inventory'));
-  setFeatureView('contadores',enabled('counters'));
+  ['inventario','seriales','tinta','desconectadas','agentes','retiradas'].forEach(name=>setFeatureView(name,enabled('inventory')));
+  setFeatureView('contadores',enabled('history'));
   setFeatureView('alertas',enabled('alerts'));
+  setFeatureView('control-remoto',enabled('remote_control'));
   const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
   document.querySelectorAll('#exportExcelBtn,#counterExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
     .forEach(el=>el.classList.toggle('hidden',!enabled('exports')));
-  if(!enabled('inventory')&&currentView==='inventario')showView('resumen');
-  if(!enabled('counters')&&currentView==='contadores')showView('resumen');
+  if(!enabled('inventory')&&['inventario','seriales','tinta','desconectadas','agentes','retiradas'].includes(currentView))showView('resumen');
+  if(!enabled('history')&&currentView==='contadores')showView('resumen');
+  if(!enabled('remote_control')&&currentView==='control-remoto')showView('resumen');
   if(!enabled('alerts')&&currentView==='alertas')showView('resumen');
   if(!enabled('ai')&&currentView==='asistente')showView('resumen');
 }
@@ -3029,7 +3032,7 @@ function editBusinessPlan(planId){
   const f=p.features||{};
   $('featInventory').checked=f.inventory!==false;$('featCounters').checked=f.counters!==false;
   $('featHistory').checked=!!f.history;$('featAlerts').checked=!!f.alerts;$('featExports').checked=!!f.exports;
-  $('featAi').checked=!!f.ai;$('featMultiuser').checked=!!f.multi_user;
+  $('featAi').checked=!!f.ai;$('featMultiuser').checked=!!f.multi_user;$('featRemoteControl').checked=!!f.remote_control;
   $('plansMsg').textContent='Editando plan '+p.name+'.';$('savePlanBtn').textContent='Guardar cambios';
   $('planName').focus();
 }
@@ -3037,7 +3040,7 @@ function clearBusinessPlanForm(){
   $('planEditId').value='';$('planName').value='';$('planCode').value='';$('planAmount').value='0';
   $('planCycle').value='monthly';$('planMaxProjects').value='';$('planMaxPrinters').value='';
   $('featInventory').checked=true;$('featCounters').checked=true;$('featHistory').checked=false;
-  $('featAlerts').checked=false;$('featExports').checked=false;$('featAi').checked=false;$('featMultiuser').checked=false;
+  $('featAlerts').checked=false;$('featExports').checked=false;$('featAi').checked=false;$('featMultiuser').checked=false;$('featRemoteControl').checked=false;
   $('savePlanBtn').textContent='Guardar plan';$('plansMsg').textContent='';
 }
 function renderPlans(){
@@ -3053,7 +3056,7 @@ async function saveBusinessPlan(){
     amount:$('planAmount').value,billing_cycle:$('planCycle').value,max_projects:$('planMaxProjects').value||null,
     max_printers:$('planMaxPrinters').value||null,
     features:{inventory:$('featInventory').checked,counters:$('featCounters').checked,history:$('featHistory').checked,
-      alerts:$('featAlerts').checked,exports:$('featExports').checked,ai:$('featAi').checked,multi_user:$('featMultiuser').checked}
+      alerts:$('featAlerts').checked,exports:$('featExports').checked,ai:$('featAi').checked,multi_user:$('featMultiuser').checked,remote_control:$('featRemoteControl').checked}
   };
   try{await businessAdminRequest(payload);$('plansMsg').textContent='Plan guardado.';clearBusinessPlanForm();await loadCommercialWorkspace()}
   catch(e){$('plansMsg').textContent='No se pudo guardar: '+e.message}
