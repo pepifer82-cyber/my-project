@@ -200,11 +200,11 @@ jobs:
           $snmpV3Path = "$agentRoot\src\SnmpV3Support.cs"
           $snmpV3 = Get-Content $snmpV3Path -Raw
           $v3Old = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text };'
-          $v3New = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text, RawData = variable.Data.ToBytes() };'
+          $v3New = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text, RawData = (variable.Data as OctetString)?.GetRaw() };'
           if (!$snmpV3.Contains($v3Old)) { throw "No se encontró el retorno numérico SNMPv3" }
           $snmpV3 = $snmpV3.Replace($v3Old, $v3New)
           $v3TextOld = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text };'
-          $v3TextNew = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text, RawData = variable.Data.ToBytes() };'
+          $v3TextNew = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text, RawData = (variable.Data as OctetString)?.GetRaw() };'
           if (!$snmpV3.Contains($v3TextOld)) { throw "No se encontró el retorno de texto SNMPv3" }
           $snmpV3 = $snmpV3.Replace($v3TextOld, $v3TextNew)
           [IO.File]::WriteAllText($snmpV3Path, $snmpV3, [Text.Encoding]::UTF8)
