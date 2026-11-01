@@ -376,8 +376,15 @@ jobs:
           [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
           $configHashBefore = (Get-FileHash $configPath -Algorithm SHA256).Hash
 
-          $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
+          Write-Host "TEST STEP 1: installing genuine v0.3.8"
+          $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
+          if (!$oldInstall.WaitForExit(90000)) {
+            Stop-Process -Id $oldInstall.Id -Force -ErrorAction SilentlyContinue
+            throw "La instalación 0.3.8 no terminó en 90 segundos."
+          }
+          $oldInstall.Refresh()
           if ($oldInstall.ExitCode -ne 0) { throw "Falló la instalación real previa v0.3.8: $($oldInstall.ExitCode)" }
+          Write-Host "TEST STEP 1 PASS: v0.3.8 installer exited."
 
           $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
           $uninstallRoot = "HKLM:\$key"
@@ -389,8 +396,21 @@ jobs:
           if ($legacyFileVersion -notlike "0.3.8*") { throw "El agente previo instalado no es 0.3.8: $legacyFileVersion" }
           $legacyFileHash = (Get-FileHash $legacyInstalledExe -Algorithm SHA256).Hash
 
-          $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL /LOG=$env:TEMP\ATPrinterAgent-v039-upgrade.log" -Wait -PassThru
-          if ($newInstall.ExitCode -ne 0) { throw "La actualización no desinstaló la versión anterior correctamente: $($newInstall.ExitCode)" }
+          Write-Host "TEST STEP 2: starting v0.3.9 setup; its InitializeSetup must uninstall v0.3.8 first."
+          $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL /LOG=$env:TEMP\ATPrinterAgent-v039-upgrade.log" -PassThru
+          if (!$newInstall.WaitForExit(120000)) {
+            Stop-Process -Id $newInstall.Id -Force -ErrorAction SilentlyContinue
+            $logPath = Join-Path $env:TEMP "ATPrinterAgent-v039-upgrade.log"
+            if (Test-Path $logPath) { Get-Content $logPath -Tail 80 | Write-Host }
+            throw "El instalador 0.3.9 no terminó la desinstalación/instalación en 120 segundos."
+          }
+          $newInstall.Refresh()
+          if ($newInstall.ExitCode -ne 0) {
+            $logPath = Join-Path $env:TEMP "ATPrinterAgent-v039-upgrade.log"
+            if (Test-Path $logPath) { Get-Content $logPath -Tail 80 | Write-Host }
+            throw "La actualización no desinstaló la versión anterior correctamente: $($newInstall.ExitCode)"
+          }
+          Write-Host "TEST STEP 2 PASS: v0.3.9 setup finished."
 
           $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
           $uninstallRoot = if ([Environment]::Is64BitOperatingSystem) { "HKLM:\$key" } else { "HKLM:\$key" }
@@ -409,7 +429,13 @@ jobs:
 
           $uninstaller = Join-Path $installDir "unins000.exe"
           if (!(Test-Path $uninstaller)) { throw "No se encontró el desinstalador de v0.3.9" }
-          $remove = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -Wait -PassThru
+          Write-Host "TEST STEP 3: uninstalling v0.3.9 to confirm clean removal."
+          $remove = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
+          if (!$remove.WaitForExit(90000)) {
+            Stop-Process -Id $remove.Id -Force -ErrorAction SilentlyContinue
+            throw "El desinstalador 0.3.9 no terminó en 90 segundos."
+          }
+          $remove.Refresh()
           if ($remove.ExitCode -ne 0) { throw "Falló la desinstalación de verificación: $($remove.ExitCode)" }
           if (Test-Path (Join-Path $installDir "ATPrinterAgent.exe")) { throw "Quedó el ejecutable después de desinstalar" }
           if (!(Test-Path $configPath)) { throw "La desinstalación eliminó config.json; eso no está permitido" }
