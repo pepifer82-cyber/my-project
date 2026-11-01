@@ -409,6 +409,13 @@ html[data-theme="dark"] .biz-serial-output{background:#102d25;color:#a9f0c7;bord
 html[data-theme="dark"] .ai-message.user{background:#183b62;color:#d7ebff}
 html[data-theme="dark"] .ai-message.assistant{background:#142c45;color:#e0edfa}
 
+
+.client-account-card{margin:12px 12px 18px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid);display:flex;flex-direction:column;gap:5px;overflow-wrap:anywhere}
+.client-account-card strong{font-size:13px;color:var(--text)}
+.client-account-card span{font-size:11px;color:var(--muted);line-height:1.4}
+.client-account-card.license-off{border-color:#e9bd86;background:#fff8ee}
+html[data-theme="dark"] .client-account-card.license-off{background:#302519;border-color:#75532d}
+
 </style></style>
 </head>
 <body>
@@ -436,6 +443,12 @@ html[data-theme="dark"] .ai-message.assistant{background:#142c45;color:#e0edfa}
     <div class="brand">
       <div class="brand-mark">A&T</div>
       <div><div class="brand-title">Printer Control</div><div class="brand-sub">Cloud monitoring</div></div>
+    </div>
+    <div id="clientAccountCard" class="client-account-card hidden">
+      <strong id="clientCompanyName">Mi empresa</strong>
+      <span id="clientCompanyCode"></span>
+      <span id="clientPlanSummary"></span>
+      <span id="clientLicenseSummary"></span>
     </div>
     <div class="side-section">Proyectos</div>
     <input id="projectSearch" class="project-search" type="search" placeholder="Buscar proyecto">
@@ -902,6 +915,7 @@ async function login(){
   }
 }
 async function logout(){try{await api('/auth/v1/logout',{method:'POST'})}catch{}clearSession();location.reload()}
+let accountEntitlements=null;
 async function loadApp(){
   if(!token())return false;
 
@@ -928,6 +942,7 @@ async function loadApp(){
     const adminCheck=await api('/rest/v1/rpc/control_is_global_admin',{method:'POST',body:'{}'}).catch(()=>false);
     isAdmin=adminCheck===true || (Array.isArray(adminCheck)&&adminCheck[0]===true);
     $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);$('companiesTile').classList.toggle('hidden',!isAdmin);$('commercialTile').classList.toggle('hidden',!isAdmin);
+    await loadAccountEntitlements();
     await loadProjects();
     return true;
   }catch(e){
@@ -2800,6 +2815,50 @@ async function archiveProject(){
     await api('/rest/v1/rpc/control_archive_project',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});
     currentProjectId=null;await loadProjects();alert('Proyecto retirado. Se conservaron sus datos e historial.');
   }catch(e){alert('No se pudo retirar el proyecto: '+e.message)}finally{btn.textContent='Retirar proyecto seleccionado';if(currentProjectId)btn.disabled=false}
+}
+
+
+async function loadAccountEntitlements(){
+  try{
+    const result=await api('/rest/v1/rpc/control_get_my_entitlements',{method:'POST',body:'{}'});
+    applyAccountEntitlements(result||null);
+  }catch(e){
+    console.warn('No se pudo cargar la licencia de la empresa:',e);
+    applyAccountEntitlements(null);
+  }
+}
+function applyAccountEntitlements(data){
+  accountEntitlements=data||null;
+  const card=$('clientAccountCard');
+  if(card){
+    const showCard=!!data&&!isAdmin&&!!data.company_name;
+    card.classList.toggle('hidden',!showCard);
+    card.classList.toggle('license-off',showCard&&!data.license_active);
+    if(showCard){
+      $('clientCompanyName').textContent=data.company_name;
+      $('clientCompanyCode').textContent=data.company_code||'';
+      $('clientPlanSummary').textContent='Plan: '+(data.plan_name||'Sin plan');
+      const state=data.license_active?'Servicio activo':'Servicio suspendido o licencia vencida';
+      const end=data.ends_at?' · vence '+new Date(data.ends_at).toLocaleDateString('es-PY'):'';
+      $('clientLicenseSummary').textContent=state+end+(data.license_active?'':' · Los datos históricos se conservan. Contactá a A&T para renovar.');
+    }
+  }
+  const features=data?.features||{};
+  const enabled=name=>isAdmin||features[name]===true;
+  const setFeatureView=(name,on)=>{
+    document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
+    const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
+  };
+  setFeatureView('inventario',enabled('inventory'));
+  setFeatureView('contadores',enabled('counters'));
+  setFeatureView('alertas',enabled('alerts'));
+  const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
+  document.querySelectorAll('#exportExcelBtn,#counterExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
+    .forEach(el=>el.classList.toggle('hidden',!enabled('exports')));
+  if(!enabled('inventory')&&currentView==='inventario')showView('resumen');
+  if(!enabled('counters')&&currentView==='contadores')showView('resumen');
+  if(!enabled('alerts')&&currentView==='alertas')showView('resumen');
+  if(!enabled('ai')&&currentView==='asistente')showView('resumen');
 }
 
 let businessCompanies=[],businessPlans=[],aiHistory=[];
