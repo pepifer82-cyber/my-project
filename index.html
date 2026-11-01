@@ -1052,8 +1052,19 @@ async function loadProjects(selectId){
     $('archiveProjectBtn').disabled=true;renderAll();return;
   }
   $('projectEmpty').classList.add('hidden');
-  const preferred=projects.some(p=>p.id===selectId)?selectId:
-    (projects.some(p=>p.id===currentProjectId)?currentProjectId:projects[0].id);
+  const scopedProjects=isAdmin&&sidebarCompanyFilter!=='all'
+    ?projects.filter(p=>String(p.company_id)===String(sidebarCompanyFilter))
+    :projects;
+  if(!scopedProjects.length){
+    currentProjectId=null;rows=[];agentRows=[];
+    $('topProjectName').textContent='Panel';$('projectName').textContent='Sin proyectos';
+    $('projectMeta').textContent=isAdmin?'Esta empresa todavía no tiene proyectos activos.':'Todavía no tenés proyectos activos.';
+    $('serialValue').textContent='—';$('serialList').innerHTML='';
+    $('archiveProjectBtn').disabled=true;
+    renderProjectList();renderAll();return;
+  }
+  const preferred=scopedProjects.some(p=>p.id===selectId)?selectId:
+    (scopedProjects.some(p=>p.id===currentProjectId)?currentProjectId:scopedProjects[0].id);
   openProject(preferred);
 }
 function renderSidebarCompanyFilter(){
