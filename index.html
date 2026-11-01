@@ -243,6 +243,55 @@ html[data-theme="dark"] .auth-wrap{background:transparent}
 /* === END THEME SWITCH === */
 
 /* === A&T · ICONOS DE MÓDULOS AMPLIADOS === */
+
+/* === A&T · ICONOS EXTRA GRANDES === */
+.launcher{
+  grid-template-columns:repeat(5,minmax(0,1fr));
+  gap:13px;
+}
+.launcher .app-btn{
+  min-height:146px;
+  padding:17px 15px;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  justify-content:flex-start;
+  border-radius:16px;
+}
+.launcher .app-icon{
+  width:68px;height:68px;min-width:68px;
+  border-radius:19px;
+  font-size:37px;
+  font-weight:900;
+  line-height:1;
+  margin:0 0 13px;
+  display:grid;
+  place-items:center;
+}
+.launcher .app-title{font-size:15px;line-height:1.2}
+.launcher .app-sub{font-size:12px;line-height:1.25}
+html[data-theme="dark"] .launcher .app-icon{
+  box-shadow:0 0 22px #008cff35,0 0 0 1px #45bdff26 inset;
+}
+html[data-theme="dark"] .launcher .app-btn.active .app-icon{
+  box-shadow:0 0 25px #00aaff75,0 0 0 1px #b6f2ff85 inset;
+}
+@media(max-width:1180px){
+  .launcher{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .launcher{grid-template-columns:repeat(3,minmax(0,1fr));gap:11px}
+  .launcher .app-btn{min-height:138px}
+  .launcher .app-icon{width:64px;height:64px;min-width:64px;font-size:34px}
+}
+@media(max-width:700px){
+  .launcher{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .launcher .app-btn{min-height:132px;padding:14px 13px}
+  .launcher .app-icon{width:60px;height:60px;min-width:60px;font-size:32px;margin-bottom:10px}
+  .launcher .app-title{font-size:14px}
+  .launcher .app-sub{font-size:11px}
+}
+
 .launcher .app-btn{
   min-height:116px;
   padding:15px 13px;
