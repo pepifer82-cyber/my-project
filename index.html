@@ -2930,7 +2930,10 @@ async function createCompanyFromPanel(){
   $('companySerialOutput').classList.add('hidden');
   try{
     const result=await businessAdminRequest(payload),project=result.project;
-    $('companyCreateMsg').textContent='Empresa creada: '+result.company.company_code+'. Cuenta: '+result.company.email+'.';
+    const accountNotice=result.account_created
+      ? ' Se creó una cuenta nueva; la contraseña inicial que ingresaste es la que debe usar el cliente.'
+      : ' Ese correo ya tenía una cuenta; se conservó su contraseña anterior y la contraseña ingresada no se modificó.';
+    $('companyCreateMsg').textContent='Empresa creada: '+result.company.company_code+'. Cuenta: '+result.company.email+'.'+accountNotice;
     $('companySerialOutput').classList.remove('hidden');
     if(project){
       $('companySerialOutput').innerHTML='<strong>Serial de activación para '+escapeHtml(project.name)+':</strong><p><code>'+escapeHtml(project.serial)+'</code></p><button class="toolbar-btn" type="button" onclick="copyProjectSerial('+JSON.stringify(project.serial)+')">Copiar serial del agente</button><p>Guardalo y cargalo en el agente de esta empresa. Este serial pertenece solamente a este proyecto.</p>';
