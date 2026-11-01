@@ -2904,13 +2904,15 @@ function applyAccountEntitlements(data){
     }
   }
   const features=data?.features||{};
-  const enabled=name=>isAdmin||!data||features[name]===true;
+  const enabled=name=>isAdmin||(data?features[name]===true:['inventory','counters'].includes(name));
+  const canManageCompany=isAdmin||['owner','admin'].includes(data?.role);
+  if($('newProjectBtn'))$('newProjectBtn').classList.toggle('hidden',!canManageCompany);
   const setFeatureView=(name,on)=>{
     document.querySelectorAll('[data-view="'+name+'"]').forEach(el=>el.classList.toggle('hidden',!on));
     const view=$('view-'+name);if(view)view.classList.toggle('hidden',!on);
   };
   ['inventario','seriales','tinta','desconectadas','agentes','retiradas'].forEach(name=>setFeatureView(name,enabled('inventory')));
-  setFeatureView('contadores',enabled('history'));
+  setFeatureView('contadores',enabled('counters')&&enabled('history'));
   setFeatureView('alertas',enabled('alerts'));
   setFeatureView('control-remoto',enabled('remote_control'));
   const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
