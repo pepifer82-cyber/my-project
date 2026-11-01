@@ -2974,8 +2974,10 @@ function renderCompanies(){
     const sub=c.subscription||{},projectRows=Array.isArray(c.projects)?c.projects:[];
     const status=c.status||'active';
     const license=sub.status?(sub.status+' · '+(sub.ends_at?new Date(sub.ends_at).toLocaleDateString():'sin vencimiento')):'Sin licencia';
-    const next=status==='active'?'suspended':'active',action=status==='active'?'Suspender':'Reactivar';
-    return '<tr><td><code>'+escapeHtml(c.company_code)+'</code></td><td>'+escapeHtml(c.name)+'</td><td>'+escapeHtml(c.email||'—')+'</td><td>'+escapeHtml(sub.plan?.name||'Sin plan')+'</td><td>'+projectRows.filter(p=>p.active).length+' / '+projectRows.length+'</td><td>'+escapeHtml(license)+'</td><td><span class="biz-company-status '+escapeHtml(status)+'">'+escapeHtml(status)+'</span></td><td><button class="icon-btn" type="button" onclick="toggleCompanyStatus('+JSON.stringify(c.id)+','+JSON.stringify(next)+')">'+action+'</button></td></tr>';
+    const next=status==='active'?'suspended':'active';
+    const action=status==='active'?'Suspender':status==='suspended'?'Reactivar':'Cerrada';
+    const locked=status==='closed'?' disabled':'';
+    return '<tr><td><code>'+escapeHtml(c.company_code)+'</code></td><td>'+escapeHtml(c.name)+'</td><td>'+escapeHtml(c.email||'—')+'</td><td>'+escapeHtml(sub.plan?.name||'Sin plan')+'</td><td>'+projectRows.filter(p=>p.active).length+' / '+projectRows.length+'</td><td>'+escapeHtml(license)+'</td><td><span class="biz-company-status '+escapeHtml(status)+'">'+escapeHtml(status)+'</span></td><td><button class="icon-btn" type="button"'+locked+' onclick="toggleCompanyStatus('+JSON.stringify(c.id)+','+JSON.stringify(next)+')">'+action+'</button></td></tr>';
   }).join(''):'<tr><td colspan="8" class="empty">Todavía no hay empresas registradas.</td></tr>';
 }
 async function createCompanyFromPanel(){
