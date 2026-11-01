@@ -73,7 +73,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Falló publish del agente 0.3.8 x64" }
           # The historical installer script is sourced from the verified v0.3.8 files,
           # because the reconstructed source tree contains only the application project.
-          $legacyIssSource = ".buildsrc\v038\AandTPrinterAgent.iss"
+          $legacyIssSource = Join-Path $env:GITHUB_WORKSPACE ".buildsrc\v038\AandTPrinterAgent.iss"
           if (!(Test-Path $legacyIssSource)) { throw "Falta el script histórico verificado: $legacyIssSource" }
           Copy-Item $legacyIssSource "$legacyRoot\AandTPrinterAgent.iss" -Force
           if (Test-Path "$agentRoot\README.txt") {
