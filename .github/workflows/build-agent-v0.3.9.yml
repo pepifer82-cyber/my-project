@@ -194,15 +194,20 @@ jobs:
           $helper = "internal static long? ParseBrotherPageCounter(byte[]? raw)`r`n    {`r`n        // BROTHER-MIB brInfoCounter: code 0, encoding 1, length 4, then a big-endian UInt32.`r`n        if (raw is null || raw.Length < 7 || raw[0] != 0x00 || raw[1] != 0x01 || raw[2] != 0x04) return null;`r`n        return (long)BinaryPrimitives.ReadUInt32BigEndian(raw.AsSpan(3, 4));`r`n    }`r`n`r`n    private static long? ReadCounterNumber(SnmpResult? value)"
           if (!$snmp.Contains($helperAnchor)) { throw "No se encontró ReadCounterNumber para insertar el parser Brother" }
           $snmp = $snmp.Replace($helperAnchor, $helper)
+          [IO.File]::WriteAllText($snmpPath, $snmp, [Text.Encoding]::UTF8)
+
+          # SNMPv3 parser lives in its own source file.
+          $snmpV3Path = "$agentRoot\src\SnmpV3Support.cs"
+          $snmpV3 = Get-Content $snmpV3Path -Raw
           $v3Old = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text };'
           $v3New = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text, RawData = variable.Data.ToBytes() };'
-          if (!$snmp.Contains($v3Old)) { throw "No se encontró el retorno numérico SNMPv3" }
-          $snmp = $snmp.Replace($v3Old, $v3New)
+          if (!$snmpV3.Contains($v3Old)) { throw "No se encontró el retorno numérico SNMPv3" }
+          $snmpV3 = $snmpV3.Replace($v3Old, $v3New)
           $v3TextOld = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text };'
           $v3TextNew = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text, RawData = variable.Data.ToBytes() };'
-          if (!$snmp.Contains($v3TextOld)) { throw "No se encontró el retorno de texto SNMPv3" }
-          $snmp = $snmp.Replace($v3TextOld, $v3TextNew)
-          [IO.File]::WriteAllText($snmpPath, $snmp, [Text.Encoding]::UTF8)
+          if (!$snmpV3.Contains($v3TextOld)) { throw "No se encontró el retorno de texto SNMPv3" }
+          $snmpV3 = $snmpV3.Replace($v3TextOld, $v3TextNew)
+          [IO.File]::WriteAllText($snmpV3Path, $snmpV3, [Text.Encoding]::UTF8)
 
           $testAdd = @'
           public sealed class BrotherCounterTests
