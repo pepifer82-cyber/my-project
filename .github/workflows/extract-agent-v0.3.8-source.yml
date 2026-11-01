@@ -1,0 +1,82 @@
+name: Extract verified A&T Printer Agent v0.3.8 source
+
+on:
+  push:
+    branches: ["agent-v0.3.9-snmp-mib"]
+    paths:
+      - "build-v039-source-audit.txt"
+
+permissions:
+  contents: read
+
+jobs:
+  extract-source:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact v0.3.8 base and patches
+        uses: actions/checkout@v4
+
+      - name: Reassemble and verify original source archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Se esperaban 23 partes de fuente base; encontradas: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-base.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Hash de la fuente base incorrecto: $actual" }
+          New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo extraer la fuente base" }
+
+      - name: Apply the exact v0.3.8 build patches
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $steps = @(
+            @{ File = ".buildsrc\v035direct\apply-patches.ps1"; Label = "0.3.5 serial/updater"; Extra = @(".buildsrc\v035direct\NetworkHttpProbe.txt", ".buildsrc\v035direct\UpdateManager.cs") },
+            @{ File = ".buildsrc\v036\apply-v036.ps1"; Label = "0.3.6 remote command"; Extra = @() },
+            @{ File = ".buildsrc\v037\apply-v037.ps1"; Label = "0.3.7 reader fixes"; Extra = @() },
+            @{ File = ".buildsrc\v037-post\apply-post.ps1"; Label = "0.3.7 merge preservation"; Extra = @() },
+            @{ File = ".buildsrc\v038\apply-v038.ps1"; Label = "0.3.8 target-PC approval"; Extra = @() }
+          )
+          foreach ($step in $steps) {
+            if (!(Test-Path $step.File)) { throw "Falta el parche: $($step.File)" }
+            foreach ($item in $step.Extra) { if (!(Test-Path $item)) { throw "Falta el archivo auxiliar: $item" } }
+            pwsh -NoProfile -ExecutionPolicy Bypass -File $step.File -AgentRoot $agentRoot
+            if ($LASTEXITCODE -ne 0) { throw "Falló el parche $($step.Label)" }
+          }
+          if (!(Test-Path "$agentRoot\src\ATPrinterAgent.csproj")) { throw "No se encontró el proyecto .NET final" }
+          if (!(Test-Path "$agentRoot\src\SnmpClient.cs")) { throw "No se encontró SnmpClient.cs" }
+          if (!(Test-Path "$agentRoot\src\NetworkPrinterScanner.cs")) { throw "No se encontró NetworkPrinterScanner.cs" }
+          $version = Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.8</Version>'
+          if (!$version) { throw "La fuente extraída no quedó en versión 0.3.8" }
+
+      - name: Create source audit package
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $out = "$PWD\ATPrinterAgent_v0.3.8-verified-source.zip"
+          if (Test-Path $out) { Remove-Item $out -Force }
+          Compress-Archive -Path "$agentRoot\*" -DestinationPath $out -CompressionLevel Optimal
+          if (!(Test-Path $out)) { throw "No se generó el ZIP de fuente" }
+          $hash = (Get-FileHash $out -Algorithm SHA256).Hash.ToLower()
+          "$hash  ATPrinterAgent_v0.3.8-verified-source.zip" | Set-Content -Encoding ascii "$PWD\SHA256SUMS-source.txt"
+          Write-Host "SHA256 source: $hash"
+          Write-Host "Source zip bytes: $((Get-Item $out).Length)"
+
+      - name: Upload exact v0.3.8 source
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATPrinterAgent_v0.3.8-verified-source
+          path: |
+            ATPrinterAgent_v0.3.8-verified-source.zip
+            SHA256SUMS-source.txt
+          if-no-files-found: error
+          retention-days: 30
