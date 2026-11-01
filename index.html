@@ -2351,8 +2351,8 @@ function renderCounterRows(){
       '<td>'+escapeHtml(r.project_name||'—')+'</td>'+
       '<td>'+escapeHtml(r.manufacturer||'—')+'</td>'+
       '<td>'+escapeHtml(r.model||r.printer||'—')+'</td>'+
-      '<td><input class="inline-edit serial-edit"
-      '<td>'+escapeHtml(r.ip_address||'—')+'</td>'+ type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
+      '<td><input class="inline-edit serial-edit" type="text" maxlength="120" title="Número de serie físico de la impresora, no el serial de activación del proyecto" placeholder="Serie de fábrica" value="'+escapeHtml(r.serial_number||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="serial_number" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td>'+
+      '<td>'+escapeHtml(r.ip_address||'—')+'</td>'+
       '<td>'+escapeHtml(dt(r.first_reading_at))+'</td>'+
       '<td>'+escapeHtml(dt(r.last_reading_at))+'</td>'+
       '<td>'+escapeHtml(show(r.first_page_count))+'</td>'+
