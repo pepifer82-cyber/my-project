@@ -416,6 +416,12 @@ html[data-theme="dark"] .ai-message.assistant{background:#142c45;color:#e0edfa}
 .client-account-card.license-off{border-color:#e9bd86;background:#fff8ee}
 html[data-theme="dark"] .client-account-card.license-off{background:#302519;border-color:#75532d}
 
+
+.auth-link{border:0;background:transparent;color:var(--accent,#2563eb);padding:9px 6px;font:inherit;font-size:12px;font-weight:750;cursor:pointer}
+.password-recovery-panel{display:flex;flex-direction:column;gap:12px;margin-top:14px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid)}
+.password-recovery-panel label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:750;color:var(--muted)}
+.password-recovery-panel input{width:100%;min-height:42px;border:1px solid var(--line);border-radius:9px;padding:10px;background:var(--panel-solid);color:var(--text);font:inherit}
+
 </style></style>
 </head>
 <body>
@@ -426,13 +432,20 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
       <div class="brand-mark">A&T</div>
       <div><h1>A&T Printer Control</h1><p>Monitoreo de impresoras en la nube</p></div>
     </div>
-    <div class="auth-fields">
+    <div id="authFields" class="auth-fields">
       <div><label>Email</label><input id="email" type="email" autocomplete="username" placeholder="tu@email.com"></div>
       <div><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="••••••••"></div>
     </div>
     <div class="auth-actions">
       <button id="loginBtn" class="primary" type="button">Ingresar</button>
-      
+      <button id="forgotPasswordBtn" class="auth-link" type="button">Olvidé mi contraseña</button>
+    </div>
+    <div id="passwordRecoveryPanel" class="password-recovery-panel hidden">
+      <strong>Crear una contraseña nueva</strong>
+      <label>Nueva contraseña<input id="recoveryPassword" type="password" autocomplete="new-password" minlength="8" placeholder="Mínimo 8 caracteres"></label>
+      <label>Confirmar contraseña<input id="recoveryPasswordConfirm" type="password" autocomplete="new-password" minlength="8" placeholder="Repetí la contraseña"></label>
+      <button id="saveRecoveryPasswordBtn" class="primary" type="button">Guardar nueva contraseña</button>
+      <button id="cancelRecoveryBtn" class="auth-link" type="button">Volver al ingreso</button>
     </div>
     <div id="authMsg" class="auth-msg muted"></div>
   </div>
@@ -884,6 +897,52 @@ async function api(path,opts={}){
   if(!res.ok)throw new Error(data?.message||data?.msg||data?.error_description||data?.error||textBody||('HTTP '+res.status));
   return data;
 }
+
+async function requestPasswordRecovery(){
+  const email=$('email').value.trim();
+  if(!email||!email.includes('@')){authMsg('Ingresá primero el correo de la cuenta.','danger');$('email').focus();return}
+  $('forgotPasswordBtn').disabled=true;authMsg('Solicitando enlace de recuperación...');
+  try{
+    const redirect=location.origin+location.pathname;
+    await api('/auth/v1/recover?redirect_to='+encodeURIComponent(redirect),{
+      method:'POST',body:JSON.stringify({email})
+    });
+    authMsg('Si el correo corresponde a una cuenta registrada, Supabase enviará un enlace para crear una contraseña nueva. Revisá también Spam.','ok');
+  }catch(e){authMsg('No se pudo solicitar el enlace: '+e.message,'danger')}
+  finally{$('forgotPasswordBtn').disabled=false}
+}
+function handleRecoveryRedirect(){
+  const hash=String(location.hash||'').replace(/^#/,'');
+  if(!hash)return false;
+  const params=new URLSearchParams(hash);
+  if(params.get('type')!=='recovery')return false;
+  const accessToken=params.get('access_token'),refreshToken=params.get('refresh_token');
+  if(!accessToken||!refreshToken){authMsg('El enlace de recuperación no es válido o venció. Solicitá uno nuevo.','danger');return true}
+  saveSession({access_token:accessToken,refresh_token:refreshToken});
+  history.replaceState(null,document.title,location.pathname+location.search);
+  $('authFields')?.classList.add('hidden');
+  $('loginBtn')?.classList.add('hidden');
+  $('forgotPasswordBtn')?.classList.add('hidden');
+  $('passwordRecoveryPanel')?.classList.remove('hidden');
+  authMsg('Ingresá tu contraseña nueva.','muted');
+  return true;
+}
+async function saveRecoveredPassword(){
+  const password=$('recoveryPassword').value,confirmPassword=$('recoveryPasswordConfirm').value;
+  if(password.length<8){authMsg('La contraseña debe tener al menos 8 caracteres.','danger');return}
+  if(password!==confirmPassword){authMsg('Las contraseñas no coinciden.','danger');return}
+  const btn=$('saveRecoveryPasswordBtn');btn.disabled=true;authMsg('Actualizando contraseña...');
+  try{
+    await api('/auth/v1/user',{method:'PUT',body:JSON.stringify({password})});
+    clearSession();
+    $('recoveryPassword').value='';$('recoveryPasswordConfirm').value='';
+    $('passwordRecoveryPanel').classList.add('hidden');
+    $('authFields').classList.remove('hidden');$('loginBtn').classList.remove('hidden');$('forgotPasswordBtn').classList.remove('hidden');
+    authMsg('Contraseña actualizada. Ya podés ingresar con tu nueva contraseña.','ok');
+  }catch(e){authMsg('No se pudo actualizar la contraseña: '+e.message,'danger')}
+  finally{btn.disabled=false}
+}
+
 async function login(){
   const email=$('email').value.trim(),password=$('password').value;
   if(!email||!password){authMsg('Ingresá correo y contraseña.','danger');return}
@@ -3118,6 +3177,9 @@ $('themeToggleApp').addEventListener('click',toggleTheme);
 document.querySelectorAll('.app-btn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
 $('adminNavBtn').addEventListener('click',()=>showView('administrar'));
 $('loginBtn').addEventListener('click',login);$('logoutBtn').addEventListener('click',logout);
+$('forgotPasswordBtn').addEventListener('click',requestPasswordRecovery);
+$('saveRecoveryPasswordBtn').addEventListener('click',saveRecoveredPassword);
+$('cancelRecoveryBtn').addEventListener('click',()=>{clearSession();$('passwordRecoveryPanel').classList.add('hidden');$('authFields').classList.remove('hidden');$('loginBtn').classList.remove('hidden');$('forgotPasswordBtn').classList.remove('hidden');authMsg('Ingresá tu correo y contraseña.','muted')});
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
 $('newProjectBtn').addEventListener('click',()=>{$('projectModal').classList.remove('hidden');$('projectNameInput').focus()});
 $('archiveProjectBtn').addEventListener('click',archiveProject);
@@ -3126,7 +3188,7 @@ $('newUserProject').addEventListener('change',loadManagedUsers);$('refreshUsersB
 $('cancelProjectBtn').addEventListener('click',()=>{$('projectModal').classList.add('hidden')});
 $('createProjectBtn').addEventListener('click',createProject);$('copySerialBtn').addEventListener('click',copySerial);$('newSerialBtn').addEventListener('click',generateSerial);
 $('cancelPrinterBtn').addEventListener('click',closePrinterEditor);$('savePrinterBtn').addEventListener('click',savePrinterMeta);
-loadApp();setInterval(()=>{if(currentProjectId)loadProjectData()},30000);
+if(!handleRecoveryRedirect())loadApp();setInterval(()=>{if(currentProjectId)loadProjectData()},30000);
 </script>
 </body>
 </html>
