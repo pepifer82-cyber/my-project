@@ -499,7 +499,7 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
         <h1 id="projectName">Proyecto</h1>
         <p id="projectMeta">Seleccioná un proyecto para comenzar.</p>
       </div>
-      <div class="serial-panel">
+      <div class="serial-panel hidden">
         <div class="serial-label">Serial de activación</div>
         <div id="serialValue" class="serial-value">—</div>
         <div id="serialList" class="serial-list"></div>
@@ -514,11 +514,11 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
     <section id="launcher" class="launcher">
       <button class="app-btn active" data-view="resumen" type="button"><div class="app-icon">◈</div><div class="app-title">Resumen</div><div class="app-sub">Vista general</div></button>
       <button class="app-btn" data-view="inventario" type="button"><div class="app-icon">▦</div><div class="app-title">Inventario</div><div class="app-sub">Equipos y modelos</div></button>
-      <button class="app-btn" data-view="seriales" type="button"><div class="app-icon">№</div><div class="app-title">Seriales</div><div class="app-sub">Identificación de fábrica</div></button>
+      <button class="app-btn hidden" data-view="seriales" type="button"><div class="app-icon">№</div><div class="app-title">Seriales</div><div class="app-sub">Identificación de fábrica</div></button>
       <button class="app-btn" data-view="tinta" type="button"><div class="app-icon">◉</div><div class="app-title">Tóner</div><div class="app-sub">Niveles de tinta</div></button>
       <button class="app-btn" data-view="alertas" type="button"><div class="app-icon">✉</div><div class="app-title">Alertas</div><div class="app-sub">Correo y consumibles</div></button>
       <button class="app-btn" data-view="desconectadas" type="button"><div class="app-icon">!</div><div class="app-title">Desconectadas</div><div class="app-sub">Atención requerida</div></button>
-      <button class="app-btn" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
+      <button class="app-btn hidden" data-view="agentes" type="button"><div class="app-icon">⌁</div><div class="app-title">Agentes</div><div class="app-sub">Equipos conectados</div></button>
       <button class="app-btn" data-view="control-remoto" type="button"><div class="app-icon">📡</div><div class="app-title">Control remoto</div><div class="app-sub">IP · USB · Buscar ahora</div></button>
       <button class="app-btn" data-view="contadores" type="button"><div class="app-icon">#</div><div class="app-title">Contadores</div><div class="app-sub">Historial por fechas</div></button>
       <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
@@ -1077,28 +1077,30 @@ function renderProjectList(){
     (!term||String(p.name||'').toLowerCase().includes(term))
   );
   if(isAdmin){
-    const companyMap=new Map(projectCompanies.map(c=>[String(c.id),c]));
     const groups=new Map();
     for(const p of visible){
       const key=String(p.company_id||'sin-empresa');
       if(!groups.has(key))groups.set(key,[]);
       groups.get(key).push(p);
     }
-    $('projectList').innerHTML=[...groups.entries()].map(([key,items])=>{
-      const company=companyMap.get(key);
-      const name=company?(company.company_code==='AT-EMP-000001'?'Operación interna A&T':company.name):'Empresa sin identificar';
-      return '<div class="project-group"><div class="project-group-title">'+escapeHtml(name)+'</div>'+
-        items.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+escapeHtml(p.id)+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('')+
-      '</div>';
-    }).join('');
+    const companiesToShow=sidebarCompanyFilter==='all'
+      ? projectCompanies
+      : projectCompanies.filter(company=>String(company.id)===String(sidebarCompanyFilter));
+    const companyGroups=companiesToShow.map(company=>{
+      const key=String(company.id),items=groups.get(key)||[];
+      const name=company.company_code==='AT-EMP-000001'?'Operación interna A&T':company.name;
+      const projectButtons=items.length
+        ? items.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+escapeHtml(p.id)+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('')
+        : '<div class="project-empty-hint">Sin proyectos activos. Podés agregar el primero.</div>';
+      return '<div class="project-group"><div class="project-group-title">'+escapeHtml(name)+'</div>'+projectButtons+'</div>';
+    });
+    $('projectList').innerHTML=companyGroups.join('');
   }else{
     $('projectList').innerHTML=visible.map(p=>'<button class="project-item '+(p.id===currentProjectId?'active':'')+'" data-project="'+escapeHtml(p.id)+'" type="button"><span class="project-dot"></span><span class="project-name">'+escapeHtml(p.name)+'</span></button>').join('');
   }
   $('projectList').querySelectorAll('.project-item').forEach(b=>b.addEventListener('click',()=>openProject(b.dataset.project)));
-  if(!visible.length){
-    $('projectList').innerHTML='<div class="project-empty-hint">'+
-      (isAdmin?'Esta empresa todavía no tiene proyectos activos.':'Todavía no hay proyectos. Podés agregar el primero desde el botón inferior.')+
-    '</div>';
+  if(!visible.length&&!isAdmin){
+    $('projectList').innerHTML='<div class="project-empty-hint">Todavía no hay proyectos. Podés agregar el primero desde el botón inferior.</div>';
   }
 }
 function changeSidebarCompanyFilter(value){
