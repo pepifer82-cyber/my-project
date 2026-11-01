@@ -177,38 +177,15 @@ jobs:
           if (!$snmp.Contains($rawTextOld)) { throw "No se encontró el decodificador de OCTET STRING SNMP v1/v2c" }
           $snmp = $snmp.Replace($rawTextOld, $rawTextNew)
 
-          $brotherOld = @'
-          var value = await GetAsync(ip, OidsPublic.BrotherPageCounter, ct).ConfigureAwait(false);
-          var count = ReadCounterNumber(value);
-          if (count is >= 0) return count;
-          '@
-          $brotherNew = @'
-          var value = await GetAsync(ip, OidsPublic.BrotherPageCounter, ct).ConfigureAwait(false);
-          var count = ReadCounterNumber(value) ?? ParseBrotherPageCounter(value.RawData);
-          if (count is >= 0) return count;
-          '@
-          $brotherOld = $brotherOld.TrimEnd()
-          $brotherNew = $brotherNew.TrimEnd()
-          if (!$snmp.Contains($brotherOld)) { throw "No se encontró el bloque Brother brInfoCounter" }
-          $snmp = $snmp.Replace($brotherOld, $brotherNew)
+          $brotherStart = $snmp.IndexOf('if (vendorText.Contains("brother"))')
+          $brotherCount = $snmp.IndexOf('var count = ReadCounterNumber(value);', $brotherStart)
+          if ($brotherStart -lt 0 -or $brotherCount -lt 0) { throw "No se encontró el bloque Brother brInfoCounter" }
+          $oldCountLine = 'var count = ReadCounterNumber(value);'
+          $newCountLine = 'var count = ReadCounterNumber(value) ?? ParseBrotherPageCounter(value.RawData);'
+          $snmp = $snmp.Substring(0, $brotherCount) + $newCountLine + $snmp.Substring($brotherCount + $oldCountLine.Length)
 
-          $helperAnchor = @'
-          private static long? ReadCounterNumber(SnmpResult? value)
-          '@
-          $helper = @'
-          internal static long? ParseBrotherPageCounter(byte[]? raw)
-          {
-              // BROTHER-MIB brInfoCounter: records are code, encoding=1, length=4,
-              // then a big-endian UInt32. Record code 0 is the total page counter.
-              if (raw is null || raw.Length < 7 || raw[0] != 0x00 || raw[1] != 0x01 || raw[2] != 0x04)
-                  return null;
-              return (long)BinaryPrimitives.ReadUInt32BigEndian(raw.AsSpan(3, 4));
-          }
-
-          private static long? ReadCounterNumber(SnmpResult? value)
-          '@
-          $helperAnchor = $helperAnchor.TrimEnd()
-          $helper = $helper.TrimEnd()
+          $helperAnchor = 'private static long? ReadCounterNumber(SnmpResult? value)'
+          $helper = "internal static long? ParseBrotherPageCounter(byte[]? raw)`r`n    {`r`n        // BROTHER-MIB brInfoCounter: code 0, encoding 1, length 4, then a big-endian UInt32.`r`n        if (raw is null || raw.Length < 7 || raw[0] != 0x00 || raw[1] != 0x01 || raw[2] != 0x04) return null;`r`n        return (long)BinaryPrimitives.ReadUInt32BigEndian(raw.AsSpan(3, 4));`r`n    }`r`n`r`n    private static long? ReadCounterNumber(SnmpResult? value)"
           if (!$snmp.Contains($helperAnchor)) { throw "No se encontró ReadCounterNumber para insertar el parser Brother" }
           $snmp = $snmp.Replace($helperAnchor, $helper)
           $v3Old = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text };'
