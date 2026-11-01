@@ -1043,6 +1043,7 @@ function printerColorMode(r){
     /\b(?:samsung\s*)?(?:clp|clx|xpress\s*c)\s*\d/,
     /\b(?:brother\s*)?(?:hl|dcp|mfc)[- ]?l?\d{3,5}(?:cdw|cdn)\b|\bdcp-t\d|\bmfc-j\d/,
     /\b(?:canon\s*)?(?:lbp|mf)\s*\d{3,4}c\w*|\bimage(?:runner)?\s*(?:advance\s*)?c\s*\d/,
+    /\bcanon\b.*\bg\d{4}\b/,
     /\b(?:epson\s*)?(?:et-?\d{3,5}|l\d{3,5})\b/,
     /\blaserjet.*\b(?:m452|m454|m477|m479|m553|m555|m577|m578|m652|m653|m681|m682)\b/
   ];
@@ -1054,7 +1055,10 @@ function printerColorMode(r){
     /\bpantum\b.*\b(?:bm|p|m)\s*\d/,
     /\bsamsung\b.*\b(?:ml|scx|m\s*\d{3}|xpress\s*m)\w*/,
     /\bricoh\b.*\b(?:mp|sp)\s*(?!c\s*\d)\w*/,
-    /\bworkcentre\s*\d{4}\b/
+    /\bworkcentre\s*\d{4}\b/,
+    /\bbrother\b.*\b(?:hl-l1\d{3}|hl-l2[0-6]\d{2}|dcp-l2\d{3}|mfc-l2\d{3})\w*/,
+    /\bcanon\b.*\b(?:i-sensys\s*)?lbp\s*\d{3,4}(?!c)\w*/,
+    /\bcanon\b.*\bimage(?:runner)?(?:\s+advance)?\s+\d{4}i\b/
   ];
   if(monoPatterns.some(pattern=>pattern.test(modelText)))return 'mono';
 
