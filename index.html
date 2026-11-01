@@ -2421,13 +2421,29 @@ function submitRemoteIp(command){const ip=$('remoteIpValue').value.trim();if(!re
 function submitRemoteRange(command){const start=$('remoteRangeStart').value.trim(),end=$('remoteRangeEnd').value.trim(),num=s=>s.split('.').reduce((n,p)=>n*256+Number(p),0);if(!remoteIpv4(start)||!remoteIpv4(end)||num(start)>num(end)){$('remoteConfigMsg').textContent='Ingresá un rango IPv4 válido y ordenado.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{start,end})}
 
 async function createProject(){
-  const name=$('projectNameInput').value.trim();if(!name){$('projectMsg').textContent='Escribí un nombre.';return}
+  const name=$('projectNameInput').value.trim();
+  if(name.length<2){$('projectMsg').textContent='Ingresá un nombre de al menos 2 caracteres.';return}
   $('createProjectBtn').disabled=true;$('projectMsg').textContent='Creando proyecto...';
   try{
-    const result=await api('/rest/v1/rpc/control_create_project',{method:'POST',body:JSON.stringify({p_name:name})});const p=Array.isArray(result)?result[0]:result;
-    $('projectModal').classList.add('hidden');$('projectNameInput').value='';$('projectMsg').textContent='';await loadProjects(p?.project_id);
-    if(p?.serial)alert('Proyecto creado. Serial del agente:\n\n'+p.serial+'\n\nGuardalo para configurar el agente.');
-  }catch(e){$('projectMsg').textContent='Error: '+e.message}finally{$('createProjectBtn').disabled=false}
+    let p=null;
+    if(isAdmin){
+      if(!sidebarCompanyFilter||sidebarCompanyFilter==='all'){
+        throw new Error('Primero seleccioná el cliente en el selector de la izquierda. Así el proyecto quedará vinculado a la empresa correcta.');
+      }
+      const company=projectCompanies.find(x=>String(x.id)===String(sidebarCompanyFilter));
+      if(!company)throw new Error('No se encontró la empresa seleccionada. Actualizá el panel e intentá nuevamente.');
+      const result=await businessAdminRequest({action:'create_project',company_id:sidebarCompanyFilter,name});
+      p=result.project;
+    }else{
+      const result=await api('/rest/v1/rpc/control_create_project',{method:'POST',body:JSON.stringify({p_name:name})});
+      const row=Array.isArray(result)?result[0]:result;
+      p={id:row?.project_id,name:row?.project_name,serial:row?.serial};
+    }
+    $('projectModal').classList.add('hidden');$('projectNameInput').value='';$('projectMsg').textContent='';
+    await loadProjects(p?.id);
+    if(p?.serial)alert('Proyecto creado para '+(isAdmin?(projectCompanies.find(x=>String(x.id)===String(sidebarCompanyFilter))?.name||'el cliente'):'tu empresa')+'.\n\nSerial del agente:\n'+p.serial+'\n\nGuardalo para configurar el agente.');
+  }catch(e){$('projectMsg').textContent='Error: '+e.message}
+  finally{$('createProjectBtn').disabled=false}
 }
 async function generateSerial(){
   if(!currentProjectId)return;if(!confirm('Generar un serial adicional para este proyecto? Los seriales anteriores seguirán funcionando.'))return;
@@ -3282,7 +3298,20 @@ $('forgotPasswordBtn').addEventListener('click',requestPasswordRecovery);
 $('saveRecoveryPasswordBtn').addEventListener('click',saveRecoveredPassword);
 $('cancelRecoveryBtn').addEventListener('click',()=>{clearSession();$('passwordRecoveryPanel').classList.add('hidden');$('authFields').classList.remove('hidden');$('loginBtn').classList.remove('hidden');$('forgotPasswordBtn').classList.remove('hidden');authMsg('Ingresá tu correo y contraseña.','muted')});
 $('password').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
-$('newProjectBtn').addEventListener('click',()=>{$('projectModal').classList.remove('hidden');$('projectNameInput').focus()});
+$('newProjectBtn').addEventListener('click',()=>{
+  $('projectMsg').textContent='';
+  if(isAdmin){
+    const company=projectCompanies.find(x=>String(x.id)===String(sidebarCompanyFilter));
+    $('projectModal').querySelector('h2').textContent='Agregar proyecto para un cliente';
+    $('projectModal').querySelector('p').textContent=company
+      ? 'El proyecto se agregará a '+(company.company_code==='AT-EMP-000001'?'Operación interna A&T':company.name)+'.'
+      : 'Elegí primero una empresa en el selector de la izquierda para asignarle este proyecto.';
+  }else{
+    $('projectModal').querySelector('h2').textContent='Agregar proyecto';
+    $('projectModal').querySelector('p').textContent='El proyecto quedará vinculado a tu empresa y tendrá su propio serial de agente.';
+  }
+  $('projectModal').classList.remove('hidden');$('projectNameInput').focus()
+});
 $('archiveProjectBtn').addEventListener('click',archiveProject);
 $('retiredSearch').addEventListener('input',e=>{retiredSearch=e.target.value;renderAll()});
 $('newUserProject').addEventListener('change',loadManagedUsers);$('refreshUsersBtn').addEventListener('click',loadManagedUsers);$('freePagesInput').addEventListener('input',updatePriceEstimate);$('pricePerPageInput').addEventListener('input',updatePriceEstimate);$('samplePagesInput').addEventListener('input',updatePriceEstimate);$('savePricingBtn').addEventListener('click',savePricing);$('createUserBtn').addEventListener('click',createManagedUser);
