@@ -927,7 +927,7 @@ async function loadApp(){
     await api('/rest/v1/rpc/control_claim_first_owner',{method:'POST',body:'{}'}).catch(()=>{});
     const adminCheck=await api('/rest/v1/rpc/control_is_global_admin',{method:'POST',body:'{}'}).catch(()=>false);
     isAdmin=adminCheck===true || (Array.isArray(adminCheck)&&adminCheck[0]===true);
-    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);
+    $('adminNavBtn').classList.toggle('hidden',!isAdmin);$('adminTile').classList.toggle('hidden',!isAdmin);$('archiveProjectBtn').classList.toggle('hidden',!isAdmin);$('newSerialBtn').classList.toggle('hidden',!isAdmin);$('companiesTile').classList.toggle('hidden',!isAdmin);$('commercialTile').classList.toggle('hidden',!isAdmin);
     await loadProjects();
     return true;
   }catch(e){
@@ -969,9 +969,12 @@ function openProject(id){
 function showView(view){
   closePrinterDetailLayout();
   currentView=view;
-  ['resumen','inventario','seriales','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
+  ['resumen','inventario','seriales','tinta','alertas','desconectadas','agentes','control-remoto','contadores','retiradas','administrar','empresas','comercial','asistente'].forEach(v=>{const el=$('view-'+v);if(el)el.classList.toggle('hidden',v!==view)});
   if(view==='administrar'&&!isAdmin){showView('resumen');return}
   if(view==='administrar'){populateUserProjectSelect();loadPricing();loadManagedUsers();}
+  if((view==='empresas'||view==='comercial')&&!isAdmin){showView('resumen');return}
+  if(view==='empresas')loadBusinessWorkspace();
+  if(view==='comercial')loadCommercialWorkspace();
   if(view==='seriales')loadAllProjectSerials();
   $('counterQueryBtn').addEventListener('click',()=>loadCounterHistory(true));
 $('counterExcelBtn').addEventListener('click',exportCountersExcel);
@@ -2798,6 +2801,256 @@ async function archiveProject(){
     currentProjectId=null;await loadProjects();alert('Proyecto retirado. Se conservaron sus datos e historial.');
   }catch(e){alert('No se pudo retirar el proyecto: '+e.message)}finally{btn.textContent='Retirar proyecto seleccionado';if(currentProjectId)btn.disabled=false}
 }
+
+let businessCompanies=[],businessPlans=[],aiHistory=[];
+async function businessAdminRequest(payload){
+  const response=await fetch(SUPABASE_URL+'/functions/v1/control-business-admin',{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token()},
+    body:JSON.stringify(payload)
+  });
+  const body=await response.json().catch(()=>({}));
+  if(!response.ok||!body.ok)throw new Error(body.error||body.message||('HTTP '+response.status));
+  return body;
+}
+function formatGs(value){return 'Gs. '+Math.round(Number(value||0)).toLocaleString('es-PY')}
+function setSelectOptions(id,items,placeholder){
+  const select=$(id);if(!select)return;
+  const previous=select.value;
+  select.innerHTML=(placeholder?'<option value="">'+escapeHtml(placeholder)+'</option>':'')+
+    items.map(item=>'<option value="'+escapeHtml(item.value)+'">'+escapeHtml(item.label)+'</option>').join('');
+  if(previous&&items.some(x=>String(x.value)===String(previous)))select.value=previous;
+}
+async function loadBusinessWorkspace(){
+  if(!isAdmin)return;
+  $('companiesMsg').textContent='Cargando empresas...';
+  try{
+    const results=await Promise.all([
+      businessAdminRequest({action:'list_companies'}),
+      businessAdminRequest({action:'list_plans'})
+    ]);
+    businessCompanies=results[0].companies||[];
+    businessPlans=results[1].plans||[];
+    populateBusinessSelects();
+    renderCompanies();
+    $('companiesMsg').textContent='Empresas registradas: '+businessCompanies.length+'.';
+  }catch(e){$('companiesMsg').textContent='No se pudo cargar el panel de empresas: '+e.message}
+}
+function populateBusinessSelects(){
+  const plans=businessPlans.filter(p=>p.active!==false).map(p=>({value:p.id,label:p.name+' · '+formatGs(p.amount)+' / '+p.billing_cycle}));
+  setSelectOptions('companyPlan',plans,'Elegí un plan');
+  setSelectOptions('subscriptionPlan',plans,'Elegí un plan');
+  const companies=businessCompanies.filter(c=>c.status!=='closed').map(c=>({value:c.id,label:c.company_code+' · '+c.name}));
+  ['companyProjectSelect','memberCompanySelect','subscriptionCompany','saleCompany'].forEach(id=>setSelectOptions(id,companies,'Elegí una empresa'));
+  const planId=$('companyPlan')?.value;
+  if(planId){const plan=businessPlans.find(p=>p.id===planId);if(plan)$('companyPrice').value=Number(plan.amount||0)}
+}
+function renderCompanies(){
+  const body=$('companiesBody');if(!body)return;
+  body.innerHTML=businessCompanies.length?businessCompanies.map(c=>{
+    const sub=c.subscription||{},projectRows=Array.isArray(c.projects)?c.projects:[];
+    const status=c.status||'active';
+    const license=sub.status?(sub.status+' · '+(sub.ends_at?new Date(sub.ends_at).toLocaleDateString():'sin vencimiento')):'Sin licencia';
+    const next=status==='active'?'suspended':'active',action=status==='active'?'Suspender':'Reactivar';
+    return '<tr><td><code>'+escapeHtml(c.company_code)+'</code></td><td>'+escapeHtml(c.name)+'</td><td>'+escapeHtml(c.email||'—')+'</td><td>'+escapeHtml(sub.plan?.name||'Sin plan')+'</td><td>'+projectRows.filter(p=>p.active).length+' / '+projectRows.length+'</td><td>'+escapeHtml(license)+'</td><td><span class="biz-company-status '+escapeHtml(status)+'">'+escapeHtml(status)+'</span></td><td><button class="icon-btn" type="button" onclick="toggleCompanyStatus('+JSON.stringify(c.id)+','+JSON.stringify(next)+')">'+action+'</button></td></tr>';
+  }).join(''):'<tr><td colspan="8" class="empty">Todavía no hay empresas registradas.</td></tr>';
+}
+async function createCompanyFromPanel(){
+  const payload={
+    action:'create_company',name:$('companyName').value,legal_name:$('companyLegalName').value,tax_id:$('companyTaxId').value,
+    email:$('companyEmail').value,password:$('companyPassword').value,phone:$('companyPhone').value,city:$('companyCity').value,
+    address:$('companyAddress').value,plan_id:$('companyPlan').value,price_amount:$('companyPrice').value,
+    subscription_status:$('companySubscriptionStatus').value,trial_days:$('companyTrialDays').value,
+    first_project_name:$('companyFirstProject').value
+  };
+  if(!payload.name.trim()||!payload.email.trim()||!payload.password||!payload.plan_id){
+    $('companyCreateMsg').textContent='Completá empresa, correo, contraseña y plan.';return;
+  }
+  if(payload.password.length<8){$('companyCreateMsg').textContent='La contraseña inicial debe tener al menos 8 caracteres.';return}
+  const btn=$('createCompanyBtn');btn.disabled=true;$('companyCreateMsg').textContent='Registrando empresa, acceso y licencia...';
+  $('companySerialOutput').classList.add('hidden');
+  try{
+    const result=await businessAdminRequest(payload),project=result.project;
+    $('companyCreateMsg').textContent='Empresa creada: '+result.company.company_code+'. Cuenta: '+result.company.email+'.';
+    $('companySerialOutput').classList.remove('hidden');
+    if(project){
+      $('companySerialOutput').innerHTML='<strong>Serial de activación para '+escapeHtml(project.name)+':</strong><p><code>'+escapeHtml(project.serial)+'</code></p><button class="toolbar-btn" type="button" onclick="copyProjectSerial('+JSON.stringify(project.serial)+')">Copiar serial del agente</button><p>Guardalo y cargalo en el agente de esta empresa. Este serial pertenece solamente a este proyecto.</p>';
+    }else{$('companySerialOutput').textContent='La empresa se creó sin proyecto inicial. Podés crear su primer proyecto debajo.'}
+    ['companyName','companyLegalName','companyTaxId','companyEmail','companyPassword','companyPhone','companyCity','companyAddress'].forEach(id=>$(id).value='');
+    await loadBusinessWorkspace();
+    if(project)await loadProjects(project.id);
+  }catch(e){$('companyCreateMsg').textContent='No se pudo crear la empresa: '+e.message}
+  finally{btn.disabled=false}
+}
+async function createProjectForCompany(){
+  const companyId=$('companyProjectSelect').value,name=$('companyProjectName').value.trim();
+  if(!companyId||name.length<2){$('companyProjectMsg').textContent='Elegí una empresa e ingresá el nombre del proyecto.';return}
+  const btn=$('createCompanyProjectBtn');btn.disabled=true;$('companyProjectMsg').textContent='Creando proyecto y serial...';
+  try{
+    const result=await businessAdminRequest({action:'create_project',company_id:companyId,name}),p=result.project;
+    $('companyProjectMsg').innerHTML='Proyecto '+escapeHtml(p.name)+' creado. Serial de agente: <code>'+escapeHtml(p.serial)+'</code> <button class="icon-btn" type="button" onclick="copyProjectSerial('+JSON.stringify(p.serial)+')">Copiar</button>';
+    $('companyProjectName').value='';
+    await loadBusinessWorkspace();await loadProjects(p.id);
+  }catch(e){$('companyProjectMsg').textContent='No se pudo crear el proyecto: '+e.message}
+  finally{btn.disabled=false}
+}
+async function toggleCompanyStatus(companyId,status){
+  const word=status==='active'?'reactivar':'suspender';
+  if(!confirm('¿Querés '+word+' esta empresa? El inventario y el historial se conservarán.'))return;
+  try{await businessAdminRequest({action:'set_company_status',company_id:companyId,status});await loadBusinessWorkspace()}
+  catch(e){alert('No se pudo cambiar el estado: '+e.message)}
+}
+function editBusinessPlan(planId){
+  const p=businessPlans.find(x=>x.id===planId);if(!p)return;
+  $('planEditId').value=p.id;$('planName').value=p.name||'';$('planCode').value=p.code||'';
+  $('planAmount').value=Number(p.amount||0);$('planCycle').value=p.billing_cycle||'monthly';
+  $('planMaxProjects').value=p.max_projects??'';$('planMaxPrinters').value=p.max_printers??'';
+  const f=p.features||{};
+  $('featInventory').checked=f.inventory!==false;$('featCounters').checked=f.counters!==false;
+  $('featHistory').checked=!!f.history;$('featAlerts').checked=!!f.alerts;$('featExports').checked=!!f.exports;
+  $('featAi').checked=!!f.ai;$('featMultiuser').checked=!!f.multi_user;
+  $('plansMsg').textContent='Editando plan '+p.name+'.';$('savePlanBtn').textContent='Guardar cambios';
+  $('planName').focus();
+}
+function clearBusinessPlanForm(){
+  $('planEditId').value='';$('planName').value='';$('planCode').value='';$('planAmount').value='0';
+  $('planCycle').value='monthly';$('planMaxProjects').value='';$('planMaxPrinters').value='';
+  $('featInventory').checked=true;$('featCounters').checked=true;$('featHistory').checked=false;
+  $('featAlerts').checked=false;$('featExports').checked=false;$('featAi').checked=false;$('featMultiuser').checked=false;
+  $('savePlanBtn').textContent='Guardar plan';$('plansMsg').textContent='';
+}
+function renderPlans(){
+  const body=$('plansBody');if(!body)return;
+  body.innerHTML=businessPlans.length?businessPlans.map(p=>{
+    const f=p.features||{},features=['Inventario','Contadores',f.history?'Historial':'',f.alerts?'Alertas':'',f.exports?'Excel':'',f.ai?'IA':'',f.multi_user?'Usuarios':''].filter(Boolean).join(' · ');
+    return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><br><small>'+escapeHtml(p.code)+'</small></td><td>'+formatGs(p.amount)+'</td><td>'+escapeHtml(p.billing_cycle)+'</td><td>'+(p.max_projects??'Ilimitado')+'</td><td>'+(p.max_printers??'Ilimitado')+'</td><td>'+escapeHtml(features)+'</td><td>'+(p.active?'Activo':'Inactivo')+'</td><td><button class="icon-btn" type="button" onclick="editBusinessPlan('+JSON.stringify(p.id)+')">Editar</button></td></tr>';
+  }).join(''):'<tr><td colspan="8" class="empty">No hay planes.</td></tr>';
+}
+async function saveBusinessPlan(){
+  const payload={
+    action:'save_plan',id:$('planEditId').value||undefined,name:$('planName').value,code:$('planCode').value,
+    amount:$('planAmount').value,billing_cycle:$('planCycle').value,max_projects:$('planMaxProjects').value||null,
+    max_printers:$('planMaxPrinters').value||null,
+    features:{inventory:$('featInventory').checked,counters:$('featCounters').checked,history:$('featHistory').checked,
+      alerts:$('featAlerts').checked,exports:$('featExports').checked,ai:$('featAi').checked,multi_user:$('featMultiuser').checked}
+  };
+  try{await businessAdminRequest(payload);$('plansMsg').textContent='Plan guardado.';clearBusinessPlanForm();await loadCommercialWorkspace()}
+  catch(e){$('plansMsg').textContent='No se pudo guardar: '+e.message}
+}
+async function loadCommercialWorkspace(){
+  if(!isAdmin)return;
+  try{
+    const results=await Promise.all([
+      businessAdminRequest({action:'list_plans'}),
+      businessAdminRequest({action:'list_sales'}),
+      businessAdminRequest({action:'list_companies'})
+    ]);
+    businessPlans=results[0].plans||[];businessCompanies=results[2].companies||[];
+    populateBusinessSelects();renderPlans();renderSales(results[1].sales||[]);
+  }catch(e){$('plansMsg').textContent='No se pudo cargar la gestión comercial: '+e.message}
+}
+function renderSales(sales){
+  const body=$('salesBody');if(!body)return;
+  const companies=new Map(businessCompanies.map(c=>[c.id,c.name]));
+  body.innerHTML=sales.length?sales.map(s=>{
+    return '<tr><td><code>'+escapeHtml(s.document_no)+'</code></td><td>'+escapeHtml(companies.get(s.company_id)||'Empresa')+'</td><td>'+escapeHtml(s.description)+'</td><td>'+formatGs(s.amount)+'</td><td>'+formatGs(s.paid_amount)+'</td><td>'+formatGs(s.balance)+'</td><td>'+escapeHtml(s.status)+'</td><td>'+(s.balance>0?'<button class="icon-btn" type="button" onclick="recordCompanyPayment('+JSON.stringify(s.id)+','+Number(s.balance)+')">Registrar cobro</button>':'—')+'</td></tr>';
+  }).join(''):'<tr><td colspan="8" class="empty">Todavía no hay ventas registradas.</td></tr>';
+}
+async function saveCompanySubscription(){
+  const company_id=$('subscriptionCompany').value,plan_id=$('subscriptionPlan').value;
+  if(!company_id||!plan_id){$('subscriptionMsg').textContent='Elegí empresa y plan.';return}
+  const payload={action:'save_subscription',company_id,plan_id,price_amount:$('subscriptionPrice').value,
+    status:$('subscriptionStatus').value,billing_cycle:$('subscriptionCycle').value,
+    ends_at:$('subscriptionEndsAt').value?new Date($('subscriptionEndsAt').value+'T23:59:59').toISOString():null,
+    max_projects_override:$('subscriptionMaxProjects').value||null,max_printers_override:$('subscriptionMaxPrinters').value||null};
+  try{await businessAdminRequest(payload);$('subscriptionMsg').textContent='Licencia registrada.';await loadCommercialWorkspace()}
+  catch(e){$('subscriptionMsg').textContent='No se pudo guardar la licencia: '+e.message}
+}
+async function createCompanySale(){
+  const payload={action:'create_sale',company_id:$('saleCompany').value,document_type:$('saleType').value,
+    description:$('saleDescription').value,amount:$('saleAmount').value,
+    due_at:$('saleDueAt').value?new Date($('saleDueAt').value+'T23:59:59').toISOString():null};
+  try{await businessAdminRequest(payload);$('salesMsg').textContent='Registro comercial guardado.';$('saleDescription').value='';$('saleAmount').value='';await loadCommercialWorkspace()}
+  catch(e){$('salesMsg').textContent='No se pudo registrar: '+e.message}
+}
+async function recordCompanyPayment(saleId,balance){
+  const amountText=prompt('Saldo pendiente: '+formatGs(balance)+'. Importe a cobrar (Gs.):',String(Math.round(balance)));
+  if(amountText===null)return;
+  const amount=Number(amountText);if(!Number.isFinite(amount)||amount<=0){alert('Ingresá un importe válido.');return}
+  const method=prompt('Método: cash, bank_transfer, card, check u other','bank_transfer')||'other';
+  try{await businessAdminRequest({action:'record_payment',sale_id:saleId,amount,payment_method:method});await loadCommercialWorkspace();alert('Cobro registrado.')}
+  catch(e){alert('No se pudo registrar el cobro: '+e.message)}
+}
+async function loadCompanyMembers(){
+  const company_id=$('memberCompanySelect').value;if(!company_id)return;
+  $('membersMsg').textContent='Cargando usuarios...';
+  try{
+    const r=await businessAdminRequest({action:'list_members',company_id});
+    $('companyMembersBody').innerHTML=(r.members||[]).map(m=>'<tr><td>'+escapeHtml(m.email||m.user_id)+'</td><td>'+escapeHtml(m.role)+'</td><td>'+(m.active?'Activo':'Desactivado')+'</td><td>'+(m.role==='owner'?'Protegido':'<button class="icon-btn" type="button" onclick="disableCompanyMember('+JSON.stringify(company_id)+','+JSON.stringify(m.user_id)+')">Desactivar</button>')+'</td></tr>').join('')||'<tr><td colspan="4" class="empty">No hay usuarios adicionales.</td></tr>';
+    $('membersMsg').textContent='Usuarios asociados: '+(r.members||[]).length+'.';
+  }catch(e){$('membersMsg').textContent='No se pudo cargar usuarios: '+e.message}
+}
+async function addCompanyMember(){
+  const company_id=$('memberCompanySelect').value,email=$('memberEmail').value.trim(),password=$('memberPassword').value,role=$('memberRole').value;
+  if(!company_id||!email.includes('@')){$('membersMsg').textContent='Elegí empresa e ingresá un correo válido.';return}
+  try{await businessAdminRequest({action:'add_member',company_id,email,password,role});$('memberEmail').value='';$('memberPassword').value='';await loadCompanyMembers()}
+  catch(e){$('membersMsg').textContent='No se pudo agregar usuario: '+e.message}
+}
+async function disableCompanyMember(companyId,userId){
+  if(!confirm('¿Desactivar el acceso de este usuario a la empresa?'))return;
+  try{await businessAdminRequest({action:'remove_member',company_id:companyId,user_id:userId});await loadCompanyMembers()}
+  catch(e){alert('No se pudo desactivar: '+e.message)}
+}
+function appendAiMessage(role,content,pending){
+  const log=$('aiChatLog'),item=document.createElement('div');
+  item.className='ai-message '+role+(pending?' pending':'');
+  const label=document.createElement('b');label.textContent=role==='user'?'Vos':'A&T IA';
+  const text=document.createElement('p');text.textContent=content;
+  item.append(label,text);log.appendChild(item);log.scrollTop=log.scrollHeight;return item;
+}
+async function askAtpcAssistant(prefill){
+  const question=String(prefill??$('aiQuestion').value).trim();
+  if(!question)return;
+  if(question.length>1600){$('aiMessage').textContent='La consulta supera el máximo de 1600 caracteres.';return}
+  const btn=$('aiSendBtn');if(btn.disabled)return;
+  $('aiQuestion').value='';appendAiMessage('user',question);
+  const pending=appendAiMessage('assistant','Estoy revisando los datos permitidos de tus proyectos...',true);
+  btn.disabled=true;$('aiMessage').textContent='Consultando el asistente...';
+  try{
+    const response=await fetch(SUPABASE_URL+'/functions/v1/atpc-assistant',{
+      method:'POST',headers:{'Content-Type':'application/json','apikey':SUPABASE_KEY,'Authorization':'Bearer '+token()},
+      body:JSON.stringify({question,history:aiHistory})
+    });
+    const result=await response.json().catch(()=>({}));
+    if(!response.ok||!result.ok)throw new Error(result.error||('HTTP '+response.status));
+    pending.classList.remove('pending');pending.querySelector('p').textContent=result.answer;
+    aiHistory.push({role:'user',content:question},{role:'assistant',content:result.answer});aiHistory=aiHistory.slice(-10);
+    $('aiMessage').textContent='Respuesta recibida · Consultas restantes hoy: '+result.remaining_today+'.';
+  }catch(e){
+    pending.querySelector('p').textContent='No se pudo responder: '+e.message;
+    $('aiMessage').textContent='Revisá la configuración de IA o intentá nuevamente.';
+  }finally{btn.disabled=false;$('aiQuestion').focus()}
+}
+$('createCompanyBtn').addEventListener('click',createCompanyFromPanel);
+$('createCompanyProjectBtn').addEventListener('click',createProjectForCompany);
+$('companyPlan').addEventListener('change',()=>{
+  const p=businessPlans.find(x=>x.id===$('companyPlan').value);
+  if(p)$('companyPrice').value=Number(p.amount||0);
+});
+$('savePlanBtn').addEventListener('click',saveBusinessPlan);
+$('clearPlanBtn').addEventListener('click',clearBusinessPlanForm);
+$('saveSubscriptionBtn').addEventListener('click',saveCompanySubscription);
+$('subscriptionPlan').addEventListener('change',()=>{
+  const p=businessPlans.find(x=>x.id===$('subscriptionPlan').value);
+  if(p){$('subscriptionPrice').value=Number(p.amount||0);$('subscriptionCycle').value=p.billing_cycle}
+});
+$('createSaleBtn').addEventListener('click',createCompanySale);
+$('memberCompanySelect').addEventListener('change',loadCompanyMembers);
+$('addCompanyMemberBtn').addEventListener('click',addCompanyMember);
+$('aiSendBtn').addEventListener('click',()=>askAtpcAssistant());
+$('aiQuestion').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();askAtpcAssistant()}});
+document.querySelectorAll('[data-ai-prompt]').forEach(b=>b.addEventListener('click',()=>askAtpcAssistant(b.dataset.aiPrompt)));
+
 $('themeToggleAuth').addEventListener('click',toggleTheme);
 $('themeToggleApp').addEventListener('click',toggleTheme);
 document.querySelectorAll('.app-btn').forEach(b=>b.addEventListener('click',()=>showView(b.dataset.view)));
