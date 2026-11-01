@@ -266,6 +266,26 @@ html[data-theme="dark"] .auth-wrap{background:transparent}
 .printer-detail-eyebrow{font-size:10px;letter-spacing:.16em;font-weight:900;color:#2878ff}
 .printer-detail-heading h2{margin:5px 0 4px;font-size:26px}
 .printer-detail-subtitle{font-size:12px;color:var(--muted)}
+
+.printer-photo-card{display:grid;grid-template-columns:minmax(220px,320px) minmax(0,1fr);gap:18px;align-items:center;padding:14px;border:1px solid var(--line);border-radius:15px;background:#f8fbff;margin:0 0 16px}
+.printer-photo-frame{height:220px;display:grid;place-items:center;overflow:hidden;border:1px solid #dbe5ef;border-radius:11px;background:#fff}
+.printer-photo-frame img{width:100%;height:100%;object-fit:contain;padding:10px}
+.printer-photo-placeholder{padding:20px;text-align:center;color:#71839a;font-size:12px}
+.printer-photo-placeholder strong{display:block;color:#52647a;font-size:13px;margin-bottom:6px}
+.printer-photo-copy{min-width:0}
+.printer-photo-copy strong{display:block;font-size:14px;margin-bottom:6px}
+.printer-photo-copy p{margin:0 0 9px;font-size:12px;color:var(--muted);line-height:1.5}
+.printer-photo-copy small{display:block;color:var(--muted);font-size:10px;margin-top:6px;overflow-wrap:anywhere}
+.printer-photo-copy a{font-size:11px;font-weight:800;color:#1768d5;text-decoration:none}
+.printer-photo-copy a:hover{text-decoration:underline}
+.printer-photo-retry{margin-top:9px;padding:6px 9px;border:1px solid #cbd9e8;border-radius:8px;background:#fff;color:#245b98;font-size:11px;font-weight:800}
+html[data-theme="dark"] .printer-photo-card{background:linear-gradient(145deg,#0e2544,#0b1c36);border-color:#1c4d78}
+html[data-theme="dark"] .printer-photo-frame{background:#fff;border-color:#315779}
+html[data-theme="dark"] .printer-photo-placeholder,html[data-theme="dark"] .printer-photo-copy p,html[data-theme="dark"] .printer-photo-copy small{color:#9bb9d9}
+html[data-theme="dark"] .printer-photo-placeholder strong,html[data-theme="dark"] .printer-photo-copy strong{color:#edf7ff}
+html[data-theme="dark"] .printer-photo-copy a{color:#82dfff}
+@media(max-width:650px){.printer-photo-card{grid-template-columns:1fr}.printer-photo-frame{height:200px}}
+
 .printer-detail-section{border:1px solid var(--line);border-radius:15px;padding:16px;margin-top:14px;background:#f9fbff}
 .printer-detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
 .printer-detail-section-head h3{font-size:17px;margin:0 0 4px}
@@ -590,6 +610,10 @@ html[data-theme="dark"] .manual-history-note{color:#94b1d1}
         </div>
         <div id="printerDetailStatus"></div>
       </div>
+      <div id="printerModelPhoto" class="printer-photo-card">
+        <div class="printer-photo-frame"><div class="printer-photo-placeholder"><strong>Foto del modelo</strong>Buscando automáticamente la imagen de esta impresora…</div></div>
+        <div class="printer-photo-copy"><strong>Imagen del equipo</strong><p>Se buscará por fabricante y modelo. Solo se mostrará una imagen cuando los datos coincidan con el equipo seleccionado.</p></div>
+      </div>
       <div id="printerDetailContent">
         <div class="empty">Seleccioná una impresora para ver sus datos.</div>
       </div>
@@ -639,6 +663,7 @@ const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
 let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
 const $=id=>document.getElementById(id);
 let currentPrinterDetailId=null,printerManualEntries=[];
+let printerPhotoSearchSequence=0;
 const THEME_KEY='atpc_theme';
 function applyTheme(theme,persist=true){
   const selected=theme==='light'?'light':'dark';
@@ -1078,6 +1103,171 @@ function printerOtherConsumables(value){
     return '<div class="printer-extra-chip"><span>'+escapeHtml(label)+'</span><b>'+escapeHtml(valueText)+'</b>'+(Number.isFinite(numeric)?'<div class="printer-extra-track"><i style="width:'+width+'%"></i></div>':'')+'</div>';
   }).join('')+'</div>';
 }
+function normalizePrinterPhotoText(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+}
+function printerPhotoCacheKey(r){
+  return normalizePrinterPhotoText([r?.manufacturer,printerInventoryLabel(r)].filter(Boolean).join('|'));
+}
+function readPrinterPhotoCache(key){
+  try{
+    const cache=JSON.parse(localStorage.getItem('atpc_printer_photo_cache_v1')||'{}');
+    const item=cache[key];
+    if(item&&item.savedAt&&Date.now()-item.savedAt<30*24*60*60*1000)return item.photo||null;
+  }catch{}
+  return null;
+}
+function savePrinterPhotoCache(key,photo){
+  try{
+    const cache=JSON.parse(localStorage.getItem('atpc_printer_photo_cache_v1')||'{}');
+    cache[key]={savedAt:Date.now(),photo};
+    const entries=Object.entries(cache).sort((a,b)=>(b[1]?.savedAt||0)-(a[1]?.savedAt||0)).slice(0,80);
+    localStorage.setItem('atpc_printer_photo_cache_v1',JSON.stringify(Object.fromEntries(entries)));
+  }catch{}
+}
+function safePrinterPhotoUrl(value){
+  const url=String(value||'').trim();
+  return /^https?:\/\/[^ ]+$/i.test(url)?url:'';
+}
+function printerPhotoPlainText(value){
+  return String(value||'').replace(/<[^>]*>/g,' ').replace(/&nbsp;/gi,' ').replace(/&amp;/gi,'&').replace(/\s+/g,' ').trim();
+}
+function printerPhotoCandidateScore(r,candidate){
+  const titleText=normalizePrinterPhotoText([
+    candidate?.title,
+    ...(Array.isArray(candidate?.tags)?candidate.tags.map(tag=>typeof tag==='string'?tag:tag?.name||''):[])
+  ].join(' '));
+  const modelText=normalizePrinterPhotoText(printerInventoryLabel(r));
+  const modelTokens=modelText.split(' ').filter(token=>token.length>1&&!['printer','impresora','series','seriesa','wide','format','all','in','one','multifunction','multifuncion','laser','inkjet'].includes(token));
+  const codeTokens=modelTokens.filter(token=>/\d/.test(token));
+  const matchedTokens=modelTokens.filter(token=>titleText.includes(token));
+  const matchedCodes=codeTokens.filter(token=>titleText.includes(token));
+  const manufacturer=normalizePrinterPhotoText(r?.manufacturer);
+  let brandMatched=!!manufacturer&&titleText.includes(manufacturer);
+  if(manufacturer==='hp')brandMatched=brandMatched||titleText.includes('hewlett packard')||titleText.includes('hewlett packard');
+  if(!brandMatched&&manufacturer==='hewlett packard')brandMatched=titleText.includes('hp');
+  if(codeTokens.length){
+    if(!matchedCodes.length)return -1;
+    if(!brandMatched&&matchedTokens.length<Math.min(2,modelTokens.length))return -1;
+    return matchedCodes.length*10+matchedTokens.length+(brandMatched?4:0);
+  }
+  if(matchedTokens.length<2||!brandMatched)return -1;
+  return matchedTokens.length+(brandMatched?4:0);
+}
+async function searchPrinterPhotoOpenverse(r){
+  const manufacturer=String(r?.manufacturer||'').trim();
+  const model=String(printerInventoryLabel(r)||'').trim();
+  if(!model||model==='Ver ficha')return null;
+  const params=new URLSearchParams({q:(manufacturer+' '+model+' printer').slice(0,200),page_size:'20',mature:'false'});
+  const response=await fetch('https://api.openverse.org/v1/images/?'+params.toString(),{method:'GET',credentials:'omit'});
+  if(!response.ok)throw new Error('Openverse respondió HTTP '+response.status);
+  const data=await response.json();
+  const candidates=(data?.results||[]).map(item=>({
+    title:item.title||model,
+    src:safePrinterPhotoUrl(item.thumbnail||item.url),
+    sourceUrl:safePrinterPhotoUrl(item.foreign_landing_url||item.detail_url),
+    license:String(item.license||'Licencia abierta'),
+    licenseVersion:String(item.license_version||''),
+    creator:String(item.creator||''),
+    provider:String(item.provider||item.source||'Openverse'),
+    attribution:String(item.attribution||'')
+  })).filter(item=>item.src&&item.sourceUrl);
+  candidates.sort((a,b)=>printerPhotoCandidateScore(r,b)-printerPhotoCandidateScore(r,a));
+  const best=candidates[0];
+  return best&&printerPhotoCandidateScore(r,best)>=0?best:null;
+}
+async function searchPrinterPhotoCommons(r){
+  const manufacturer=String(r?.manufacturer||'').trim();
+  const model=String(printerInventoryLabel(r)||'').trim();
+  if(!model||model==='Ver ficha')return null;
+  const params=new URLSearchParams({
+    action:'query',
+    generator:'search',
+    gsrsearch:(manufacturer+' '+model+' printer').slice(0,200),
+    gsrnamespace:'6',
+    gsrlimit:'20',
+    prop:'imageinfo',
+    iiprop:'url|extmetadata',
+    iiurlwidth:'900',
+    iiextmetadatafilter:'LicenseShortName|Artist|Credit',
+    format:'json',
+    formatversion:'2',
+    origin:'*'
+  });
+  const response=await fetch('https://commons.wikimedia.org/w/api.php?'+params.toString(),{method:'GET',credentials:'omit'});
+  if(!response.ok)throw new Error('Wikimedia Commons respondió HTTP '+response.status);
+  const data=await response.json();
+  const candidates=(data?.query?.pages||[]).map(page=>{
+    const info=page?.imageinfo?.[0]||{};
+    const meta=info.extmetadata||{};
+    return {
+      title:page.title||model,
+      src:safePrinterPhotoUrl(info.thumburl||info.url),
+      sourceUrl:safePrinterPhotoUrl(info.descriptionurl),
+      license:printerPhotoPlainText(meta.LicenseShortName?.value||'Licencia no indicada'),
+      licenseVersion:'',
+      creator:printerPhotoPlainText(meta.Artist?.value||meta.Credit?.value||''),
+      provider:'Wikimedia Commons',
+      attribution:''
+    };
+  }).filter(item=>item.src&&item.sourceUrl);
+  candidates.sort((a,b)=>printerPhotoCandidateScore(r,b)-printerPhotoCandidateScore(r,a));
+  const best=candidates[0];
+  return best&&printerPhotoCandidateScore(r,best)>=0?best:null;
+}
+function renderPrinterPhotoMessage(title,message,retry){
+  const target=$('printerModelPhoto');
+  if(!target)return;
+  target.innerHTML='<div class="printer-photo-frame"><div class="printer-photo-placeholder"><strong>'+escapeHtml(title)+'</strong>'+escapeHtml(message)+'</div></div>'+
+    '<div class="printer-photo-copy"><strong>Imagen del equipo</strong><p>La búsqueda se realiza por fabricante y modelo, sin enviar el número de serie ni la dirección IP.</p>'+
+    (retry?'<button class="printer-photo-retry" type="button" onclick="retryPrinterModelPhoto()">Volver a buscar</button>':'')+'</div>';
+}
+function renderPrinterPhotoResult(photo,r){
+  const target=$('printerModelPhoto');
+  if(!target)return;
+  const license=[photo.license,photo.licenseVersion].filter(Boolean).join(' ');
+  const attribution=[photo.creator,license].filter(Boolean).join(' · ');
+  target.innerHTML='<div class="printer-photo-frame"><img src="'+escapeHtml(photo.src)+'" alt="'+escapeHtml('Fotografía de '+r.manufacturer+' '+printerInventoryLabel(r))+'" loading="lazy" referrerpolicy="no-referrer"></div>'+
+    '<div class="printer-photo-copy"><strong>Foto encontrada para '+escapeHtml(printerInventoryLabel(r))+'</strong>'+
+    '<p>'+escapeHtml(photo.title||printerInventoryLabel(r))+'</p>'+
+    (attribution?'<small>'+escapeHtml(attribution)+'</small>':'<small>Fuente: '+escapeHtml(photo.provider||'Banco de imágenes')+'</small>')+
+    '<small>Verificá la licencia y las condiciones de reutilización en la fuente original.</small>'+
+    '<a href="'+escapeHtml(photo.sourceUrl)+'" target="_blank" rel="noopener noreferrer">Ver imagen y atribución original ↗</a></div>';
+  const image=target.querySelector('img');
+  if(image)image.addEventListener('error',()=>{
+    if(currentPrinterDetailId===String(r.printer_id))renderPrinterPhotoMessage('Imagen no disponible','La fuente no permitió cargar esta fotografía. Podés intentar otra búsqueda.',true);
+  },{once:true});
+}
+async function loadPrinterModelPhoto(r){
+  const target=$('printerModelPhoto');
+  if(!target||!r)return;
+  const searchId=++printerPhotoSearchSequence;
+  const printerId=String(r.printer_id||currentPrinterDetailId||'');
+  const key=printerPhotoCacheKey(r);
+  renderPrinterPhotoMessage('Buscando foto del modelo','Consultando bancos de imágenes por fabricante y modelo…',false);
+  const cached=readPrinterPhotoCache(key);
+  if(cached){
+    if(searchId===printerPhotoSearchSequence&&currentPrinterDetailId===printerId)renderPrinterPhotoResult(cached,r);
+    return;
+  }
+  let photo=null;
+  try{photo=await searchPrinterPhotoOpenverse(r)}catch(error){console.warn('Búsqueda de imágenes Openverse:',error)}
+  if(!photo){
+    try{photo=await searchPrinterPhotoCommons(r)}catch(error){console.warn('Búsqueda de imágenes Wikimedia Commons:',error)}
+  }
+  if(searchId!==printerPhotoSearchSequence||currentPrinterDetailId!==printerId)return;
+  if(photo){
+    savePrinterPhotoCache(key,photo);
+    renderPrinterPhotoResult(photo,r);
+  }else{
+    renderPrinterPhotoMessage('No se encontró una foto confiable','No apareció una imagen con coincidencia suficiente para este fabricante y modelo. La ficha permanece sin una foto que pueda ser de otro equipo.',true);
+  }
+}
+function retryPrinterModelPhoto(){
+  const r=rows.find(item=>String(item.printer_id)===String(currentPrinterDetailId));
+  if(r)loadPrinterModelPhoto(r);
+}
+
 function renderPrinterDetail(r){
   const title=[r.manufacturer,r.model].filter(Boolean).join(' ')||r.display_name||'Impresora';
   $('printerDetailTitle').textContent=title;
@@ -1141,6 +1331,7 @@ function renderPrinterDetail(r){
       '<div id="printerManualCounterHistory" class="printer-manual-history"><div class="empty">Cargando historial manual…</div></div>'+
     '</div>';
   $('printerDetailContent').innerHTML=content;
+  loadPrinterModelPhoto(r);
 }
 async function loadPrinterManualHistory(printerId){
   const target=$('printerManualCounterHistory');
