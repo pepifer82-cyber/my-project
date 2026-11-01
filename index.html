@@ -379,7 +379,37 @@ html[data-theme="dark"] .manual-history-note{color:#94b1d1}
 }
 /* === END A&T PRINTER DETAIL PAGE === */
 
-</style>
+
+/* A&T multiempresa, comercial e IA */
+.biz-section-title{margin:24px 0 12px;font-size:16px;font-weight:850;color:var(--text)}
+.biz-note{display:flex;flex-direction:column;gap:4px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid);margin:12px 0 18px}
+.biz-note strong{font-size:14px}.biz-note span{font-size:12px;color:var(--muted);line-height:1.5}
+.biz-form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;align-items:end}
+.biz-form-grid label,.biz-inline-form label{display:flex;flex-direction:column;gap:6px;font-size:12px;font-weight:750;color:var(--muted)}
+.biz-form-grid .toolbar-input,.biz-inline-form .toolbar-input{width:100%;min-width:0}
+.biz-inline-form{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;align-items:end}
+.biz-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:12px 0}
+.biz-check{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;min-height:40px;padding:8px 10px;border:1px solid var(--line);border-radius:9px;background:var(--panel-solid)}
+.biz-serial-output{margin:12px 0;padding:14px;border:1px solid #83c9a8;background:#effcf5;color:#145b38;border-radius:12px;overflow-wrap:anywhere}
+.biz-serial-output code{font-weight:850;letter-spacing:.04em}
+.biz-company-status{display:inline-flex;padding:4px 8px;border-radius:100px;background:#e9f8ef;color:#17663d;font-size:11px;font-weight:800}
+.biz-company-status.suspended{background:#fff1e4;color:#974b12}
+.biz-company-status.closed{background:#fce9ec;color:#963748}
+.biz-ai-label{font-size:11px;font-weight:850;border:1px solid var(--line);border-radius:100px;padding:7px 10px;color:var(--muted)}
+.ai-quick-prompts{display:flex;gap:8px;flex-wrap:wrap;margin:14px 0}
+.ai-chat-log{display:flex;flex-direction:column;gap:12px;min-height:240px;max-height:480px;overflow:auto;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel-solid)}
+.ai-message{max-width:92%;padding:12px 14px;border-radius:12px;white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.55;font-size:13px}
+.ai-message p{margin:6px 0 0}.ai-message.user{align-self:flex-end;background:#e7f1ff;color:#163d70}
+.ai-message.assistant{align-self:flex-start;background:#f2f6fa;color:#1e3044}
+.ai-message.pending{opacity:.7}
+.ai-compose{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:end;margin-top:12px}
+.ai-compose textarea{width:100%;resize:vertical;min-height:58px;border:1px solid var(--line);border-radius:10px;padding:11px;background:var(--panel-solid);color:var(--text);font:inherit}
+@media(max-width:650px){.ai-compose{grid-template-columns:1fr}.ai-compose button{width:100%}.biz-form-grid{grid-template-columns:1fr}.biz-inline-form{grid-template-columns:1fr}}
+html[data-theme="dark"] .biz-serial-output{background:#102d25;color:#a9f0c7;border-color:#276b4b}
+html[data-theme="dark"] .ai-message.user{background:#183b62;color:#d7ebff}
+html[data-theme="dark"] .ai-message.assistant{background:#142c45;color:#e0edfa}
+
+</style></style>
 </head>
 <body>
 <div id="auth" class="auth-wrap">
@@ -452,6 +482,9 @@ html[data-theme="dark"] .manual-history-note{color:#94b1d1}
       <button class="app-btn" data-view="control-remoto" type="button"><div class="app-icon">📡</div><div class="app-title">Control remoto</div><div class="app-sub">IP · USB · Buscar ahora</div></button>
       <button class="app-btn" data-view="contadores" type="button"><div class="app-icon">#</div><div class="app-title">Contadores</div><div class="app-sub">Historial por fechas</div></button>
       <button class="app-btn" data-view="retiradas" type="button"><div class="app-icon">◒</div><div class="app-title">Retiradas</div><div class="app-sub">Equipos fuera de control</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
+      <button id="companiesTile" class="app-btn hidden" data-view="empresas" type="button"><div class="app-icon">🏢</div><div class="app-title">Empresas</div><div class="app-sub">Clientes y proyectos</div></button>
+      <button id="commercialTile" class="app-btn hidden" data-view="comercial" type="button"><div class="app-icon">💼</div><div class="app-title">Ventas y planes</div><div class="app-sub">Licencias y cobros</div></button>
+      <button id="assistantTile" class="app-btn" data-view="asistente" type="button"><div class="app-icon">✦</div><div class="app-title">Asistente IA</div><div class="app-sub">Consultas del panel</div></button><button id="adminTile" class="app-btn hidden" data-view="administrar" type="button"><div class="app-icon">⚙</div><div class="app-title">Administrar</div><div class="app-sub">Usuarios y tarifas</div></button>
     </section>
 
     <section class="kpis">
@@ -597,7 +630,111 @@ html[data-theme="dark"] .manual-history-note{color:#94b1d1}
       <div class="table-wrap"><table style="min-width:900px"><thead><tr><th>Correo</th><th>Nueva contraseña (opcional)</th><th>Tipo de acceso</th><th>Acciones</th></tr></thead><tbody id="managedUsersBody"></tbody></table></div>
     </section>
   
-    <section id="printerDetailPage" class="content-card hidden printer-detail-page">
+    
+    <section id="view-empresas" class="content-card hidden">
+      <div class="content-head"><div><h2>Empresas y clientes</h2><small>Panel maestro: cada cliente tiene su cuenta, empresa, licencia y proyectos separados.</small></div><button class="toolbar-btn" type="button" onclick="loadBusinessWorkspace()">↻ Actualizar</button></div>
+      <div class="biz-note"><strong>Identificación y acceso separados</strong><span>El código identifica a la empresa. Cada proyecto obtiene su propio serial para activar el agente; el correo del cliente es su acceso al panel.</span></div>
+      <h3 class="biz-section-title">Registrar nueva empresa</h3>
+      <div class="biz-form-grid">
+        <label>Nombre comercial<input id="companyName" class="toolbar-input" maxlength="180" placeholder="Ej. Empresa ABC" required></label>
+        <label>Razón social<input id="companyLegalName" class="toolbar-input" maxlength="180" placeholder="Razón social"></label>
+        <label>RUC / identificación tributaria<input id="companyTaxId" class="toolbar-input" maxlength="80" placeholder="RUC"></label>
+        <label>Correo de acceso del cliente<input id="companyEmail" class="toolbar-input" type="email" maxlength="240" placeholder="cliente@empresa.com" required></label>
+        <label>Contraseña inicial<input id="companyPassword" class="toolbar-input" type="password" minlength="8" autocomplete="new-password" placeholder="Mínimo 8 caracteres" required></label>
+        <label>Teléfono<input id="companyPhone" class="toolbar-input" maxlength="80" placeholder="+595..."></label>
+        <label>Ciudad<input id="companyCity" class="toolbar-input" maxlength="120" placeholder="Asunción"></label>
+        <label>Dirección<input id="companyAddress" class="toolbar-input" maxlength="240" placeholder="Dirección de la empresa"></label>
+        <label>Plan contratado<select id="companyPlan" class="toolbar-input"><option value="">Cargando planes...</option></select></label>
+        <label>Importe acordado (Gs.)<input id="companyPrice" class="toolbar-input" type="number" min="0" step="1" value="0"></label>
+        <label>Estado inicial<select id="companySubscriptionStatus" class="toolbar-input"><option value="trial">Prueba gratuita</option><option value="active">Activo</option></select></label>
+        <label>Días de prueba<input id="companyTrialDays" class="toolbar-input" type="number" min="1" max="90" value="15"></label>
+        <label>Primer proyecto<input id="companyFirstProject" class="toolbar-input" maxlength="120" value="Proyecto principal" placeholder="Ej. Sucursal Central"></label>
+      </div>
+      <div class="biz-actions"><button id="createCompanyBtn" class="toolbar-btn primary" type="button">＋ Crear empresa y generar acceso</button><span id="companyCreateMsg" class="muted" aria-live="polite"></span></div>
+      <div id="companySerialOutput" class="biz-serial-output hidden"></div>
+      <h3 class="biz-section-title">Crear otro proyecto para un cliente</h3>
+      <div class="biz-inline-form">
+        <label>Empresa<select id="companyProjectSelect" class="toolbar-input"></select></label>
+        <label>Nombre del proyecto<input id="companyProjectName" class="toolbar-input" maxlength="120" placeholder="Ej. Sucursal Norte"></label>
+        <button id="createCompanyProjectBtn" class="toolbar-btn primary" type="button">Crear proyecto y serial</button>
+      </div>
+      <div id="companyProjectMsg" class="muted" aria-live="polite"></div>
+      <h3 class="biz-section-title">Empresas registradas</h3>
+      <div id="companiesMsg" class="muted">Cargando empresas...</div>
+      <div class="table-wrap"><table><thead><tr><th>Código</th><th>Empresa</th><th>Correo de acceso</th><th>Plan</th><th>Proyectos</th><th>Licencia</th><th>Estado</th><th></th></tr></thead><tbody id="companiesBody"></tbody></table></div>
+      <h3 class="biz-section-title">Usuarios de una empresa</h3>
+      <div class="biz-inline-form">
+        <label>Empresa<select id="memberCompanySelect" class="toolbar-input"></select></label>
+        <label>Correo<input id="memberEmail" class="toolbar-input" type="email" placeholder="usuario@empresa.com"></label>
+        <label>Contraseña inicial si es cuenta nueva<input id="memberPassword" class="toolbar-input" type="password" minlength="8" placeholder="Mínimo 8 caracteres"></label>
+        <label>Permiso<select id="memberRole" class="toolbar-input"><option value="viewer">Consulta</option><option value="admin">Administrador de empresa</option></select></label>
+        <button id="addCompanyMemberBtn" class="toolbar-btn primary" type="button">Agregar usuario</button>
+      </div>
+      <div id="membersMsg" class="muted"></div>
+      <div class="table-wrap"><table><thead><tr><th>Correo</th><th>Rol</th><th>Estado</th><th>Acción</th></tr></thead><tbody id="companyMembersBody"></tbody></table></div>
+    </section>
+
+    <section id="view-comercial" class="content-card hidden">
+      <div class="content-head"><div><h2>Planes, licencias y ventas</h2><small>Configurá servicios, precios, límites, renovaciones y cobros. Los documentos generados aquí son registros internos, no facturas fiscales timbradas.</small></div><button class="toolbar-btn" type="button" onclick="loadCommercialWorkspace()">↻ Actualizar</button></div>
+      <h3 class="biz-section-title">Crear o editar un plan</h3>
+      <input id="planEditId" type="hidden">
+      <div class="biz-form-grid">
+        <label>Nombre del plan<input id="planName" class="toolbar-input" maxlength="100" placeholder="Ej. Profesional"></label>
+        <label>Código<input id="planCode" class="toolbar-input" maxlength="40" placeholder="PROFESIONAL"></label>
+        <label>Precio (Gs.)<input id="planAmount" class="toolbar-input" type="number" min="0" step="1" value="0"></label>
+        <label>Periodicidad<select id="planCycle" class="toolbar-input"><option value="monthly">Mensual</option><option value="yearly">Anual</option><option value="one_time">Pago único</option><option value="custom">Personalizada (30 días)</option></select></label>
+        <label>Máximo de proyectos<input id="planMaxProjects" class="toolbar-input" type="number" min="1" placeholder="Vacío = sin límite"></label>
+        <label>Máximo de impresoras<input id="planMaxPrinters" class="toolbar-input" type="number" min="1" placeholder="Vacío = sin límite"></label>
+        <label class="biz-check"><input id="featInventory" type="checkbox" checked> Inventario</label>
+        <label class="biz-check"><input id="featCounters" type="checkbox" checked> Contadores</label>
+        <label class="biz-check"><input id="featHistory" type="checkbox"> Historial y reportes</label>
+        <label class="biz-check"><input id="featAlerts" type="checkbox"> Alertas</label>
+        <label class="biz-check"><input id="featExports" type="checkbox"> Exportación Excel</label>
+        <label class="biz-check"><input id="featAi" type="checkbox"> Asistente IA</label>
+        <label class="biz-check"><input id="featMultiuser" type="checkbox"> Varios usuarios</label>
+      </div>
+      <div class="biz-actions"><button id="savePlanBtn" class="toolbar-btn primary" type="button">Guardar plan</button><button id="clearPlanBtn" class="toolbar-btn" type="button">Limpiar formulario</button><span id="plansMsg" class="muted"></span></div>
+      <div class="table-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Periodicidad</th><th>Proyectos</th><th>Impresoras</th><th>Funciones</th><th>Estado</th><th></th></tr></thead><tbody id="plansBody"></tbody></table></div>
+      <h3 class="biz-section-title">Asignar o renovar licencia</h3>
+      <div class="biz-form-grid">
+        <label>Empresa<select id="subscriptionCompany" class="toolbar-input"></select></label>
+        <label>Plan<select id="subscriptionPlan" class="toolbar-input"></select></label>
+        <label>Precio pactado (Gs.)<input id="subscriptionPrice" class="toolbar-input" type="number" min="0" step="1" value="0"></label>
+        <label>Estado<select id="subscriptionStatus" class="toolbar-input"><option value="active">Activo</option><option value="trial">Prueba</option><option value="past_due">Pendiente de pago</option><option value="suspended">Suspendido</option><option value="cancelled">Cancelado</option></select></label>
+        <label>Periodicidad<select id="subscriptionCycle" class="toolbar-input"><option value="monthly">Mensual</option><option value="yearly">Anual</option><option value="one_time">Pago único</option><option value="custom">Personalizada</option></select></label>
+        <label>Vencimiento (opcional)<input id="subscriptionEndsAt" class="toolbar-input" type="date"></label>
+        <label>Límite proyectos (opcional)<input id="subscriptionMaxProjects" class="toolbar-input" type="number" min="1" placeholder="Usar límite del plan"></label>
+        <label>Límite impresoras (opcional)<input id="subscriptionMaxPrinters" class="toolbar-input" type="number" min="1" placeholder="Usar límite del plan"></label>
+      </div>
+      <div class="biz-actions"><button id="saveSubscriptionBtn" class="toolbar-btn primary" type="button">Guardar licencia / renovación</button><span id="subscriptionMsg" class="muted"></span></div>
+      <h3 class="biz-section-title">Registrar venta o documento interno</h3>
+      <div class="biz-form-grid">
+        <label>Empresa<select id="saleCompany" class="toolbar-input"></select></label>
+        <label>Tipo<select id="saleType" class="toolbar-input"><option value="invoice">Venta / cuenta</option><option value="quote">Presupuesto</option><option value="receipt">Recibo interno</option><option value="credit_note">Nota de crédito interna</option></select></label>
+        <label>Descripción<input id="saleDescription" class="toolbar-input" maxlength="500" placeholder="Ej. Servicio de monitoreo mensual"></label>
+        <label>Importe (Gs.)<input id="saleAmount" class="toolbar-input" type="number" min="0" step="1"></label>
+        <label>Vencimiento (opcional)<input id="saleDueAt" class="toolbar-input" type="date"></label>
+      </div>
+      <div class="biz-actions"><button id="createSaleBtn" class="toolbar-btn primary" type="button">Registrar venta</button><span id="salesMsg" class="muted"></span></div>
+      <h3 class="biz-section-title">Ventas y cobros registrados</h3>
+      <div class="table-wrap"><table><thead><tr><th>Documento</th><th>Empresa</th><th>Descripción</th><th>Importe</th><th>Cobrado</th><th>Saldo</th><th>Estado</th><th></th></tr></thead><tbody id="salesBody"></tbody></table></div>
+    </section>
+
+    <section id="view-asistente" class="content-card hidden">
+      <div class="content-head"><div><h2>Asistente IA de A&T Printer Control</h2><small>Consultá impresoras, proyectos, contadores y problemas técnicos visibles para tu cuenta.</small></div><span class="biz-ai-label">IA · Acceso protegido</span></div>
+      <div class="biz-note"><strong>Asistente contextual</strong><span>Responde usando los proyectos, impresoras y últimas lecturas a los que tu sesión tiene permiso. No ejecuta cambios por su cuenta.</span></div>
+      <div class="ai-quick-prompts">
+        <button class="toolbar-btn" type="button" data-ai-prompt="¿Qué impresoras aparecen desconectadas y cuál fue su último contacto?">Impresoras desconectadas</button>
+        <button class="toolbar-btn" type="button" data-ai-prompt="Resumí los contadores de impresión y escaneo disponibles en mis proyectos.">Resumen de contadores</button>
+        <button class="toolbar-btn" type="button" data-ai-prompt="¿Qué equipos tienen errores recientes o problemas de comunicación?">Errores recientes</button>
+        <button class="toolbar-btn" type="button" data-ai-prompt="¿Qué debo revisar si un agente no envía seriales o contadores?">Ayuda con agentes</button>
+      </div>
+      <div id="aiChatLog" class="ai-chat-log" aria-live="polite"><div class="ai-message assistant"><b>A&T IA</b><p>Hola. Puedo ayudarte a interpretar el estado de tu flota y orientar diagnósticos. ¿Qué querés consultar?</p></div></div>
+      <div class="ai-compose"><textarea id="aiQuestion" rows="3" maxlength="1600" placeholder="Escribí tu consulta..."></textarea><button id="aiSendBtn" class="toolbar-btn primary" type="button">Enviar consulta</button></div>
+      <div id="aiMessage" class="muted" aria-live="polite">Hasta 30 consultas por usuario cada 24 horas. El uso de IA puede generar cargos de API.</div>
+    </section>
+
+    <section id="printerDetailPage"<section id="printerDetailPage" class="content-card hidden printer-detail-page">
       <div class="printer-detail-toolbar">
         <button class="toolbar-btn" type="button" onclick="closePrinterDetail()">← Volver al inventario</button>
         <button class="toolbar-btn primary" type="button" onclick="reloadPrinterDetail()">↻ Actualizar ficha</button>
