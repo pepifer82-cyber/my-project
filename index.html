@@ -732,7 +732,7 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
         <label class="biz-check"><input id="featExports" type="checkbox"> Exportación Excel</label>
         <label class="biz-check"><input id="featAi" type="checkbox"> Asistente IA</label>
         <label class="biz-check"><input id="featMultiuser" type="checkbox"> Varios usuarios</label>
-        <label class="biz-check"><input id="featRemoteControl" type="checkbox"> Control remoto de agentes</label>
+        <label class="biz-check"><input id="featRemoteControl" type="checkbox" checked> Control remoto de agentes</label>
       </div>
       <div class="biz-actions"><button id="savePlanBtn" class="toolbar-btn primary" type="button">Guardar plan</button><button id="clearPlanBtn" class="toolbar-btn" type="button">Limpiar formulario</button><span id="plansMsg" class="muted"></span></div>
       <div class="table-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Periodicidad</th><th>Proyectos</th><th>Impresoras</th><th>Funciones</th><th>Estado</th><th></th></tr></thead><tbody id="plansBody"></tbody></table></div>
@@ -3154,13 +3154,13 @@ function clearBusinessPlanForm(){
   $('planEditId').value='';$('planName').value='';$('planCode').value='';$('planAmount').value='0';
   $('planCycle').value='monthly';$('planMaxProjects').value='';$('planMaxPrinters').value='';
   $('featInventory').checked=true;$('featCounters').checked=true;$('featHistory').checked=false;
-  $('featAlerts').checked=false;$('featExports').checked=false;$('featAi').checked=false;$('featMultiuser').checked=false;$('featRemoteControl').checked=false;
+  $('featAlerts').checked=false;$('featExports').checked=false;$('featAi').checked=false;$('featMultiuser').checked=false;$('featRemoteControl').checked=true;
   $('savePlanBtn').textContent='Guardar plan';$('plansMsg').textContent='';
 }
 function renderPlans(){
   const body=$('plansBody');if(!body)return;
   body.innerHTML=businessPlans.length?businessPlans.map(p=>{
-    const f=p.features||{},features=['Inventario','Contadores',f.history?'Historial':'',f.alerts?'Alertas':'',f.exports?'Excel':'',f.ai?'IA':'',f.multi_user?'Usuarios':''].filter(Boolean).join(' · ');
+    const f=p.features||{},features=['Inventario','Contadores',f.history?'Historial':'',f.alerts?'Alertas':'',f.exports?'Excel':'',f.ai?'IA':'',f.multi_user?'Usuarios':'',f.remote_control?'Control remoto':''].filter(Boolean).join(' · ');
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><br><small>'+escapeHtml(p.code)+'</small></td><td>'+formatGs(p.amount)+'</td><td>'+escapeHtml(p.billing_cycle)+'</td><td>'+(p.max_projects??'Ilimitado')+'</td><td>'+(p.max_printers??'Ilimitado')+'</td><td>'+escapeHtml(features)+'</td><td>'+(p.active?'Activo':'Inactivo')+'</td><td><button class="icon-btn" type="button" onclick="editBusinessPlan('+JSON.stringify(p.id)+')">Editar</button></td></tr>';
   }).join(''):'<tr><td colspan="8" class="empty">No hay planes.</td></tr>';
 }
