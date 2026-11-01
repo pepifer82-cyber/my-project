@@ -1,1 +1,1 @@
-Build v0.3.9 run 8 - installer wait process-only with timeout and diagnostics
+Build v0.3.9 run 9 - initialize setup checks previous install folder without premature app constant
