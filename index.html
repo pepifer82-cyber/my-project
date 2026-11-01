@@ -1034,27 +1034,27 @@ function printerColorMode(r){
 
   // Familias conocidas a color: se priorizan antes que las reglas monocromáticas.
   const colorPatterns=[
-    /\\bcolor\\b|\\bcolour\\b|\\bcmyk\\b|\\bofficejet\\b|\\bdeskjet\\b|\\benvy\\b|\\bsmart tank\\b|\\becotank\\b/,
-    /\\b(?:ricoh\\s*)?(?:mp|im|sp)\\s*c\\s*\\d/i,
-    /\\bbizhub\\s*c\\s*\\d|\\bkonica minolta\\s+.*\\bc\\s*\\d/,
-    /\\b(?:lexmark\\s*)?(?:cs|cx)\\s*\\d/,
-    /\\b(?:xerox\\s*)?(?:versalink\\s*c|altalink\\s*c|color laser)/,
-    /\\b(?:pantum\\s*)?cp\\s*\\d/,
-    /\\b(?:samsung\\s*)?(?:clp|clx|xpress\\s*c)\\s*\\d/,
-    /\\b(?:brother\\s*)?(?:hl|dcp|mfc)[- ]?l?\\d{3,5}(?:cdw|cdn)\\b|\\bdcp-t\\d|\\bmfc-j\\d/,
-    /\\b(?:canon\\s*)?(?:lbp|mf)\\s*\\d{3,4}c\\w*|\\bimage(?:runner)?\\s*(?:advance\\s*)?c\\s*\\d/,
-    /\\b(?:epson\\s*)?(?:et-?\\d{3,5}|l\\d{3,5})\\b/,
-    /\\blaserjet.*\\b(?:m452|m454|m477|m479|m553|m555|m577|m578|m652|m653|m681|m682)\\b/
+    /\bcolor\b|\bcolour\b|\bcmyk\b|\bofficejet\b|\bdeskjet\b|\benvy\b|\bsmart tank\b|\becotank\b/,
+    /\b(?:ricoh\s*)?(?:mp|im|sp)\s*c\s*\d/i,
+    /\bbizhub\s*c\s*\d|\bkonica minolta\s+.*\bc\s*\d/,
+    /\b(?:lexmark\s*)?(?:cs|cx)\s*\d/,
+    /\b(?:xerox\s*)?(?:versalink\s*c|altalink\s*c|color laser)/,
+    /\b(?:pantum\s*)?cp\s*\d/,
+    /\b(?:samsung\s*)?(?:clp|clx|xpress\s*c)\s*\d/,
+    /\b(?:brother\s*)?(?:hl|dcp|mfc)[- ]?l?\d{3,5}(?:cdw|cdn)\b|\bdcp-t\d|\bmfc-j\d/,
+    /\b(?:canon\s*)?(?:lbp|mf)\s*\d{3,4}c\w*|\bimage(?:runner)?\s*(?:advance\s*)?c\s*\d/,
+    /\b(?:epson\s*)?(?:et-?\d{3,5}|l\d{3,5})\b/,
+    /\blaserjet.*\b(?:m452|m454|m477|m479|m553|m555|m577|m578|m652|m653|m681|m682)\b/
   ];
   if(colorPatterns.some(pattern=>pattern.test(modelText)))return 'color';
 
   // Familias monocromáticas conocidas.
   const monoPatterns=[
-    /\\blaserjet\\b/,
-    /\\bpantum\\b.*\\b(?:bm|p|m)\\s*\\d/,
-    /\\bsamsung\\b.*\\b(?:ml|scx|m\\s*\\d{3}|xpress\\s*m)\\w*/,
-    /\\bricoh\\b.*\\b(?:mp|sp)\\s*(?!c\\s*\\d)\\w*/,
-    /\\bworkcentre\\s*\\d{4}\\b/
+    /\blaserjet\b/,
+    /\bpantum\b.*\b(?:bm|p|m)\s*\d/,
+    /\bsamsung\b.*\b(?:ml|scx|m\s*\d{3}|xpress\s*m)\w*/,
+    /\bricoh\b.*\b(?:mp|sp)\s*(?!c\s*\d)\w*/,
+    /\bworkcentre\s*\d{4}\b/
   ];
   if(monoPatterns.some(pattern=>pattern.test(modelText)))return 'mono';
 
