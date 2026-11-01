@@ -279,6 +279,7 @@ html[data-theme="dark"] .auth-wrap{background:transparent}
 .printer-detail-metric.metric-purple{background:linear-gradient(135deg,#f1ebff,#fcfaff);border-color:#e2d5ff}
 .printer-detail-metric .metric-date{font-size:14px;line-height:1.3}
 .printer-toner-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.printer-toner-grid.is-mono{grid-template-columns:minmax(0,1fr)}
 .printer-toner-item{border:1px solid var(--line);background:#fff;border-radius:12px;padding:13px}
 .printer-toner-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;font-size:13px;font-weight:800}
 .printer-toner-head>span{display:flex;align-items:center;gap:8px}
@@ -1021,6 +1022,45 @@ function printerTonerGauge(label,value,color,shortName){
   const width=Math.max(0,Math.min(100,n));
   return '<div class="printer-toner-item"><div class="printer-toner-head"><span><i class="toner-dot" style="background:'+color+'"></i>'+escapeHtml(label)+'</span><b>'+escapeHtml(Math.round(n)+'%')+'</b></div><div class="printer-toner-track"><i style="width:'+width+'%;background:'+color+'"></i></div><small>'+escapeHtml(shortName)+'</small></div>';
 }
+function printerColorMode(r){
+  const colorLevels=[r?.toner_cyan_percent,r?.toner_magenta_percent,r?.toner_yellow_percent];
+  if(colorLevels.some(v=>v!==null&&v!==undefined&&v!==''))return 'color';
+
+  let consumablesText='';
+  try{consumablesText=JSON.stringify(r?.consumables||{}).toLowerCase()}catch{}
+  if(/cyan|cian|magenta|yellow|amarillo|color toner|colour toner/.test(consumablesText))return 'color';
+
+  const modelText=[r?.manufacturer,r?.model,r?.display_name,r?.windows_printer_name].filter(Boolean).join(' ').toLowerCase();
+
+  // Familias conocidas a color: se priorizan antes que las reglas monocromáticas.
+  const colorPatterns=[
+    /\\bcolor\\b|\\bcolour\\b|\\bcmyk\\b|\\bofficejet\\b|\\bdeskjet\\b|\\benvy\\b|\\bsmart tank\\b|\\becotank\\b/,
+    /\\b(?:ricoh\\s*)?(?:mp|im|sp)\\s*c\\s*\\d/i,
+    /\\bbizhub\\s*c\\s*\\d|\\bkonica minolta\\s+.*\\bc\\s*\\d/,
+    /\\b(?:lexmark\\s*)?(?:cs|cx)\\s*\\d/,
+    /\\b(?:xerox\\s*)?(?:versalink\\s*c|altalink\\s*c|color laser)/,
+    /\\b(?:pantum\\s*)?cp\\s*\\d/,
+    /\\b(?:samsung\\s*)?(?:clp|clx|xpress\\s*c)\\s*\\d/,
+    /\\b(?:brother\\s*)?(?:hl|dcp|mfc)[- ]?l?\\d{3,5}(?:cdw|cdn)\\b|\\bdcp-t\\d|\\bmfc-j\\d/,
+    /\\b(?:canon\\s*)?(?:lbp|mf)\\s*\\d{3,4}c\\w*|\\bimage(?:runner)?\\s*(?:advance\\s*)?c\\s*\\d/,
+    /\\b(?:epson\\s*)?(?:et-?\\d{3,5}|l\\d{3,5})\\b/,
+    /\\blaserjet.*\\b(?:m452|m454|m477|m479|m553|m555|m577|m578|m652|m653|m681|m682)\\b/
+  ];
+  if(colorPatterns.some(pattern=>pattern.test(modelText)))return 'color';
+
+  // Familias monocromáticas conocidas.
+  const monoPatterns=[
+    /\\blaserjet\\b/,
+    /\\bpantum\\b.*\\b(?:bm|p|m)\\s*\\d/,
+    /\\bsamsung\\b.*\\b(?:ml|scx|m\\s*\\d{3}|xpress\\s*m)\\w*/,
+    /\\bricoh\\b.*\\b(?:mp|sp)\\s*(?!c\\s*\\d)\\w*/,
+    /\\bworkcentre\\s*\\d{4}\\b/
+  ];
+  if(monoPatterns.some(pattern=>pattern.test(modelText)))return 'mono';
+
+  // Para un modelo no reconocido no ocultamos colores que el equipo pudiera utilizar.
+  return 'color';
+}
 function printerOtherConsumables(value){
   const data=value&&typeof value==='object'?value:{};
   const items=Object.entries(data).filter(([k,v])=>v&&typeof v==='object');
@@ -1074,11 +1114,13 @@ function renderPrinterDetail(r){
       '<div class="printer-detail-metric metric-purple"><span>ÚLTIMA LECTURA</span><b class="metric-date">'+escapeHtml(printerDetailDate(r.reading_at))+'</b><small>Lectura automática más reciente</small></div>'+
     '</div>'+
     '<div class="printer-detail-section"><div class="printer-detail-section-head"><div><h3>🖨️ Niveles de tóner / tinta</h3><p>Los porcentajes se muestran únicamente cuando la impresora los informa.</p></div></div>'+
-      '<div class="printer-toner-grid">'+
+      '<div class="printer-toner-grid '+(printerColorMode(r)==='mono'?'is-mono':'is-color')+'">'+
         printerTonerGauge('Negro',r.toner_black_percent,'#283447','K · Black')+
-        printerTonerGauge('Cian',r.toner_cyan_percent,'#00bde8','C · Cyan')+
-        printerTonerGauge('Magenta',r.toner_magenta_percent,'#e34a9a','M · Magenta')+
-        printerTonerGauge('Amarillo',r.toner_yellow_percent,'#eab308','Y · Yellow')+
+        (printerColorMode(r)==='color'?(
+          printerTonerGauge('Cian',r.toner_cyan_percent,'#00bde8','C · Cyan')+
+          printerTonerGauge('Magenta',r.toner_magenta_percent,'#e34a9a','M · Magenta')+
+          printerTonerGauge('Amarillo',r.toner_yellow_percent,'#eab308','Y · Yellow')
+        ):'')+
       '</div>'+
       '<div class="printer-detail-extra"><h4>Otros consumibles</h4>'+printerOtherConsumables(r.consumables)+'</div>'+
     '</div>'+
