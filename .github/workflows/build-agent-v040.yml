@@ -35,6 +35,15 @@ jobs:
           if ($archiveHash -ne '7d3344fabf0e81ab9c0ada9d3fd4a2f36a600a6ad2c299019e7f7b83a9d52b5c') { throw "SHA-256 de fuente incorrecto: $archiveHash" }
           Expand-Archive -Path 'agent-source-v040.zip' -DestinationPath 'agent' -Force
           if (!(Test-Path 'agent/src/ATPrinterAgent.csproj')) { throw 'El paquete fuente no contiene el proyecto C# esperado.' }
+          $scanner = 'agent/src/NetworkPrinterScanner.cs'
+          $scannerSource = Get-Content -Raw $scanner
+          $badCounterCheck = 'if (number <= (ulong)long.MaxValue) return (long)number;'
+          if ($scannerSource.Contains($badCounterCheck)) {
+            $scannerSource = $scannerSource.Replace($badCounterCheck, 'return (long)number;')
+            Set-Content -Path $scanner -Value $scannerSource -Encoding utf8
+          } elseif ($scannerSource -notmatch 'return \(long\)number;') {
+            throw 'No se pudo validar el bloque de conversión Counter32.'
+          }
 
       - name: Prepare SNMP protocol tests
         working-directory: agent
