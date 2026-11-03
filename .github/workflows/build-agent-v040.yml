@@ -1,0 +1,101 @@
+name: Build A&T Printer Agent v0.4.0
+
+on:
+  push:
+    branches:
+      - agent-v0.4.0
+    paths:
+      - 'agent-source-v040-*.b64'
+      - '.github/workflows/build-agent-v040.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: pwsh
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Restore source archive from verified text chunks
+        run: |
+          $parts = Get-ChildItem -Path '.' -Filter 'agent-source-v040-*.b64' | Sort-Object Name
+          if ($parts.Count -lt 1) { throw 'No se encontraron las partes del código fuente v0.4.0.' }
+          $encoded = ($parts | ForEach-Object { (Get-Content -Raw $_.FullName).Trim() }) -join ''
+          if ($encoded.Length -ne 116268) { throw "El código fuente está incompleto: $($encoded.Length) caracteres; se esperaban 116268." }
+          $bytes = [Convert]::FromBase64String($encoded)
+          [IO.File]::WriteAllBytes('agent-source-v040.zip', $bytes)
+          $archiveHash = (Get-FileHash 'agent-source-v040.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveHash -ne '7d3344fabf0e81ab9c0ada9d3fd4a2f36a600a6ad2c299019e7f7b83a9d52b5c') { throw "SHA-256 de fuente incorrecto: $archiveHash" }
+          Expand-Archive -Path 'agent-source-v040.zip' -DestinationPath 'agent' -Force
+          if (!(Test-Path 'agent/src/ATPrinterAgent.csproj')) { throw 'El paquete fuente no contiene el proyecto C# esperado.' }
+
+      - name: Install .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+
+      - name: Install Inno Setup 6
+        run: choco install innosetup --yes --no-progress
+
+      - name: Run SNMP protocol tests
+        working-directory: agent
+        run: dotnet run --project tests/SnmpProtocolTests/SnmpProtocolTests.csproj --configuration Release
+
+      - name: Restore and publish x86
+        working-directory: agent
+        run: |
+          dotnet restore src/ATPrinterAgent.csproj --runtime win-x86
+          dotnet publish src/ATPrinterAgent.csproj --configuration Release --runtime win-x86 --self-contained true --no-restore `
+            -p:Platform=x86 `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o publish-x86
+          if (!(Test-Path 'publish-x86/ATPrinterAgent.exe')) { throw 'No se generó el EXE x86.' }
+
+      - name: Restore and publish x64
+        working-directory: agent
+        run: |
+          dotnet restore src/ATPrinterAgent.csproj --runtime win-x64
+          dotnet publish src/ATPrinterAgent.csproj --configuration Release --runtime win-x64 --self-contained true --no-restore `
+            -p:Platform=x64 `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=None `
+            -p:DebugSymbols=false `
+            -o publish-x64
+          if (!(Test-Path 'publish-x64/ATPrinterAgent.exe')) { throw 'No se generó el EXE x64.' }
+
+      - name: Build installer
+        working-directory: agent
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6/ISCC.exe'
+          if (!(Test-Path $iscc)) { $iscc = Join-Path $env:ProgramFiles 'Inno Setup 6/ISCC.exe' }
+          if (!(Test-Path $iscc)) { throw 'No se encontró Inno Setup 6.' }
+          & $iscc 'AandTPrinterAgent.iss'
+          if ($LASTEXITCODE -ne 0) { throw 'Inno Setup no pudo crear el instalador.' }
+          $installer = 'Instalar_ATPrinterAgent_v0.4.0.exe'
+          if (!(Test-Path $installer)) { throw 'No se generó el instalador v0.4.0.' }
+          $hash = (Get-FileHash $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+          "$hash  $installer" | Out-File -FilePath 'SHA256SUMS.txt' -Encoding ascii
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AandTPrinterAgent-v0.4.0-Windows-x86-x64
+          path: |
+            agent/Instalar_ATPrinterAgent_v0.4.0.exe
+            agent/SHA256SUMS.txt
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 30
