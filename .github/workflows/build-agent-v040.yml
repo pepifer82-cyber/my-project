@@ -36,6 +36,15 @@ jobs:
           Expand-Archive -Path 'agent-source-v040.zip' -DestinationPath 'agent' -Force
           if (!(Test-Path 'agent/src/ATPrinterAgent.csproj')) { throw 'El paquete fuente no contiene el proyecto C# esperado.' }
 
+      - name: Prepare SNMP protocol tests
+        working-directory: agent
+        run: |
+          $testProgram = 'tests/SnmpProtocolTests/Program.cs'
+          $source = Get-Content -Raw $testProgram
+          if ($source -notmatch '(?m)^using System\.Text;\s*$') {
+            Set-Content -Path $testProgram -Value ("using System.Text;`r`n" + $source) -Encoding utf8
+          }
+
       - name: Install .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
