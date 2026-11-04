@@ -1,8 +1,12 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="description" content="Panel de control A&T para monitorear impresoras en la nube: contadores de páginas, nivel de tinta, agentes instalados y alertas por cliente.">
+<meta name="robots" content="noindex,nofollow">
+<meta name="theme-color" content="#0d1b2e">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%232878ff'/%3E%3Cstop offset='1' stop-color='%2312b8e9'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='64' height='64' rx='14' fill='url(%23g)'/%3E%3Ctext x='32' y='41' font-family='Arial,Helvetica,sans-serif' font-size='19' font-weight='bold' fill='%23fff' text-anchor='middle'%3EA%26T%3C/text%3E%3C/svg%3E">
 <title>A&T Printer Control</title>
 <style>
 :root{
@@ -440,10 +444,29 @@ html[data-theme="dark"] .client-account-card.license-off{background:#302519;bord
 .project-empty-hint{padding:14px 10px;color:var(--muted);font-size:12px;line-height:1.45}
 html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:#e5f0ff;border-color:#34506d}
 
-</style></style>
+/* ===== Toasts ===== */
+.toast-stack{position:fixed;top:14px;right:14px;z-index:20000;display:flex;flex-direction:column;gap:8px;max-width:min(360px,86vw)}
+.toast{display:flex;align-items:flex-start;gap:9px;background:var(--navy);color:#fff;border-radius:11px;padding:11px 11px 11px 13px;font-size:12.5px;line-height:1.45;border-left:4px solid var(--blue);box-shadow:0 14px 34px #0d1b2e52;animation:toastIn .16s ease}
+.toast-text{white-space:pre-line;word-break:break-word}
+.toast.success{border-left-color:var(--green)}
+.toast.error{border-left-color:var(--red)}
+.toast.warn{border-left-color:var(--amber)}
+.toast-x{flex:none;background:transparent;border:0;color:#9db2cb;font-size:13px;cursor:pointer;padding:1px 2px;line-height:1}
+.toast-x:hover{color:#fff}
+@keyframes toastIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+.modal{max-width:400px}
+.confirm-modal p{margin:0 0 4px;color:var(--text)}
+.danger-btn{background:#fdedf0!important;color:#b42335!important;border:1px solid #ffd4d9!important}
+.confirm-modal h2{margin:0 0 6px;font-size:18px;letter-spacing:-.01em}
+/* ===== Mostrar/ocultar contraseña ===== */
+.pw-row{position:relative}
+.pw-row input{padding-right:38px}
+#pwToggle{position:absolute;right:2px;bottom:0;width:34px;height:34px;background:transparent;border:0;cursor:pointer;font-size:15px;line-height:1;color:var(--muted)}
+#pwToggle:hover{color:var(--text)}
+</style>
 </head>
 <body>
-<div id="auth" class="auth-wrap">
+<main id="auth" class="auth-wrap">
   <button id="themeToggleAuth" class="theme-toggle auth-theme" type="button" aria-label="Cambiar apariencia">☀️ Claro</button>
   <div class="auth-card">
     <div class="auth-brand">
@@ -451,8 +474,8 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
       <div><h1>A&T Printer Control</h1><p>Monitoreo de impresoras en la nube</p></div>
     </div>
     <div id="authFields" class="auth-fields">
-      <div><label>Email</label><input id="email" type="email" autocomplete="username" placeholder="tu@email.com"></div>
-      <div><label>Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+      <div><label for="email">Email</label><input id="email" type="email" autocomplete="username" placeholder="tu@email.com"></div>
+      <div class="pw-row"><label for="password">Contraseña</label><input id="password" type="password" autocomplete="current-password" placeholder="••••••••"><button id="pwToggle" type="button" aria-label="Mostrar la contraseña" title="Mostrar u ocultar la contraseña">👁</button></div>
     </div>
     <div class="auth-actions">
       <button id="loginBtn" class="primary" type="button">Ingresar</button>
@@ -467,7 +490,7 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
     </div>
     <div id="authMsg" class="auth-msg muted"></div>
   </div>
-</div>
+</main>
 
 <div id="app" class="app-shell hidden">
   <aside class="sidebar">
@@ -782,7 +805,7 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
       <div id="aiMessage" class="muted" aria-live="polite">Hasta 30 consultas por usuario cada 24 horas. El uso de IA puede generar cargos de API.</div>
     </section>
 
-    <section id="printerDetailPage"<section id="printerDetailPage" class="content-card hidden printer-detail-page">
+    <section id="printerDetailPage" class="content-card hidden printer-detail-page">
       <div class="printer-detail-toolbar">
         <button class="toolbar-btn" type="button" onclick="closePrinterDetail()">← Volver al inventario</button>
         <button class="toolbar-btn primary" type="button" onclick="reloadPrinterDetail()">↻ Actualizar ficha</button>
@@ -847,6 +870,88 @@ const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
 let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],projectCompanies=[],sidebarCompanyFilter='all',serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
 const $=id=>document.getElementById(id);
+// ===== Toasts + diálogo de confirmación (reemplazan alert() y confirm()) =====
+function toastStackEl(){
+  let el=document.getElementById('toastStack');
+  if(!el){el=document.createElement('div');el.id='toastStack';el.className='toast-stack';el.setAttribute('role','status');el.setAttribute('aria-live','polite');document.body.appendChild(el)}
+  return el;
+}
+function classifyToast(text){
+  if(/no se pudo|no hay|no es |no son|válido|válida|ingresá|no está|no tiene|no se encontró|menor que/i.test(text))return'error';
+  if(/copiado|registrado|guardad|retirado|creado|generado|enviad|actualizad/i.test(text))return'success';
+  return'info';
+}
+function atNotify(message,type,duration){
+  const text=String(message??'');
+  const kind=type||(text.includes('Serial del agente')||text.includes('Nuevo serial')?'warn':classifyToast(text));
+  const ms=duration||(kind==='error'?6500:kind==='warn'?15000:5000);
+  const stack=toastStackEl();
+  while(stack.children.length>=4)stack.firstChild.remove();
+  const t=document.createElement('div');
+  t.className='toast '+kind;
+  const span=document.createElement('span');span.className='toast-text';span.textContent=text;
+  const close=document.createElement('button');close.type='button';close.className='toast-x';close.textContent='✕';close.setAttribute('aria-label','Cerrar aviso');
+  let to=0;
+  close.addEventListener('click',()=>{clearTimeout(to);t.remove()});
+  t.append(span,close);
+  stack.appendChild(t);
+  to=setTimeout(()=>t.remove(),ms);
+}
+function askConfirm(message){
+  return new Promise(resolve=>{
+    const old=document.getElementById('confirmOverlay');if(old)old.remove();
+    const text=String(message??'');
+    const danger=/retirar|quitar|borrar|desactivar|eliminar|desinstalar/i.test(text);
+    const back=document.createElement('div');back.className='modal-back';back.id='confirmOverlay';back.style.zIndex='12000';
+    const box=document.createElement('div');box.className='modal confirm-modal';
+    // Accesibilidad: dialogo modal anunciado por lectores de pantalla.
+    box.setAttribute('role','alertdialog');
+    box.setAttribute('aria-modal','true');
+    box.setAttribute('aria-labelledby','confirmOverlayTitle');
+    box.setAttribute('aria-describedby','confirmOverlayDesc');
+    const title=document.createElement('h2');title.id='confirmOverlayTitle';title.textContent=danger?'Confirmar acción':'Confirmación';
+    const p=document.createElement('p');p.id='confirmOverlayDesc';p.style.whiteSpace='pre-line';p.textContent=text;
+    const actions=document.createElement('div');actions.className='modal-actions';
+    const no=document.createElement('button');no.className='secondary';no.type='button';no.textContent='Cancelar';
+    const yes=document.createElement('button');yes.className='primary';yes.type='button';if(danger)yes.classList.add('danger-btn');
+    yes.textContent=danger?'Sí, confirmar':'Confirmar';
+    const focusables=[yes,no];
+    function done(val){document.removeEventListener('keydown',onKey);if(lastFocused&&lastFocused.isConnected)lastFocused.focus();back.remove();resolve(val)}
+    const lastFocused=document.activeElement;
+    const onKey=e=>{
+      if(!back.isConnected)return;
+      if(e.key==='Escape'){e.preventDefault();done(false)}
+      else if(e.key==='Enter'){e.preventDefault();done(true)}
+      else if(e.key==='Tab'){
+        // Trampa de foco: Tab y Shift+Tab ciclan entre los dos botones.
+        e.preventDefault();
+        const idx=focusables.indexOf(document.activeElement);
+        const next=e.shiftKey?(idx<=0?focusables.length-1:idx-1):(idx<0||idx===focusables.length-1?0:idx+1);
+        focusables[next].focus();
+      }
+    };
+    no.addEventListener('click',()=>done(false));
+    yes.addEventListener('click',()=>done(true));
+    // Evita que el clic en el fondo quite el foco del diálogo antes de cancelar.
+    back.addEventListener('mousedown',e=>{if(e.target===back)e.preventDefault()});
+    back.addEventListener('click',e=>{if(e.target===back)done(false)});
+    actions.append(no,yes);box.append(title,p,actions);back.append(box);
+    document.body.appendChild(back);
+    document.addEventListener('keydown',onKey);
+    yes.focus();
+  });
+}
+(function setupPasswordToggle(){
+  const b=$('pwToggle');
+  if(!b)return;
+  b.addEventListener('click',()=>{
+    const p=$('password');if(!p)return;
+    const show=p.type==='password';
+    p.type=show?'text':'password';
+    b.textContent=show?'🙈':'👁';
+    b.setAttribute('aria-label',show?'Ocultar la contraseña':'Mostrar la contraseña');
+  });
+})();
 let currentPrinterDetailId=null,printerManualEntries=[];
 let printerPhotoSearchSequence=0;
 const THEME_KEY='atpc_theme';
@@ -1374,7 +1479,7 @@ function closePrinterDetail(){
 }
 function openPrinterDetail(printerId){
   const r=rows.find(x=>String(x.printer_id)===String(printerId));
-  if(!r){alert('No se encontró la impresora en el proyecto actual. Actualizá el inventario e intentá nuevamente.');return}
+  if(!r){atNotify('No se encontró la impresora en el proyecto actual. Actualizá el inventario e intentá nuevamente.');return}
   currentPrinterDetailId=String(printerId);
   ['.hero','#launcher','.kpis'].forEach(selector=>{
     const el=document.querySelector(selector);
@@ -1760,13 +1865,13 @@ async function saveManualPrinterCounter(event){
   const scannerRaw=$('manualPrinterScannerCount').value.trim();
   const pageCount=Number(pageRaw);
   const scannerCount=scannerRaw===''?null:Number(scannerRaw);
-  if(!Number.isSafeInteger(pageCount)||pageCount<0){alert('Ingresá un contador de páginas entero y no negativo.');return}
-  if(scannerCount!==null&&(!Number.isSafeInteger(scannerCount)||scannerCount<0)){alert('El contador del escáner debe ser un entero no negativo.');return}
+  if(!Number.isSafeInteger(pageCount)||pageCount<0){atNotify('Ingresá un contador de páginas entero y no negativo.');return}
+  if(scannerCount!==null&&(!Number.isSafeInteger(scannerCount)||scannerCount<0)){atNotify('El contador del escáner debe ser un entero no negativo.');return}
   const latest=printerManualEntries[0];
-  if(latest&&pageCount<Number(latest.page_count)&&!confirm('El contador ingresado es menor que la última lectura manual. ¿Querés guardar igualmente?'))return;
+  if(latest&&pageCount<Number(latest.page_count)&&!(await askConfirm('El contador ingresado es menor que la última lectura manual. ¿Querés guardar igualmente?')))return;
   const recordedValue=$('manualPrinterRecordedAt').value;
   const recordedDate=recordedValue?new Date(recordedValue):new Date();
-  if(Number.isNaN(recordedDate.getTime())){alert('La fecha y hora no son válidas.');return}
+  if(Number.isNaN(recordedDate.getTime())){atNotify('La fecha y hora no son válidas.');return}
   const payload={
     project_id:currentProjectId,
     printer_id:printerId,
@@ -1888,7 +1993,7 @@ async function savePrinterInline(el){
   }catch(e){
     el.value=previousValues[field];
     const fieldLabel={description:'la descripción',city:'la ciudad',serial_number:'el número de serie'}[field]||field;
-    alert('No se pudo guardar '+fieldLabel+': '+e.message);
+    atNotify('No se pudo guardar '+fieldLabel+': '+e.message);
   }finally{
     el.disabled=false;
     delete el.dataset.saving;
@@ -1899,7 +2004,7 @@ async function savePrinterInline(el){
 async function setRetired(id,retired){
   const r=rows.find(x=>x.printer_id===id);if(!r)return;
   const action=retired?'retirar':'restaurar';
-  const ok=confirm(retired
+  const ok=await askConfirm(retired
     ? '¿Retirar esta impresora del control? Se conservarán sus datos e historial y quedará en la pestaña Retiradas.'
     : '¿Restaurar esta impresora al control activo?');
   if(!ok)return;
@@ -1914,7 +2019,7 @@ async function setRetired(id,retired){
     Object.assign(r,{retired:updated.retired,retired_at:updated.retired_at,updated_at:updated.updated_at});
     renderAll();
     if(currentView==='retiradas' || currentView==='inventario') await loadProjectData();
-  }catch(e){alert('No se pudo '+action+': '+e.message)}
+  }catch(e){atNotify('No se pudo '+action+': '+e.message)}
 }
 function hasRealIp(r){
   const ip=String(r?.ip_address||'').trim();
@@ -2341,7 +2446,7 @@ async function deleteAlertSettings(){
     $('alertSettingsMsg').className='auth-msg danger';
     return;
   }
-  const ok=confirm('¿Borrar la configuración de alertas de este proyecto? Se eliminarán los destinatarios y las opciones guardadas. El historial de alertas NO se borrará.');
+  const ok=await askConfirm('¿Borrar la configuración de alertas de este proyecto? Se eliminarán los destinatarios y las opciones guardadas. El historial de alertas NO se borrará.');
   if(!ok)return;
   const btn=$('deleteAlertSettings');
   btn.disabled=true;
@@ -2412,7 +2517,14 @@ function renderAll(){
 
 let remoteConfigAgentId=null;
 let remoteConfigHistoryTimer=null;
-function closeAgentRemoteConfig(){const m=$('remoteConfigModal');if(m)m.style.display='none';if(remoteConfigHistoryTimer){clearInterval(remoteConfigHistoryTimer);remoteConfigHistoryTimer=null}}
+function stopRemoteHistoryPolling(){if(remoteConfigHistoryTimer){clearInterval(remoteConfigHistoryTimer);remoteConfigHistoryTimer=null}}
+// Registra el poller solo si el modal sigue abierto; además se libera solo si el modal se cierra (sin fugas si la limpieza se olvida en el futuro).
+function startRemoteHistoryPolling(){
+ stopRemoteHistoryPolling();
+ if(document.getElementById('remoteConfigModal')?.style.display!=='flex')return;
+ remoteConfigHistoryTimer=setInterval(()=>{if(document.getElementById('remoteConfigModal')?.style.display!=='flex'){stopRemoteHistoryPolling();return}refreshAgentRemoteCommands(false)},7000);
+}
+function closeAgentRemoteConfig(){const m=$('remoteConfigModal');if(m)m.style.display='none';stopRemoteHistoryPolling()}
 function remoteIpv4(v){const p=String(v||'').trim().split('.');return p.length===4&&p.every(x=>/^\d{1,3}$/.test(x)&&Number(x)>=0&&Number(x)<=255)}
 function remoteCommandTitle(c){return({set_usb_control:'Configuración USB',add_ip:'Agregar IP',remove_ip:'Quitar IP',add_ip_range:'Agregar rango IP',remove_ip_range:'Quitar rango IP',set_network_scan:'Búsqueda de red',set_interval:'Intervalo de envío',rescan_now:'Buscar ahora',update_now:'Actualizar agente'})[c]||c}
 function remoteCommandStatus(s){return({queued:'En espera',running:'En proceso',done:'Aplicado',failed:'Error',cancelled:'Cancelado'})[s]||s||'Desconocido'}
@@ -2437,12 +2549,14 @@ function ensureAgentRemoteModal(){
  $('remoteConfigModal').addEventListener('click',e=>{if(e.target===$('remoteConfigModal'))closeAgentRemoteConfig()});
 }
 async function openAgentRemoteConfig(agentId){
- const a=agentRows.find(x=>String(x.id)===String(agentId));if(!a||a.active===false){alert('El agente no está activo en este proyecto.');return}
+ const a=agentRows.find(x=>String(x.id)===String(agentId));if(!a||a.active===false){atNotify('El agente no está activo en este proyecto.');return}
  remoteConfigAgentId=String(agentId);ensureAgentRemoteModal();
  $('remoteAgentMeta').textContent=(a.agent_code||'Agente')+' · '+(a.machine_name||'Equipo sin nombre')+' · v'+(a.app_version||'versión desconocida')+' · '+(a.windows_user||'usuario Windows desconocido');
  $('remoteConfigMsg').textContent='Consultando configuración guardada…';$('remoteConfigMsg').className='auth-msg muted';$('remoteConfigModal').style.display='flex';
- await refreshAgentRemoteCommands(true);if(remoteConfigHistoryTimer)clearInterval(remoteConfigHistoryTimer);
- remoteConfigHistoryTimer=setInterval(()=>{if($('remoteConfigModal')?.style.display==='flex')refreshAgentRemoteCommands(false)},7000);
+ stopRemoteHistoryPolling();
+ await refreshAgentRemoteCommands(true);
+ // Solo se registra el poller si el modal sigue abierto (el usuario pudo cerrarlo durante la consulta).
+ startRemoteHistoryPolling();
 }
 async function refreshAgentRemoteCommands(prefill){
  if(!remoteConfigAgentId||!currentProjectId)return;
@@ -2489,13 +2603,14 @@ async function sendRescanForAgent(agentId){
  remoteConfigAgentId=String(agentId);
  ensureAgentRemoteModal();
  const a=agentRows.find(x=>String(x.id)===remoteConfigAgentId);
- if(!a||a.active===false){alert('El agente está inactivo.');remoteConfigAgentId=previous;return}
+ if(!a||a.active===false){atNotify('El agente está inactivo.');remoteConfigAgentId=previous;return}
  $('remoteAgentMeta').textContent=(a.agent_code||'Agente')+' · '+(a.machine_name||'Equipo sin nombre')+' · '+(a.windows_user||'usuario Windows desconocido');
  $('remoteConfigMsg').textContent='';$('remoteConfigMsg').className='auth-msg muted';
  $('remoteConfigModal').style.display='flex';
+ stopRemoteHistoryPolling();
  await queueAgentCommand('rescan_now',{});
- if(remoteConfigHistoryTimer)clearInterval(remoteConfigHistoryTimer);
- remoteConfigHistoryTimer=setInterval(()=>{if($('remoteConfigModal')?.style.display==='flex')refreshAgentRemoteCommands(false)},7000);
+ // No arranca el poller si el modal se cerró mientras la solicitud estaba en curso.
+ startRemoteHistoryPolling();
 }
 function submitRemoteIp(command){const ip=$('remoteIpValue').value.trim();if(!remoteIpv4(ip)){$('remoteConfigMsg').textContent='Ingresá una IPv4 válida, por ejemplo 192.168.1.25.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{ip})}
 function submitRemoteRange(command){const start=$('remoteRangeStart').value.trim(),end=$('remoteRangeEnd').value.trim(),num=s=>s.split('.').reduce((n,p)=>n*256+Number(p),0);if(!remoteIpv4(start)||!remoteIpv4(end)||num(start)>num(end)){$('remoteConfigMsg').textContent='Ingresá un rango IPv4 válido y ordenado.';$('remoteConfigMsg').className='auth-msg danger';return}queueAgentCommand(command,{start,end})}
@@ -2521,17 +2636,17 @@ async function createProject(){
     }
     $('projectModal').classList.add('hidden');$('projectNameInput').value='';$('projectMsg').textContent='';
     await loadProjects(p?.id);
-    if(p?.serial)alert('Proyecto creado para '+(isAdmin?(projectCompanies.find(x=>String(x.id)===String(sidebarCompanyFilter))?.name||'el cliente'):'tu empresa')+'.\n\nSerial del agente:\n'+p.serial+'\n\nGuardalo para configurar el agente.');
+    if(p?.serial)atNotify('Proyecto creado para '+(isAdmin?(projectCompanies.find(x=>String(x.id)===String(sidebarCompanyFilter))?.name||'el cliente'):'tu empresa')+'.\n\nSerial del agente:\n'+p.serial+'\n\nGuardalo para configurar el agente.');
   }catch(e){$('projectMsg').textContent='Error: '+e.message}
   finally{$('createProjectBtn').disabled=false}
 }
 async function generateSerial(){
-  if(!currentProjectId)return;if(!confirm('Generar un serial adicional para este proyecto? Los seriales anteriores seguirán funcionando.'))return;
+  if(!currentProjectId)return;if(!(await askConfirm('Generar un serial adicional para este proyecto? Los seriales anteriores seguirán funcionando.')))return;
   try{
     const result=await api('/rest/v1/rpc/control_issue_serial',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});const s=Array.isArray(result)?result[0]:result;
     await loadProjects(currentProjectId);
-    alert('Nuevo serial generado para '+$('projectName').textContent+':\n\n'+s.serial+'\n\nPegalo en Configuración del A&T Printer Agent.');
-  }catch(e){alert('No se pudo generar: '+e.message)}
+    atNotify('Nuevo serial generado para '+$('projectName').textContent+':\n\n'+s.serial+'\n\nPegalo en Configuración del A&T Printer Agent.');
+  }catch(e){atNotify('No se pudo generar: '+e.message)}
 }
 
 function fitColumns(ws){
@@ -2566,8 +2681,8 @@ function setDefaultCounterDates(){
 function validateCounterDates(){
   const from=$('counterFrom')?.value||'';
   const to=$('counterTo')?.value||'';
-  if(!from||!to){alert('Seleccioná la fecha inicial y final.');return null}
-  if(to<from){alert('La fecha final no puede ser menor que la inicial.');return null}
+  if(!from||!to){atNotify('Seleccioná la fecha inicial y final.');return null}
+  if(to<from){atNotify('La fecha final no puede ser menor que la inicial.');return null}
   return {from,to};
 }
 function counterStatus(r){
@@ -2824,11 +2939,11 @@ function renderCounterRows(){
 }
 
 async function exportCountersExcel(){
-  if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel.');return}
+  if(typeof XLSX==='undefined'){atNotify('No se pudo cargar el módulo de Excel.');return}
   const dates=validateCounterDates();
   if(!dates)return;
   const data=await loadCounterHistory(false);
-  if(!data.length){alert('No hay lecturas guardadas de impresoras en ese período.');return}
+  if(!data.length){atNotify('No hay lecturas guardadas de impresoras en ese período.');return}
   const p=projects.find(x=>x.id===currentProjectId);
   const val=v=>v===null||v===undefined||v===''?'':Number(v);
   const dt=v=>v?new Date(v).toLocaleString('es-PY'):'';
@@ -2861,8 +2976,8 @@ async function exportCountersExcel(){
 }
 
 function exportProjectExcel(){
-  if(typeof XLSX==='undefined'){alert('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
-  if(!currentProjectId){alert('Seleccioná un proyecto primero.');return}
+  if(typeof XLSX==='undefined'){atNotify('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.');return}
+  if(!currentProjectId){atNotify('Seleccioná un proyecto primero.');return}
   const p=projects.find(x=>x.id===currentProjectId);
   // Reutiliza la misma deduplicación de la pantalla: una IP física representa una sola impresora.
   const activeRows=dedupePrinterRows(rows.filter(isActivePrinterRecord));
@@ -3020,48 +3135,48 @@ async function updateManagedUser(button){
  const email=row.querySelector('[data-field="email"]').value.trim();
  const password=row.querySelector('[data-field="password"]').value;
  const user_id=row.dataset.userId,project_id=$('newUserProject').value;
- if(!email.includes('@')){alert('Ingresá un correo válido.');return}
- if(password&&password.length<6){alert('La contraseña debe tener al menos 6 caracteres.');return}
+ if(!email.includes('@')){atNotify('Ingresá un correo válido.');return}
+ if(password&&password.length<6){atNotify('La contraseña debe tener al menos 6 caracteres.');return}
  button.disabled=true;
  try{
   await userAdminRequest({action:'update',user_id,project_id,email,password});
   row.querySelector('[data-field="password"]').value='';
   $('usersListMsg').textContent='Usuario actualizado correctamente.';
- }catch(e){alert('No se pudo modificar el usuario: '+e.message)}
+ }catch(e){atNotify('No se pudo modificar el usuario: '+e.message)}
  finally{button.disabled=false}
 }
 async function removeManagedUser(button){
  const row=button?.closest('.managed-user-row');if(!row)return;
  const user_id=row.dataset.userId,project_id=$('newUserProject').value;
  const email=row.querySelector('[data-field="email"]').value.trim();
- if(!confirm('¿Quitar a '+email+' de este proyecto? Si no tiene acceso a otros proyectos, también se eliminará su cuenta.'))return;
+ if(!(await askConfirm('¿Quitar a '+email+' de este proyecto? Si no tiene acceso a otros proyectos, también se eliminará su cuenta.')))return;
  button.disabled=true;
  try{
   const result=await userAdminRequest({action:'remove',user_id,project_id});
   $('usersListMsg').textContent=result.message||'Usuario eliminado.';
   await loadManagedUsers();
- }catch(e){alert('No se pudo eliminar el usuario: '+e.message)}
+ }catch(e){atNotify('No se pudo eliminar el usuario: '+e.message)}
  finally{button.disabled=false}
 }
 async function copyProjectSerial(serial){
   if(!serial)return;
-  try{await navigator.clipboard.writeText(serial);alert('Serial copiado.')}catch{alert('No se pudo copiar automáticamente: '+serial)}
+  try{await navigator.clipboard.writeText(serial);atNotify('Serial copiado.')}catch{atNotify('No se pudo copiar automáticamente: '+serial)}
 }
 async function copySerial(){
   const serial=String($('serialValue')?.textContent||'').trim();
   if(!serial||serial==='—'||serial==='Sin serial visible'||serial==='Cargando…'){
-    alert('Este proyecto no tiene un serial visible.');return;
+    atNotify('Este proyecto no tiene un serial visible.');return;
   }
   await copyProjectSerial(serial);
 }
 async function archiveProject(){
   const p=projects.find(x=>x.id===currentProjectId);if(!p)return;
-  if(!confirm('¿Retirar el proyecto «'+p.name+'» de tu empresa? Se desactivarán su agente y seriales. Los datos históricos se conservarán y no se borrarán.'))return;
+  if(!(await askConfirm('¿Retirar el proyecto «'+p.name+'» de tu empresa? Se desactivarán su agente y seriales. Los datos históricos se conservarán y no se borrarán.')))return;
   const btn=$('archiveProjectBtn');btn.disabled=true;btn.textContent='Retirando…';
   try{
     await api('/rest/v1/rpc/control_archive_project',{method:'POST',body:JSON.stringify({p_project_id:currentProjectId})});
-    currentProjectId=null;await loadProjects();alert('Proyecto retirado. Se conservaron sus datos e historial.');
-  }catch(e){alert('No se pudo retirar el proyecto: '+e.message)}finally{btn.textContent='Retirar proyecto seleccionado';if(currentProjectId)btn.disabled=false}
+    currentProjectId=null;await loadProjects();atNotify('Proyecto retirado. Se conservaron sus datos e historial.');
+  }catch(e){atNotify('No se pudo retirar el proyecto: '+e.message)}finally{btn.textContent='Retirar proyecto seleccionado';if(currentProjectId)btn.disabled=false}
 }
 
 
@@ -3218,9 +3333,9 @@ async function createProjectForCompany(){
 }
 async function toggleCompanyStatus(companyId,status){
   const word=status==='active'?'reactivar':'suspender';
-  if(!confirm('¿Querés '+word+' esta empresa? El inventario y el historial se conservarán.'))return;
+  if(!(await askConfirm('¿Querés '+word+' esta empresa? El inventario y el historial se conservarán.')))return;
   try{await businessAdminRequest({action:'set_company_status',company_id:companyId,status});await loadBusinessWorkspace();await loadProjects(currentProjectId)}
-  catch(e){alert('No se pudo cambiar el estado: '+e.message)}
+  catch(e){atNotify('No se pudo cambiar el estado: '+e.message)}
 }
 function editBusinessPlan(planId){
   const p=businessPlans.find(x=>x.id===planId);if(!p)return;
@@ -3298,10 +3413,10 @@ async function createCompanySale(){
 async function recordCompanyPayment(saleId,balance){
   const amountText=prompt('Saldo pendiente: '+formatGs(balance)+'. Importe a cobrar (Gs.):',String(Math.round(balance)));
   if(amountText===null)return;
-  const amount=Number(amountText);if(!Number.isFinite(amount)||amount<=0){alert('Ingresá un importe válido.');return}
+  const amount=Number(amountText);if(!Number.isFinite(amount)||amount<=0){atNotify('Ingresá un importe válido.');return}
   const method=prompt('Método: cash, bank_transfer, card, check u other','bank_transfer')||'other';
-  try{await businessAdminRequest({action:'record_payment',sale_id:saleId,amount,payment_method:method});await loadCommercialWorkspace();alert('Cobro registrado.')}
-  catch(e){alert('No se pudo registrar el cobro: '+e.message)}
+  try{await businessAdminRequest({action:'record_payment',sale_id:saleId,amount,payment_method:method});await loadCommercialWorkspace();atNotify('Cobro registrado.')}
+  catch(e){atNotify('No se pudo registrar el cobro: '+e.message)}
 }
 async function loadCompanyMembers(){
   const company_id=$('memberCompanySelect').value;if(!company_id)return;
@@ -3319,9 +3434,9 @@ async function addCompanyMember(){
   catch(e){$('membersMsg').textContent='No se pudo agregar usuario: '+e.message}
 }
 async function disableCompanyMember(companyId,userId){
-  if(!confirm('¿Desactivar el acceso de este usuario a la empresa?'))return;
+  if(!(await askConfirm('¿Desactivar el acceso de este usuario a la empresa?')))return;
   try{await businessAdminRequest({action:'remove_member',company_id:companyId,user_id:userId});await loadCompanyMembers()}
-  catch(e){alert('No se pudo desactivar: '+e.message)}
+  catch(e){atNotify('No se pudo desactivar: '+e.message)}
 }
 function appendAiMessage(role,content,pending){
   const log=$('aiChatLog'),item=document.createElement('div');
@@ -3410,3 +3525,4 @@ if(!handleRecoveryRedirect())loadApp();setInterval(()=>{if(currentProjectId)load
 </script>
 </body>
 </html>
+
