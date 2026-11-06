@@ -1,8 +1,20 @@
-name: Minimal agent workflow probe
+name: Validate A&T Printer Agent workflow
+
 on: push
+
+permissions:
+  contents: read
+
 jobs:
-  ping:
+  validate:
     runs-on: ubuntu-latest
     steps:
-      - name: Confirm workflow parser
-        run: echo "workflow parser ok"
+      - uses: actions/checkout@v4
+      - name: Parse workflow YAML
+        run: |
+          ruby -e 'require "yaml"; YAML.parse_file(".github/workflows/build-agent-v0.4.2.yml"); puts "YAML syntax OK"'
+      - name: Run actionlint
+        run: |
+          curl -fsSL https://github.com/rhysd/actionlint/releases/latest/download/actionlint_linux_amd64.tar.gz -o /tmp/actionlint.tar.gz
+          tar -xzf /tmp/actionlint.tar.gz -C /tmp
+          /tmp/actionlint -color .github/workflows/build-agent-v0.4.2.yml
