@@ -7,3 +7,5 @@ Rebuild after moving tests after overlay copy.
 Rebuild after PowerShell source patch correction.
 
 Rebuild after separating the test-source variable from the test-directory variable.
+
+Build solicitado por el usuario el 2026-11-06. Ejecutar validacion completa y publicar solo si todas las pruebas pasan.
