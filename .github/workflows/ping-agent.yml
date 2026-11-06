@@ -1,0 +1,8 @@
+name: Minimal agent workflow probe
+on: push
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Confirm workflow parser
+        run: echo "workflow parser ok"
