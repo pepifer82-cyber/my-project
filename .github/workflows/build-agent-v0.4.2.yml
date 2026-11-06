@@ -1,0 +1,734 @@
+name: Build and validate A&T Printer Agent v0.4.2
+
+on:
+  push:
+    branches: ["agent-v0.4.2-clean-rebuild"]
+    paths:
+      - "build-v042-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-test:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact source and version patches
+        uses: actions/checkout@v4
+
+      - name: Reassemble and verify original source archive
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Se esperaban 23 partes de fuente base; encontradas: $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-base.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Hash de la fuente base incorrecto: $actual" }
+          New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo extraer la fuente base" }
+
+      - name: Apply the exact v0.3.8 source patches
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $steps = @(
+            @{ File = ".buildsrc\v035direct\apply-patches.ps1"; Extra = @(".buildsrc\v035direct\NetworkHttpProbe.txt", ".buildsrc\v035direct\UpdateManager.cs") },
+            @{ File = ".buildsrc\v036\apply-v036.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v037\apply-v037.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v037-post\apply-post.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v038\apply-v038.ps1"; Extra = @() }
+          )
+          foreach ($step in $steps) {
+            if (!(Test-Path $step.File)) { throw "Falta el parche original: $($step.File)" }
+            foreach ($item in $step.Extra) { if (!(Test-Path $item)) { throw "Falta el archivo auxiliar: $item" } }
+            pwsh -NoProfile -ExecutionPolicy Bypass -File $step.File -AgentRoot $agentRoot
+            if ($LASTEXITCODE -ne 0) { throw "Falló el parche original $($step.File)" }
+          }
+          $version38 = Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.8</Version>'
+          if (!$version38) { throw "No se reconstruyó la fuente de la versión 0.3.8" }
+
+      - name: Build the genuine v0.3.8 installer payload before any upgrade
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $legacyRoot = "$agentRoot\legacy-v038"
+          New-Item -ItemType Directory -Path "$legacyRoot\publish-x86","$legacyRoot\publish-x64","$legacyRoot\src" -Force | Out-Null
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.3.8</Version>' -Quiet)) { throw "El binario de prueba anterior no tiene versión 0.3.8" }
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore del agente 0.3.8 x86" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o "$legacyRoot\publish-x86"
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish del agente 0.3.8 x86" }
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore del agente 0.3.8 x64" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o "$legacyRoot\publish-x64"
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish del agente 0.3.8 x64" }
+          # The historical installer script is sourced from the verified v0.3.8 files,
+          # because the reconstructed source tree contains only the application project.
+          $legacyIssSource = Join-Path $env:GITHUB_WORKSPACE ".buildsrc\v038\AandTPrinterAgent.iss"
+          if (!(Test-Path $legacyIssSource)) { throw "Falta el script histórico verificado: $legacyIssSource" }
+          Copy-Item $legacyIssSource "$legacyRoot\AandTPrinterAgent.iss" -Force
+          if (Test-Path "$agentRoot\README.txt") {
+            Copy-Item "$agentRoot\README.txt" "$legacyRoot\README.txt" -Force
+          } else {
+            Set-Content -Path "$legacyRoot\README.txt" -Value "A&T Printer Agent 0.3.8" -Encoding UTF8
+          }
+          Copy-Item "$agentRoot\src\app.ico" "$legacyRoot\src\app.ico" -Force
+          if ((Get-Item "$legacyRoot\publish-x64\ATPrinterAgent.exe").VersionInfo.FileVersion -notlike "0.3.8*") { throw "El binario de prueba x64 no es 0.3.8" }
+          if ((Get-Item "$legacyRoot\publish-x86\ATPrinterAgent.exe").VersionInfo.FileVersion -notlike "0.3.8*") { throw "El binario de prueba x86 no es 0.3.8" }
+
+      - name: Reassemble verified v0.4.2 source overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc\v039\overlay" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 29) { throw "Se esperaban 29 fragmentos de la capa v0.4.2; encontrados: $($parts.Count)" }
+          $expectedPartHashes = @{
+            "part001.b64"="94cdade9071c3e9de57ae097286c60d976cb77e7c0f925e3ca69aa1c1a0b8573"
+            "part002.b64"="531ee07684216a2dc1b804fa0ef35c7bc6581f7a0e0b6528a8de626c15c6e0e8"
+            "part003.b64"="2c1f3f0d693af30fa420f5d4ae25471f49ee5f9d9d383b7c545fc899ea8c3aaf"
+            "part004.b64"="c193a0404d6341caee8f6ec312ad4af18c61563a2d41a3dbaac457419b042383"
+            "part005.b64"="7519e5037ddacf4a4c973b9b64dfe197a8f3533925bf2f322d1b6342d7d790a7"
+            "part006.b64"="4a25c6397aaac89f64027d5890723439052fba03129f19d3d19fe66f74ada82a"
+            "part007.b64"="d12dfa9fc894f6e3693bd5fb3880f10eddef013f327546de0166e48f79623c28"
+            "part008.b64"="8a2fceca339d1ee289c94ba5dc1bfbb4b4ab18f07c41dca95035f2cb573b042d"
+            "part009.b64"="ff8b869a3a41ae1f92b5c9d9ab763c8f6a9525e5f32bdd04a748e8584342537b"
+            "part010.b64"="da9a645ca1a2f231b25c4513ab595ce151c71640fc7bff19af110a070ee4fd47"
+            "part011.b64"="7eb684bd5bb894b46858fc3c18564be1c669aa228b5153f774e6aff6a9979667"
+            "part012.b64"="3836dac5533404b387e33f592bf8c80938919a781e742f01532ec33aea7852b3"
+            "part013.b64"="78dccff04cb51ba926ea21a7da6eb87124122337620cd2c09ab41c3fcfd42692"
+            "part014.b64"="897e17195f75a6e50da2ac2451fd5be0094f1d033decded5badeabdc0a43e521"
+            "part015.b64"="4f030c3525de28378f5968244954f6900cc60b1ac8327cc7bfda20ba26a6bf5b"
+            "part016.b64"="fdd3ed4d2bd601c813d3bb1310c544bcf06da7fe90df46a0ba46abeae168ea60"
+            "part017.b64"="cf82187c385f3472ef52c991455c1494b16fe9e0106bf222d87eb61179c677d6"
+            "part017b.b64"="d71b1db945992f24a6ad7b38f10857a78d53e1fffc5a1d4da82b46148c8f78f5"
+            "part017c.b64"="28d3dab61399761f9bee51f5660885e8f2377582588331c7f9c68225660ecabf"
+            "part018.b64"="43608ca427d804faa96d9551e41d32b89c2504522358f0b47efa1c8deebf9bdd"
+            "part019a.b64"="e89364bcd5b98d6a3ebec15754d281e0f74e0869772ec2a1933a094daf4d5008"
+            "part019b.b64"="b77114de8f4f9191605abd0778c63dcf29de52f4e2d803def6fd1963cf5047fe"
+            "part019c.b64"="da4d4f5e22388b6041e2b7ccf04f09693fd99308db56576d5e3fdf2acec4010f"
+            "part020a.b64"="16c7b39a0de5885ce9e0efb72970f1adc94a5e6d02e037a84d0f3feeef3a7e60"
+            "part020b1.b64"="8841adbc059a28c6e031ff293ddce114ef5b5dae7cd1892a6036f1a4d774ce8c"
+            "part020b2.b64"="152a035562d0cce96c8e77e38d6cc12d7aeee9b4d4e9af5d0dc2a6759237c939"
+            "part020c1.b64"="051708eb53fc399a4bb28ae86f154cf45518e9a48494dc1374bb26c77b137afb"
+            "part020c2.b64"="6ac47eb1df5b7ddf7751a970b0df3af8d2d8926b0394a9ebf5b8837a140bb417"
+            "part021.b64"="0cc61af1779f2d5d65644aa1e9a6a985a103c1d50753d530076c92299542689b"
+          }
+          foreach ($part in $parts) {
+            $actualPartHash = (Get-FileHash $part.FullName -Algorithm SHA256).Hash.ToLower()
+            $expectedPartHash = $expectedPartHashes[$part.Name]
+            if ($actualPartHash -ne $expectedPartHash) { throw "Fragmento incorrecto $($part.Name): $actualPartHash" }
+          }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          if ($encoded.Length -ne 90080) { throw "Longitud Base64 incorrecta: $($encoded.Length)" }
+          $zipBytes = [Convert]::FromBase64String($encoded)
+          $zipPath = "$PWD\agent-v039-overlay.zip"
+          [IO.File]::WriteAllBytes($zipPath, $zipBytes)
+          $expectedOverlayHash = "e341abef6baf2f402fbe5ad97830a7675f8ca15270652331182dffdf5375a959"
+          $actualOverlayHash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          if ($actualOverlayHash -ne $expectedOverlayHash) { throw "Hash SHA-256 de la capa v0.4.2 incorrecto: $actualOverlayHash" }
+          $overlay = "$PWD\agent-v039-overlay"
+          Expand-Archive -Path $zipPath -DestinationPath $overlay -Force
+          $overlayRoot = Join-Path $overlay "agent039-overlay"
+          if (!(Test-Path "$overlayRoot\src\SnmpClient.cs")) { throw "No se encontró la implementación SNMP v0.4.2" }
+          if (!(Test-Path "$overlayRoot\src\SnmpV3Support.cs")) { throw "Falta el módulo de SNMP v3" }
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Copy-Item "$overlayRoot\src\*" "$agentRoot\src" -Recurse -Force
+          Copy-Item "$overlayRoot\AandTPrinterAgent.iss" "$agentRoot\AandTPrinterAgent.iss" -Force
+          Copy-Item "$overlayRoot\README.txt" "$agentRoot\README.txt" -Force
+          # Rebuild as v0.4.2 while retaining the activation identity and existing reader protocols.
+          $versionFiles = @(
+            "$agentRoot\src\ATPrinterAgent.csproj",
+            "$agentRoot\src\MainForm.cs",
+            "$agentRoot\src\SupabaseSync.cs",
+            "$agentRoot\src\UpdateManager.cs",
+            "$agentRoot\AandTPrinterAgent.iss",
+            "$agentRoot\README.txt"
+          )
+          foreach ($file in $versionFiles) {
+            if (!(Test-Path $file)) { throw "Missing versioned source file: $file" }
+            $text = Get-Content $file -Raw
+            [IO.File]::WriteAllText($file, $text.Replace("0.3.9", "0.4.2"), [Text.Encoding]::UTF8)
+          }
+
+          # v0.4.0/v0.4.1 used an isolated local profile. v0.4.2 reads a staged
+          # copy after the previous uninstaller has removed its old profile.
+          $configPath = "$agentRoot\src\ConfigStore.cs"
+          $configText = Get-Content $configPath -Raw
+          $legacyAnchor = "        yield return PathName;"
+          if (!$configText.Contains($legacyAnchor)) { throw "ConfigStore legacy path anchor not found." }
+          $legacyInsert = $legacyAnchor + [Environment]::NewLine +
+            '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v042-migration", "config.json");' + [Environment]::NewLine +
+            '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v040", "config.json");'
+          $configText = $configText.Replace($legacyAnchor, $legacyInsert)
+          [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
+
+          # Pantum BM5100FDW can return a valid but unimplemented Printer-MIB zero.
+          # Query the documented Pantum GlobalCounter OID first, otherwise a zero
+          # from Printer-MIB prevents the vendor-specific counter from ever being read.
+          $snmpPath = "$agentRoot\src\SnmpClient.cs"
+          $snmp = Get-Content $snmpPath -Raw
+          $counterStart = '        var counter = await GetFirstTableValueAsync(ip, OidsPublic.MarkerLifeCount1, ct);'
+          $counterEnd = '        // Walk the complete Printer-MIB v2 consumable columns'
+          $startIndex = $snmp.IndexOf($counterStart)
+          $endIndex = if ($startIndex -ge 0) { $snmp.IndexOf($counterEnd, $startIndex) } else { -1 }
+          if ($startIndex -lt 0 -or $endIndex -lt 0) { throw "Printer-MIB counter block not found." }
+          $counterBlock = @'
+          var pantumVendorCounter = vendorText.Contains("pantum")
+              ? await GetVendorPageCounterAsync(ip, vendorText, ct).ConfigureAwait(false)
+              : null;
+          var counter = await GetFirstTableValueAsync(ip, OidsPublic.MarkerLifeCount1, ct);
+          var pantumPreferredCounter = vendorText.Contains("pantum")
+              ? PreferPantumCounter(pantumVendorCounter, counter.Success ? counter.Number : null)
+              : null;
+          if (pantumPreferredCounter is >= 0)
+          {
+              printer.PageCount = pantumPreferredCounter;
+              printer.CounterSource = "SNMP Pantum Global Counter";
+              counter = new SnmpResult { Success = true, Number = pantumPreferredCounter };
+          }
+          else if (counter.Success && counter.Number is >= 0)
+          {
+              printer.PageCount = counter.Number;
+              printer.CounterSource = "SNMP Printer-MIB";
+          }
+          else
+          {
+              counter = await GetAsync(ip, "1.3.6.1.2.1.43.10.2.1.4.1.1", ct);
+              if (counter.Success && counter.Number is >= 0)
+              {
+                  printer.PageCount = counter.Number;
+                  printer.CounterSource = "SNMP Printer-MIB";
+              }
+              else
+              {
+                  counter = await GetAsync(ip, OidsPublic.HpLifeCount, ct);
+                  if (counter.Success && counter.Number is >= 0)
+                  {
+                      printer.PageCount = counter.Number;
+                      printer.CounterSource = "SNMP HP Life Count";
+                  }
+              }
+          }
+
+'@
+          $snmp = $snmp.Substring(0, $startIndex) + $counterBlock + $snmp.Substring($endIndex)
+          $counterHelperAnchor = '    private static long? ReadCounterNumber(SnmpResult? value)'
+          $counterHelper = @'
+          public static long? PreferPantumCounter(long? vendorCounter, long? printerMibCounter)
+          {
+              if (vendorCounter is >= 0) return vendorCounter;
+              if (printerMibCounter is >= 0) return printerMibCounter;
+              return null;
+          }
+
+          private static long? ReadCounterNumber(SnmpResult? value)
+'@
+          if (!$snmp.Contains($counterHelperAnchor)) { throw "Counter parser insertion point not found." }
+          $snmp = $snmp.Replace($counterHelperAnchor, $counterHelper.TrimEnd())
+          [IO.File]::WriteAllText($snmpPath, $snmp, [Text.Encoding]::UTF8)
+
+          # Retain embedded JSON/JavaScript text from printer web pages so explicit
+          # Serial/SN fields are searchable. Never infer a serial without a label.
+          $scannerPath = "$agentRoot\src\NetworkPrinterScanner.cs"
+          $scanner = Get-Content $scannerPath -Raw
+          $oldStrip = '        decoded = Regex.Replace(decoded, @"<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);'
+          if (!$scanner.Contains($oldStrip)) { throw "HTTP serial parser script-stripping line not found." }
+          $scanner = $scanner.Replace($oldStrip, '        // Keep embedded text/JSON so explicit serial fields in firmware scripts remain searchable.')
+          $oldSerialPattern = '@"(?:\bserial\s*(?:no\.?|number|#)?|\bs\s*/\s*n\b|\bsn\b|n[úu]mero\s+de\s+serie)\s*[:：=#]?\s*([A-Z0-9][A-Z0-9-]{3,})"'
+          $newSerialPattern = '@"(?:\bserial(?:\s*(?:no\.?|number|#))?|\bs\s*/\s*n\b|\bsn\b|\bn[úu]mero\s+(?:de\s+)?serie)\s*(?:[:：=#]|\s+)\s*([A-Z0-9][A-Z0-9._/-]{3,79})"'
+          if (!$scanner.Contains($oldSerialPattern)) { throw "HTTP serial regex not found." }
+          $scanner = $scanner.Replace($oldSerialPattern, $newSerialPattern)
+          [IO.File]::WriteAllText($scannerPath, $scanner, [Text.Encoding]::UTF8)
+
+          # Before calling the old uninstaller, preserve the 0.4.1/0.4.0
+          # profile (serial + InstallId + network settings) outside its delete list.
+          $issPath = "$agentRoot\AandTPrinterAgent.iss"
+          $iss = Get-Content $issPath -Raw
+          $stageAnchor = 'function ReadPreviousUninstallCommand(var UninstallCommand: String): Boolean;'
+          $stageFunction = @'
+          function StageLegacyAgentConfig(): Boolean;
+          var
+            SourcePath, TargetDir, TargetPath: String;
+          begin
+            Result := True;
+            SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v041\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v040\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{userappdata}\ATPrinterAgent\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{commonappdata}\ATPrinterAgent\config.json');
+
+            if FileExists(SourcePath) then
+            begin
+              TargetDir := ExpandConstant('{localappdata}\ATPrinterAgent-v042-migration');
+              TargetPath := TargetDir + '\config.json';
+              if not ForceDirectories(TargetDir) then
+              begin
+                MsgBox('No se pudo crear el respaldo de la configuración anterior. La instalación se canceló para proteger el serial.', mbError, MB_OK);
+                Result := False;
+                Exit;
+              end;
+              if not FileCopy(SourcePath, TargetPath, False) then
+              begin
+                MsgBox('No se pudo conservar el serial de activación y el ID de instalación. La instalación se canceló para no perderlos.', mbError, MB_OK);
+                Result := False;
+                Exit;
+              end;
+            end;
+          end;
+
+          '@
+          if (!$iss.Contains($stageAnchor)) { throw "Inno Setup insertion point for migration staging not found." }
+          $iss = $iss.Replace($stageAnchor, $stageFunction + $stageAnchor)
+          $previousCall = '  FoundPrevious := ReadPreviousUninstallCommand(UninstallCommand);'
+          $migrationCall = "  if not StageLegacyAgentConfig() then" + [Environment]::NewLine +
+            "  begin" + [Environment]::NewLine +
+            "    Result := False;" + [Environment]::NewLine +
+            "    Exit;" + [Environment]::NewLine +
+            "  end;" + [Environment]::NewLine +
+            $previousCall
+          if (!$iss.Contains($previousCall)) { throw "InitializeSetup call location not found." }
+          $iss = $iss.Replace($previousCall, $migrationCall)
+          [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
+
+          # Automated test: Pantum global counter must override a Printer-MIB zero.
+          $unitTestPath = "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\SnmpMibTests.cs"
+          $unitTests = Get-Content $unitTestPath -Raw
+          $unitAnchor = '    public void PreservesStrictSerialNormalization('
+          $unitIndex = $unitTests.IndexOf($unitAnchor)
+          if ($unitIndex -lt 0) { throw "SNMP unit-test insertion point not found." }
+          $unitAdd = @'
+              [Theory]
+              [InlineData(54321L, 0L, 54321L)]
+              [InlineData(null, 0L, 0L)]
+              [InlineData(null, null, null)]
+              public void PrefersPantumGlobalCounterBeforePrinterMib(long? vendorCounter, long? printerMibCounter, long? expected)
+              {
+                  Assert.Equal(expected, SnmpClient.PreferPantumCounter(vendorCounter, printerMibCounter));
+              }
+
+          '@
+          $unitTests = $unitTests.Insert($unitIndex, $unitAdd)
+          [IO.File]::WriteAllText($unitTestPath, $unitTests, [Text.Encoding]::UTF8)
+
+          # Automated test: decrypt and preserve a v0.4.0 DPAPI serial + InstallId from staged profile.
+          $selfTestPath = "$agentRoot\tests\AgentSelfTests\Program.cs"
+          $selfTests = Get-Content $selfTestPath -Raw
+          if (!$selfTests.Contains('using System.Text;')) { throw "AgentSelfTests import anchor missing." }
+          $selfTests = $selfTests.Replace('using System.Text;', 'using System.Text;' + [Environment]::NewLine + 'using System.Security.Cryptography;' + [Environment]::NewLine + 'using System.Text.Json;')
+          $migrationAnchor = '// Loopback read-only SNMP responder: deliberately drops the first v2c packet,'
+          $migrationTest = @'
+          // Simulate v0.4.0's isolated profile staged by the 0.4.2 installer.
+          var migrationFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v042-migration");
+          var migrationFile = Path.Combine(migrationFolder, "config.json");
+          byte[]? previousCanonical = File.Exists(configPath) ? File.ReadAllBytes(configPath) : null;
+          byte[]? previousMigration = File.Exists(migrationFile) ? File.ReadAllBytes(migrationFile) : null;
+          const string migrationSerial = "AT-TEST-MIGRATION-042";
+          const string migrationInstallId = "a7d5f0e6-5b7c-4e1f-a273-8fbe6e4c0420";
+          try
+          {
+              if (File.Exists(configPath)) File.Delete(configPath);
+              var protectedSerial = ProtectedData.Protect(Encoding.UTF8.GetBytes(migrationSerial), null, DataProtectionScope.CurrentUser);
+              var profile = new
+              {
+                  serial = "dpapi:" + Convert.ToBase64String(protectedSerial),
+                  install_id = migrationInstallId,
+                  network_ips = new[] { "192.0.2.42" }
+              };
+              Directory.CreateDirectory(migrationFolder);
+              File.WriteAllText(migrationFile, JsonSerializer.Serialize(profile), Encoding.UTF8);
+              var migrated = new ConfigStore().Load();
+              Check(migrated.Serial == migrationSerial, "migra y descifra el serial de activación del perfil 0.4.0");
+              Check(migrated.InstallId == migrationInstallId, "conserva el Install ID del perfil 0.4.0");
+              Check(migrated.NetworkIps.Contains("192.0.2.42"), "conserva IP configurada al migrar el perfil 0.4.0");
+          }
+          catch (Exception ex)
+          {
+              Check(false, "migración de perfil 0.4.0: " + ex.Message);
+          }
+          finally
+          {
+              if (previousCanonical is null) { try { File.Delete(configPath); } catch { } }
+              else File.WriteAllBytes(configPath, previousCanonical);
+              if (previousMigration is null) { try { File.Delete(migrationFile); } catch { } }
+              else File.WriteAllBytes(migrationFile, previousMigration);
+          }
+
+          '@
+          if (!$selfTests.Contains($migrationAnchor)) { throw "Migration self-test insertion point not found." }
+          $selfTests = $selfTests.Replace($migrationAnchor, $migrationTest + $migrationAnchor)
+          [IO.File]::WriteAllText($selfTestPath, $selfTests, [Text.Encoding]::UTF8)
+
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.4.2</Version>' -Quiet)) { throw "Project version was not updated to 0.4.2." }
+          if (!(Select-String -Path "$agentRoot\src\SnmpV3Support.cs" -Pattern 'SnmpV3' -Quiet)) { throw "SNMPv3 source is missing." }
+
+
+          # Stop the previous running agent BEFORE invoking its uninstaller.
+          $issPath = "$agentRoot\AandTPrinterAgent.iss"
+          $iss = Get-Content $issPath -Raw
+          $varAnchor = "  ResultCode: Integer;"
+          if (!$iss.Contains($varAnchor)) { throw "No se encontró la sección de variables InitializeSetup" }
+          $iss = $iss.Replace($varAnchor, $varAnchor + "`r`n  KillCode: Integer;`r`n  PreviousInstallDir: String;")
+          $setupAnchor = "  if FoundPrevious then`r`n  begin"
+          if (!$iss.Contains($setupAnchor)) { $setupAnchor = "  if FoundPrevious then`n  begin" }
+          if (!$iss.Contains($setupAnchor)) { throw "No se encontró el bloque de desinstalación anterior" }
+          $setupReplacement = $setupAnchor + "`r`n    Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ATPrinterAgent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, KillCode);"
+          $uninstallerPathAnchor = "    UninstallerExe := ExtractUninstallerPath(UninstallCommand);"
+          if (!$iss.Contains($uninstallerPathAnchor)) { throw "No se encontró la extracción de la ruta del desinstalador anterior." }
+          $iss = $iss.Replace($uninstallerPathAnchor, $uninstallerPathAnchor + "`r`n    PreviousInstallDir := ExtractFileDir(UninstallerExe);")
+          $oldPreviousCheck = "    if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newPreviousCheck = "    if FileExists(PreviousInstallDir + '\ATPrinterAgent.exe') then"
+          if (!$iss.Contains($oldPreviousCheck)) { throw "No se encontró la comprobación del ejecutable anterior." }
+          $iss = $iss.Replace($oldPreviousCheck, $newPreviousCheck)
+          $oldOrphanCheck = "  else if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newOrphanCheck = "  else if FileExists(ExpandConstant('{autopf}\AT Printer Agent\ATPrinterAgent.exe')) then"
+          if (!$iss.Contains($oldOrphanCheck)) { throw "No se encontró la comprobación de archivos sin desinstalador." }
+          $iss = $iss.Replace($oldOrphanCheck, $newOrphanCheck)
+          $iss = $iss.Replace($setupAnchor, $setupReplacement)
+
+          # Inno Setup 6 does not support the "ignoreerrors" run flag.
+          # Stop the old process before uninstall; on uninstall use cmd.exe so
+          # taskkill returning "process not found" is treated as a harmless no-op.
+          $killLine = 'Filename: "{sys}\taskkill.exe"; Parameters: "/IM ATPrinterAgent.exe /T /F"; Flags: runhidden waituntilterminated ignoreerrors'
+          $firstKill = $iss.IndexOf($killLine)
+          if ($firstKill -lt 0) { throw "No se encontró la línea taskkill original en [Run]." }
+          $firstNewline = $iss.IndexOf("`n", $firstKill)
+          if ($firstNewline -lt 0) { throw "No se pudo delimitar la línea taskkill de [Run]." }
+          $iss = $iss.Remove($firstKill, $firstNewline - $firstKill + 1)
+          if (!$iss.Contains($killLine)) { throw "No se encontró la segunda línea taskkill en [UninstallRun]." }
+          $safeKillLine = 'Filename: "{sys}\cmd.exe"; Parameters: "/C ""taskkill /IM ATPrinterAgent.exe /T /F >NUL 2>&1 & exit /b 0"""; Flags: runhidden waituntilterminated; RunOnceId: "StopAgent"'
+          $iss = $iss.Replace($killLine, $safeKillLine)
+
+          $regLine = 'Filename: "{sys}\reg.exe"; Parameters: "delete ""HKCU\Software\Microsoft\Windows\CurrentVersion\Run"" /v ATPrinterAgent /f"; Flags: runhidden waituntilterminated ignoreerrors'
+          $regAt = $iss.IndexOf($regLine)
+          if ($regAt -lt 0) { throw "No se encontró la línea de limpieza del inicio de Windows." }
+          $regEnd = $iss.IndexOf("`n", $regAt)
+          if ($regEnd -lt 0) { $regEnd = $iss.Length - 1 }
+          $iss = $iss.Remove($regAt, $regEnd - $regAt + 1)
+
+          $uninstallCode = @'
+          procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+          begin
+            if CurUninstallStep = usUninstall then
+              RegDeleteValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Run', 'ATPrinterAgent');
+          end;
+          '@
+          $iss = $iss.TrimEnd() + "`r`n`r`n" + $uninstallCode
+          if ($iss.Contains("ignoreerrors")) { throw "Quedó una bandera ignoreerrors inválida en Inno Setup." }
+          if ($iss.Contains("FileExists(ExpandConstant('{app}")) { throw "No debe expandirse {app} dentro de InitializeSetup." }
+          if (!$iss.Contains("PreviousInstallDir := ExtractFileDir(UninstallerExe);")) { throw "No se está comprobando la carpeta real de la versión anterior." }
+          [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
+
+          $selfTests = "$agentRoot\tests\AgentSelfTests"
+          if (Test-Path $selfTests) { Remove-Item $selfTests -Recurse -Force }
+          New-Item -ItemType Directory -Path $selfTests -Force | Out-Null
+          Copy-Item "$overlayRoot\tests\AgentSelfTests\*" $selfTests -Recurse -Force
+          $unitTests = "$agentRoot\tests\ATPrinterAgent.Snmp.Tests"
+          if (Test-Path $unitTests) { Remove-Item $unitTests -Recurse -Force }
+          New-Item -ItemType Directory -Path $unitTests -Force | Out-Null
+          Copy-Item "$overlayRoot\tests\ATPrinterAgent.Snmp.Tests\*" $unitTests -Recurse -Force
+
+          # Brother brInfoCounter is a binary OCTET STRING, not an integer or text.
+          $modelsPath = "$agentRoot\src\Models.cs"
+          $snmpPath = "$agentRoot\src\SnmpClient.cs"
+          $testPath = "$unitTests\SnmpMibTests.cs"
+          $models = Get-Content $modelsPath -Raw
+          $modelsOld = "    public string? Text { get; init; }"
+          if (!$models.Contains($modelsOld)) { throw "No se encontró SnmpResult.Text" }
+          $models = $models.Replace($modelsOld, $modelsOld + "`r`n    public byte[]? RawData { get; init; }")
+          [IO.File]::WriteAllText($modelsPath, $models, [Text.Encoding]::UTF8)
+
+          $snmp = Get-Content $snmpPath -Raw
+          $rawTextOld = '0x04 => new SnmpResult { Success = true, Oid = responseOid, Text = DecodeText(value.Value) },'
+          $rawTextNew = '0x04 => new SnmpResult { Success = true, Oid = responseOid, Text = DecodeText(value.Value), RawData = value.Value },'
+          if (!$snmp.Contains($rawTextOld)) { throw "No se encontró el decodificador de OCTET STRING SNMP v1/v2c" }
+          $snmp = $snmp.Replace($rawTextOld, $rawTextNew)
+
+          $brotherStart = $snmp.IndexOf('if (vendorText.Contains("brother"))')
+          $brotherCount = $snmp.IndexOf('var count = ReadCounterNumber(value);', $brotherStart)
+          if ($brotherStart -lt 0 -or $brotherCount -lt 0) { throw "No se encontró el bloque Brother brInfoCounter" }
+          $oldCountLine = 'var count = ReadCounterNumber(value);'
+          $newCountLine = 'var count = ReadCounterNumber(value) ?? ParseBrotherPageCounter(value.RawData);'
+          $snmp = $snmp.Substring(0, $brotherCount) + $newCountLine + $snmp.Substring($brotherCount + $oldCountLine.Length)
+
+          $helperAnchor = 'private static long? ReadCounterNumber(SnmpResult? value)'
+          $helper = "internal static long? ParseBrotherPageCounter(byte[]? raw)`r`n    {`r`n        // BROTHER-MIB brInfoCounter: code 0, encoding 1, length 4, then a big-endian UInt32.`r`n        if (raw is null || raw.Length < 7 || raw[0] != 0x00 || raw[1] != 0x01 || raw[2] != 0x04) return null;`r`n        return (long)BinaryPrimitives.ReadUInt32BigEndian(raw.AsSpan(3, 4));`r`n    }`r`n`r`n    private static long? ReadCounterNumber(SnmpResult? value)"
+          if (!$snmp.Contains($helperAnchor)) { throw "No se encontró ReadCounterNumber para insertar el parser Brother" }
+          $snmp = $snmp.Replace($helperAnchor, $helper)
+          [IO.File]::WriteAllText($snmpPath, $snmp, [Text.Encoding]::UTF8)
+
+          # SNMPv3 parser lives in its own source file.
+          $snmpV3Path = "$agentRoot\src\SnmpV3Support.cs"
+          $snmpV3 = Get-Content $snmpV3Path -Raw
+          $v3Old = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text };'
+          $v3New = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Number = number, Text = text, RawData = (variable.Data as OctetString)?.GetRaw() };'
+          if (!$snmpV3.Contains($v3Old)) { throw "No se encontró el retorno numérico SNMPv3" }
+          $snmpV3 = $snmpV3.Replace($v3Old, $v3New)
+          $v3TextOld = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text };'
+          $v3TextNew = 'return new SnmpResult { Success = true, Oid = variable.Id.ToString(), Text = text, RawData = (variable.Data as OctetString)?.GetRaw() };'
+          if (!$snmpV3.Contains($v3TextOld)) { throw "No se encontró el retorno de texto SNMPv3" }
+          $snmpV3 = $snmpV3.Replace($v3TextOld, $v3TextNew)
+          [IO.File]::WriteAllText($snmpV3Path, $snmpV3, [Text.Encoding]::UTF8)
+
+          $testAdd = @'
+          public sealed class BrotherCounterTests
+          {
+              [Fact]
+              public void ParsesBrotherPageCounterFromBinaryOctetString()
+              {
+                  var raw = Convert.FromHexString("0001040000000906010400000006FFFFFFFF");
+                  Assert.Equal(9L, SnmpClient.ParseBrotherPageCounter(raw));
+              }
+
+              [Theory]
+              [InlineData("00020400000009")]
+              [InlineData("0001010009")]
+              [InlineData("FFFFFFFF")]
+              [InlineData("")]
+              public void RejectsUnexpectedBrotherCounterPayloads(string hex)
+              {
+                  Assert.Null(SnmpClient.ParseBrotherPageCounter(Convert.FromHexString(hex)));
+              }
+          }
+
+          '@
+          $testAnchor = "public sealed class SnmpV3SecurityTests"
+          $tests = Get-Content $testPath -Raw
+          if (!$tests.Contains($testAnchor)) { throw "No se encontró el punto para insertar prueba del contador Brother" }
+          $tests = $tests.Replace($testAnchor, $testAdd + $testAnchor)
+          [IO.File]::WriteAllText($testPath, $tests, [Text.Encoding]::UTF8)
+
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.4.2</Version>' -Quiet)) { throw "La fuente no quedó en versión 0.4.2" }
+          if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern 'Lextm.SharpSnmpLib' -Quiet)) { throw "Falta la biblioteca SNMP v3" }
+
+      - name: Verify .NET 8 SDK
+        shell: pwsh
+        run: |
+          dotnet --info
+          $sdks = dotnet --list-sdks
+          if (!($sdks | Select-String '^8\.')) { throw "No se encontró .NET 8 SDK: $sdks" }
+
+      - name: Restore dependencies
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          dotnet restore "$agentRoot\src\ATPrinterAgent.csproj"
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de dependencias" }
+          dotnet restore "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de pruebas de integración" }
+          dotnet restore "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\ATPrinterAgent.Snmp.Tests.csproj"
+          if ($LASTEXITCODE -ne 0) { throw "Falló la restauración de pruebas unitarias" }
+
+      - name: Run automated SNMP, serial and DPAPI tests
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          dotnet test "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\ATPrinterAgent.Snmp.Tests.csproj" -c Release -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas unitarias Printer-MIB/SNMPv3; no se generará el instalador" }
+          dotnet run --project "$agentRoot\tests\AgentSelfTests\AgentSelfTests.csproj" -c Release -p:Platform=x64
+          if ($LASTEXITCODE -ne 0) { throw "Fallaron las pruebas SNMP loopback/DPAPI; no se generará el instalador" }
+
+      - name: Publish x86 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x86" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x86 --self-contained true -p:Platform=x86 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x86
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x86" }
+          if (!(Test-Path "..\publish-x86\ATPrinterAgent.exe")) { throw "No se generó el EXE x86" }
+
+      - name: Publish x64 single-file agent
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location "$agentRoot\src"
+          dotnet restore ATPrinterAgent.csproj -r win-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló restore x64" }
+          dotnet publish ATPrinterAgent.csproj -c Release -r win-x64 --self-contained true -p:Platform=x64 -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o ..\publish-x64
+          if ($LASTEXITCODE -ne 0) { throw "Falló publish x64" }
+          if (!(Test-Path "..\publish-x64\ATPrinterAgent.exe")) { throw "No se generó el EXE x64" }
+
+      - name: Install Inno Setup 6
+        shell: pwsh
+        run: |
+          choco install innosetup --yes --no-progress
+          if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
+
+      - name: Compile the genuine v0.3.8 installer for upgrade testing
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $legacyRoot = "$agentRoot\legacy-v038"
+          Set-Location $legacyRoot
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "No se pudo compilar el instalador original 0.3.8" }
+          $legacyExe = Join-Path $legacyRoot "Instalar_ATPrinterAgent_v0.3.8.exe"
+          if (!(Test-Path $legacyExe)) { throw "No se generó el instalador real de v0.3.8" }
+
+      - name: Compile final v0.4.2 installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location $agentRoot
+          $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
+          & $iscc "AandTPrinterAgent.iss"
+          if ($LASTEXITCODE -ne 0) { throw "Falló Inno Setup al generar el instalador final" }
+          $exe = Join-Path (Get-Location) "Instalar_ATPrinterAgent_v0.4.2.exe"
+          if (!(Test-Path $exe)) { throw "No se generó Instalar_ATPrinterAgent_v0.4.2.exe" }
+          $size = (Get-Item $exe).Length
+          if ($size -lt 1000000) { throw "El instalador es demasiado pequeño: $size bytes" }
+          $hash = (Get-FileHash $exe -Algorithm SHA256).Hash.ToLower()
+          "$hash  Instalar_ATPrinterAgent_v0.4.2.exe" | Set-Content -Encoding ascii SHA256SUMS.txt
+          Write-Host "SHA256: $hash"
+          Write-Host "Tamaño del instalador: $size bytes"
+
+      - name: Test real uninstall-then-install upgrade and config preservation
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          Set-Location $agentRoot
+          $newExe = Join-Path $agentRoot "Instalar_ATPrinterAgent_v0.4.2.exe"
+
+          $legacyExe = Join-Path $agentRoot "legacy-v038\Instalar_ATPrinterAgent_v0.3.8.exe"
+          if (!(Test-Path $legacyExe)) { throw "Falta el instalador de prueba genuino v0.3.8" }
+
+          $configDir = Join-Path $env:LOCALAPPDATA "ATPrinterAgent"
+          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+          $configPath = Join-Path $configDir "config.json"
+          $configText = '{"install_id":"upgrade-preservation-test","serial":"AT-TEST-PRESERVE","network_ips":["192.0.2.10"]}'
+          [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
+          $configHashBefore = (Get-FileHash $configPath -Algorithm SHA256).Hash
+
+          Write-Host "TEST STEP 1: installing genuine v0.3.8"
+          $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
+          if (!$oldInstall.WaitForExit(90000)) {
+            Stop-Process -Id $oldInstall.Id -Force -ErrorAction SilentlyContinue
+            throw "La instalación 0.3.8 no terminó en 90 segundos."
+          }
+          $oldInstall.Refresh()
+          if ($oldInstall.ExitCode -ne 0) { throw "Falló la instalación real previa v0.3.8: $($oldInstall.ExitCode)" }
+          Write-Host "TEST STEP 1 PASS: v0.3.8 installer exited."
+
+          $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
+          $uninstallRoot = "HKLM:\$key"
+          $legacyVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
+          if ($legacyVersion -ne "0.3.8") { throw "La instalación de prueba no registró v0.3.8: $legacyVersion" }
+          $legacyInstalledExe = Join-Path $env:ProgramFiles "AT Printer Agent\ATPrinterAgent.exe"
+          if (!(Test-Path $legacyInstalledExe)) { throw "El instalador 0.3.8 no dejó el agente instalado en Program Files" }
+          $legacyFileVersion = (Get-Item $legacyInstalledExe).VersionInfo.FileVersion
+          if ($legacyFileVersion -notlike "0.3.8*") { throw "El agente previo instalado no es 0.3.8: $legacyFileVersion" }
+          $legacyFileHash = (Get-FileHash $legacyInstalledExe -Algorithm SHA256).Hash
+
+          Write-Host "TEST STEP 2: starting v0.4.2 setup; its InitializeSetup must uninstall v0.3.8 first."
+          $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL /LOG=$env:TEMP\ATPrinterAgent-v039-upgrade.log" -PassThru
+          if (!$newInstall.WaitForExit(120000)) {
+            Stop-Process -Id $newInstall.Id -Force -ErrorAction SilentlyContinue
+            $logPath = Join-Path $env:TEMP "ATPrinterAgent-v039-upgrade.log"
+            if (Test-Path $logPath) { Get-Content $logPath -Tail 80 | Write-Host }
+            throw "El instalador 0.4.2 no terminó la desinstalación/instalación en 120 segundos."
+          }
+          $newInstall.Refresh()
+          if ($newInstall.ExitCode -ne 0) {
+            $logPath = Join-Path $env:TEMP "ATPrinterAgent-v039-upgrade.log"
+            if (Test-Path $logPath) { Get-Content $logPath -Tail 80 | Write-Host }
+            throw "La actualización no desinstaló la versión anterior correctamente: $($newInstall.ExitCode)"
+          }
+          Write-Host "TEST STEP 2 PASS: v0.4.2 setup finished."
+
+          $key = "Software\Microsoft\Windows\CurrentVersion\Uninstall\{7E7D49A0-2DE5-4B88-B9DA-026A7F1C0A26}_is1"
+          $uninstallRoot = if ([Environment]::Is64BitOperatingSystem) { "HKLM:\$key" } else { "HKLM:\$key" }
+          $displayVersion = (Get-ItemProperty -Path $uninstallRoot -Name DisplayVersion).DisplayVersion
+          if ($displayVersion -ne "0.4.2") { throw "El registro de Windows no muestra la versión 0.4.2: $displayVersion" }
+          $installDir = (Get-ItemProperty -Path $uninstallRoot -Name InstallLocation -ErrorAction SilentlyContinue).InstallLocation
+          if ([string]::IsNullOrWhiteSpace($installDir)) { $installDir = Join-Path $env:ProgramFiles "AT Printer Agent" }
+          $installedExe = Join-Path $installDir "ATPrinterAgent.exe"
+          if (!(Test-Path $installedExe)) { throw "Falta el ejecutable instalado" }
+          $fileVersion = (Get-Item $installedExe).VersionInfo.FileVersion
+          if ($fileVersion -notlike "0.4.2*") { throw "El ejecutable instalado no es v0.4.2: $fileVersion" }
+          $newFileHash = (Get-FileHash $installedExe -Algorithm SHA256).Hash
+          if ($newFileHash -eq $legacyFileHash) { throw "El ejecutable v0.4.2 coincide con el binario 0.3.8; no se reemplazó correctamente" }
+          $configHashAfter = (Get-FileHash $configPath -Algorithm SHA256).Hash
+          if ($configHashAfter -ne $configHashBefore) { throw "La configuración se modificó o perdió durante la actualización" }
+
+          $uninstallInfo = Get-ItemProperty -Path $uninstallRoot
+          $uninstallCommand = $uninstallInfo.UninstallString
+          if ([string]::IsNullOrWhiteSpace($uninstallCommand)) { throw "Windows no registró UninstallString para v0.4.2." }
+          if ($uninstallCommand -match '^\s*"([^"]+)"') {
+            $uninstaller = $Matches[1]
+          } else {
+            $uninstaller = ($uninstallCommand -split '\s+', 2)[0]
+          }
+          Write-Host "Registered uninstall command: $uninstallCommand"
+          if (!(Test-Path $uninstaller)) { throw "No se encontró el desinstalador registrado: $uninstaller" }
+          Write-Host "TEST STEP 3: uninstalling v0.4.2 to confirm clean removal."
+          $remove = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
+          if (!$remove.WaitForExit(90000)) {
+            Stop-Process -Id $remove.Id -Force -ErrorAction SilentlyContinue
+            throw "El desinstalador 0.4.2 no terminó en 90 segundos."
+          }
+          $remove.Refresh()
+          if ($remove.ExitCode -ne 0) { throw "Falló la desinstalación de verificación: $($remove.ExitCode)" }
+          if (Test-Path (Join-Path $installDir "ATPrinterAgent.exe")) { throw "Quedó el ejecutable después de desinstalar" }
+          if (!(Test-Path $configPath)) { throw "La desinstalación eliminó config.json; eso no está permitido" }
+          Write-Host "PASS: v0.3.8 se desinstaló antes de instalar v0.4.2."
+          Write-Host "PASS: config.json sobrevivió a actualización y desinstalación."
+
+      - name: Package source and installer
+        shell: pwsh
+        run: |
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $sourceZip = "$PWD\ATPrinterAgent_v0.4.2-source.zip"
+          if (Test-Path $sourceZip) { Remove-Item $sourceZip -Force }
+          Compress-Archive -Path "$agentRoot\*" -DestinationPath $sourceZip -CompressionLevel Optimal
+          if (!(Test-Path $sourceZip)) { throw "No se generó el ZIP de fuente" }
+
+      - name: Upload verified build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATPrinterAgent-v0.4.2-validated
+          path: |
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.4.2.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
+            ATPrinterAgent_v0.4.2-source.zip
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Publish verified release for remote updater
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: agent-v0.4.2
+          name: A&T Printer Agent v0.4.2 - SNMP v3, Printer-MIB and verified upgrade
+          overwrite_files: true
+          body: |
+            A&T Printer Agent v0.4.2.
+            - SNMP v2c first, SNMP v1 fallback.
+            - Optional SNMP v3 with authenticated user, SHA/MD5 authentication and AES/DES privacy.
+            - Windows DPAPI protection for SNMP v3 secrets.
+            - Dynamic Printer-MIB tables for marker counters and all consumable rows.
+            - Documented OID profiles for HP, Brother, Canon, Pantum, Samsung and Ricoh, with existing HTTP/IPP/PJL/WMI fallbacks preserved.
+            - Installer performs a real previous-version uninstall before installing new files, preserving %LOCALAPPDATA%\ATPrinterAgent configuration.
+            - Automated loopback SNMP tests, DPAPI tests, x86/x64 compilation, and upgrade/uninstall integration test must pass before release.
+          files: |
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/Instalar_ATPrinterAgent_v0.4.2.exe
+            agent-src/ATPrinterAgent_v0.3.3-TOTAL-GENERAL/SHA256SUMS.txt
+            ATPrinterAgent_v0.4.2-source.zip
