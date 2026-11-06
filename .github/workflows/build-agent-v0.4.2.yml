@@ -375,10 +375,10 @@ jobs:
 
           # Automated test: Pantum global counter must override a Printer-MIB zero.
           $unitTestPath = "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\SnmpMibTests.cs"
-          $unitTests = Get-Content $unitTestPath -Raw
+          $unitTestsContent = [System.IO.File]::ReadAllText($unitTestPath)
           $unitMethodAnchor = '    public void PreservesStrictSerialNormalization('
-          $unitMethodIndex = $unitTests.IndexOf($unitMethodAnchor)
-          $unitIndex = if ($unitMethodIndex -ge 0) { $unitTests.LastIndexOf('    [Theory]', $unitMethodIndex) } else { -1 }
+          $unitMethodIndex = $unitTestsContent.IndexOf($unitMethodAnchor)
+          $unitIndex = if ($unitMethodIndex -ge 0) { $unitTestsContent.LastIndexOf('    [Theory]', $unitMethodIndex) } else { -1 }
           if ($unitIndex -lt 0) { throw "SNMP unit-test insertion point not found." }
           $unitAdd = @'
               [Theory]
@@ -391,8 +391,8 @@ jobs:
               }
 
           '@
-          $unitTests = $unitTests.Insert($unitIndex, $unitAdd)
-          [IO.File]::WriteAllText($unitTestPath, $unitTests, [Text.Encoding]::UTF8)
+          $unitTestsContent = $unitTestsContent.Insert($unitIndex, $unitAdd)
+          [IO.File]::WriteAllText($unitTestPath, $unitTestsContent, [Text.Encoding]::UTF8)
 
           # Automated test: decrypt and preserve a v0.4.0 DPAPI serial + InstallId from staged profile.
           $selfTestPath = "$agentRoot\tests\AgentSelfTests\Program.cs"
