@@ -1,0 +1,20 @@
+name: Agent build environment probe
+
+on:
+  push:
+    branches: ["agent-v0.4.2-clean-rebuild"]
+    paths:
+      - "build-probe.trigger"
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: windows-latest
+    steps:
+      - name: Check the Windows runner
+        run: |
+          Write-Host "Windows runner is available."
+          dotnet --list-sdks
+        shell: pwsh
