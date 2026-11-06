@@ -1,0 +1,40 @@
+name: Inspect verified v0.3.9 source overlay
+
+on:
+  push:
+    branches: ["inspect-v039-overlay"]
+    paths:
+      - "inspect-overlay.trigger"
+      - ".github/workflows/inspect-v039-overlay.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  export-overlay:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout verified source fragments
+        uses: actions/checkout@v4
+      - name: Reassemble and verify v0.3.9 overlay
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc/v039/overlay" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 29) { throw "Expected 29 fragments; found $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          if ($encoded.Length -ne 90080) { throw "Unexpected base64 length: $($encoded.Length)" }
+          $zipBytes = [Convert]::FromBase64String($encoded)
+          $zipPath = "$PWD/agent-v039-overlay.zip"
+          [IO.File]::WriteAllBytes($zipPath, $zipBytes)
+          $hash = (Get-FileHash $zipPath -Algorithm SHA256).Hash.ToLower()
+          if ($hash -ne "e341abef6baf2f402fbe5ad97830a7675f8ca15270652331182dffdf5375a959") { throw "Overlay SHA256 mismatch: $hash" }
+          Expand-Archive -Path $zipPath -DestinationPath "$PWD/overlay" -Force
+          if (!(Test-Path "$PWD/overlay/agent039-overlay/src/SnmpV3Support.cs")) { throw "SNMPv3 support source missing" }
+      - name: Upload source-only overlay for audit
+        uses: actions/upload-artifact@v4
+        with:
+          name: ATPrinterAgent-v039-overlay-source
+          path: overlay/agent039-overlay/
+          if-no-files-found: error
+          retention-days: 7
