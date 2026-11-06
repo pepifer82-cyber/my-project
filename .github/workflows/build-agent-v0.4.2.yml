@@ -219,7 +219,7 @@ jobs:
               }
           }
 
-'@
+          '@
           $snmp = $snmp.Substring(0, $startIndex) + $counterBlock + $snmp.Substring($endIndex)
           $counterHelperAnchor = '    private static long? ReadCounterNumber(SnmpResult? value)'
           $counterHelper = @'
@@ -231,7 +231,7 @@ jobs:
           }
 
           private static long? ReadCounterNumber(SnmpResult? value)
-'@
+          '@
           if (!$snmp.Contains($counterHelperAnchor)) { throw "Counter parser insertion point not found." }
           $snmp = $snmp.Replace($counterHelperAnchor, $counterHelper.TrimEnd())
           [IO.File]::WriteAllText($snmpPath, $snmp, [Text.Encoding]::UTF8)
