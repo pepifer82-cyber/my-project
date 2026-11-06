@@ -508,7 +508,7 @@ jobs:
 
           '@
           $testAnchor = "public sealed class SnmpV3SecurityTests"
-          $tests = Get-Content $testPath -Raw
+          $tests = [System.IO.File]::ReadAllText($testPath)
           if (!$tests.Contains($testAnchor)) { throw "No se encontró el punto para insertar prueba del contador Brother" }
           $tests = $tests.Replace($testAnchor, $testAdd + $testAnchor)
           [IO.File]::WriteAllText($testPath, $tests, [Text.Encoding]::UTF8)
