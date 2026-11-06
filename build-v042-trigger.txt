@@ -1,3 +1,5 @@
 Build the verified A&T Printer Agent 0.4.2 rebuild.
 
 Build requested after workflow validation.
+
+Rebuild after moving tests after overlay copy.
