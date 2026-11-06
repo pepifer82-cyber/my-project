@@ -5,3 +5,5 @@ Build requested after workflow validation.
 Rebuild after moving tests after overlay copy.
 
 Rebuild after PowerShell source patch correction.
+
+Rebuild after separating the test-source variable from the test-directory variable.
