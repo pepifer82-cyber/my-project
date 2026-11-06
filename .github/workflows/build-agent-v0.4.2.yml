@@ -165,9 +165,10 @@ jobs:
           $configText = Get-Content $configPath -Raw
           $legacyAnchor = "        yield return PathName;"
           if (!$configText.Contains($legacyAnchor)) { throw "ConfigStore legacy path anchor not found." }
-          $legacyInsert = $legacyAnchor + [Environment]::NewLine +
-            '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v042-migration", "config.json");' + [Environment]::NewLine +
-            '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v040", "config.json");'
+          $legacyInsert = '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v042-migration", "config.json");' + [Environment]::NewLine +
+            '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v041", "config.json");' + [Environment]::NewLine +
+            '        yield return System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v040", "config.json");' + [Environment]::NewLine +
+            $legacyAnchor
           $configText = $configText.Replace($legacyAnchor, $legacyInsert)
           [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
 
