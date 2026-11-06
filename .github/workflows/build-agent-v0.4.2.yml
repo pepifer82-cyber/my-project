@@ -303,74 +303,6 @@ jobs:
           $iss = $iss.Replace($previousCall, $migrationCall)
           [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
 
-          # Automated test: Pantum global counter must override a Printer-MIB zero.
-          $unitTestPath = "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\SnmpMibTests.cs"
-          $unitTests = Get-Content $unitTestPath -Raw
-          $unitAnchor = '    public void PreservesStrictSerialNormalization('
-          $unitIndex = $unitTests.IndexOf($unitAnchor)
-          if ($unitIndex -lt 0) { throw "SNMP unit-test insertion point not found." }
-          $unitAdd = @'
-              [Theory]
-              [InlineData(54321L, 0L, 54321L)]
-              [InlineData(null, 0L, 0L)]
-              [InlineData(null, null, null)]
-              public void PrefersPantumGlobalCounterBeforePrinterMib(long? vendorCounter, long? printerMibCounter, long? expected)
-              {
-                  Assert.Equal(expected, SnmpClient.PreferPantumCounter(vendorCounter, printerMibCounter));
-              }
-
-          '@
-          $unitTests = $unitTests.Insert($unitIndex, $unitAdd)
-          [IO.File]::WriteAllText($unitTestPath, $unitTests, [Text.Encoding]::UTF8)
-
-          # Automated test: decrypt and preserve a v0.4.0 DPAPI serial + InstallId from staged profile.
-          $selfTestPath = "$agentRoot\tests\AgentSelfTests\Program.cs"
-          $selfTests = Get-Content $selfTestPath -Raw
-          if (!$selfTests.Contains('using System.Text;')) { throw "AgentSelfTests import anchor missing." }
-          $selfTests = $selfTests.Replace('using System.Text;', 'using System.Text;' + [Environment]::NewLine + 'using System.Security.Cryptography;' + [Environment]::NewLine + 'using System.Text.Json;')
-          $migrationAnchor = '// Loopback read-only SNMP responder: deliberately drops the first v2c packet,'
-          $migrationTest = @'
-          // Simulate v0.4.0's isolated profile staged by the 0.4.2 installer.
-          var migrationFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v042-migration");
-          var migrationFile = Path.Combine(migrationFolder, "config.json");
-          byte[]? previousCanonical = File.Exists(configPath) ? File.ReadAllBytes(configPath) : null;
-          byte[]? previousMigration = File.Exists(migrationFile) ? File.ReadAllBytes(migrationFile) : null;
-          const string migrationSerial = "AT-TEST-MIGRATION-042";
-          const string migrationInstallId = "a7d5f0e6-5b7c-4e1f-a273-8fbe6e4c0420";
-          try
-          {
-              if (File.Exists(configPath)) File.Delete(configPath);
-              var protectedSerial = ProtectedData.Protect(Encoding.UTF8.GetBytes(migrationSerial), null, DataProtectionScope.CurrentUser);
-              var profile = new
-              {
-                  serial = "dpapi:" + Convert.ToBase64String(protectedSerial),
-                  install_id = migrationInstallId,
-                  network_ips = new[] { "192.0.2.42" }
-              };
-              Directory.CreateDirectory(migrationFolder);
-              File.WriteAllText(migrationFile, JsonSerializer.Serialize(profile), Encoding.UTF8);
-              var migrated = new ConfigStore().Load();
-              Check(migrated.Serial == migrationSerial, "migra y descifra el serial de activación del perfil 0.4.0");
-              Check(migrated.InstallId == migrationInstallId, "conserva el Install ID del perfil 0.4.0");
-              Check(migrated.NetworkIps.Contains("192.0.2.42"), "conserva IP configurada al migrar el perfil 0.4.0");
-          }
-          catch (Exception ex)
-          {
-              Check(false, "migración de perfil 0.4.0: " + ex.Message);
-          }
-          finally
-          {
-              if (previousCanonical is null) { try { File.Delete(configPath); } catch { } }
-              else File.WriteAllBytes(configPath, previousCanonical);
-              if (previousMigration is null) { try { File.Delete(migrationFile); } catch { } }
-              else File.WriteAllBytes(migrationFile, previousMigration);
-          }
-
-          '@
-          if (!$selfTests.Contains($migrationAnchor)) { throw "Migration self-test insertion point not found." }
-          $selfTests = $selfTests.Replace($migrationAnchor, $migrationTest + $migrationAnchor)
-          [IO.File]::WriteAllText($selfTestPath, $selfTests, [Text.Encoding]::UTF8)
-
           if (!(Select-String -Path "$agentRoot\src\ATPrinterAgent.csproj" -Pattern '<Version>0.4.2</Version>' -Quiet)) { throw "Project version was not updated to 0.4.2." }
           if (!(Select-String -Path "$agentRoot\src\SnmpV3Support.cs" -Pattern 'SnmpV3' -Quiet)) { throw "SNMPv3 source is missing." }
 
@@ -439,6 +371,77 @@ jobs:
           if (Test-Path $unitTests) { Remove-Item $unitTests -Recurse -Force }
           New-Item -ItemType Directory -Path $unitTests -Force | Out-Null
           Copy-Item "$overlayRoot\tests\ATPrinterAgent.Snmp.Tests\*" $unitTests -Recurse -Force
+
+          # Automated test: Pantum global counter must override a Printer-MIB zero.
+          $unitTestPath = "$agentRoot\tests\ATPrinterAgent.Snmp.Tests\SnmpMibTests.cs"
+          $unitTests = Get-Content $unitTestPath -Raw
+          $unitMethodAnchor = '    public void PreservesStrictSerialNormalization('
+          $unitMethodIndex = $unitTests.IndexOf($unitMethodAnchor)
+          $unitIndex = if ($unitMethodIndex -ge 0) { $unitTests.LastIndexOf('    [Theory]', $unitMethodIndex) } else { -1 }
+          if ($unitIndex -lt 0) { throw "SNMP unit-test insertion point not found." }
+          $unitAdd = @'
+              [Theory]
+              [InlineData(54321L, 0L, 54321L)]
+              [InlineData(null, 0L, 0L)]
+              [InlineData(null, null, null)]
+              public void PrefersPantumGlobalCounterBeforePrinterMib(long? vendorCounter, long? printerMibCounter, long? expected)
+              {
+                  Assert.Equal(expected, SnmpClient.PreferPantumCounter(vendorCounter, printerMibCounter));
+              }
+
+          '@
+          $unitTests = $unitTests.Insert($unitIndex, $unitAdd)
+          [IO.File]::WriteAllText($unitTestPath, $unitTests, [Text.Encoding]::UTF8)
+
+          # Automated test: decrypt and preserve a v0.4.0 DPAPI serial + InstallId from staged profile.
+          $selfTestPath = "$agentRoot\tests\AgentSelfTests\Program.cs"
+          $selfTests = Get-Content $selfTestPath -Raw
+          if (!$selfTests.Contains('using System.Text;')) { throw "AgentSelfTests import anchor missing." }
+          $selfTests = $selfTests.Replace('using System.Text;', 'using System.Text;' + [Environment]::NewLine + 'using System.Security.Cryptography;' + [Environment]::NewLine + 'using System.Text.Json;')
+          $migrationAnchor = '// Loopback read-only SNMP responder: deliberately drops the first v2c packet,'
+          $migrationTest = @'
+          // Simulate v0.4.0's isolated profile staged by the 0.4.2 installer.
+          var migrationFolder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "ATPrinterAgent-v042-migration");
+          var migrationFile = Path.Combine(migrationFolder, "config.json");
+          byte[]? previousCanonical = File.Exists(configPath) ? File.ReadAllBytes(configPath) : null;
+          byte[]? previousMigration = File.Exists(migrationFile) ? File.ReadAllBytes(migrationFile) : null;
+          const string migrationSerial = "AT-TEST-MIGRATION-042";
+          const string migrationInstallId = "a7d5f0e6-5b7c-4e1f-a273-8fbe6e4c0420";
+          try
+          {
+              if (File.Exists(configPath)) File.Delete(configPath);
+              var protectedSerial = ProtectedData.Protect(Encoding.UTF8.GetBytes(migrationSerial), null, DataProtectionScope.CurrentUser);
+              var profile = new
+              {
+                  serial = "dpapi:" + Convert.ToBase64String(protectedSerial),
+                  install_id = migrationInstallId,
+                  network_ips = new[] { "192.0.2.42" }
+              };
+              Directory.CreateDirectory(migrationFolder);
+              File.WriteAllText(migrationFile, JsonSerializer.Serialize(profile), Encoding.UTF8);
+              var migrated = new ConfigStore().Load();
+              Check(migrated.Serial == migrationSerial, "migra y descifra el serial de activación del perfil 0.4.0");
+              Check(migrated.InstallId == migrationInstallId, "conserva el Install ID del perfil 0.4.0");
+              Check(migrated.NetworkIps.Contains("192.0.2.42"), "conserva IP configurada al migrar el perfil 0.4.0");
+          }
+          catch (Exception ex)
+          {
+              Check(false, "migración de perfil 0.4.0: " + ex.Message);
+          }
+          finally
+          {
+              if (previousCanonical is null) { try { File.Delete(configPath); } catch { } }
+              else File.WriteAllBytes(configPath, previousCanonical);
+              if (previousMigration is null) { try { File.Delete(migrationFile); } catch { } }
+              else File.WriteAllBytes(migrationFile, previousMigration);
+          }
+
+          '@
+          if (!$selfTests.Contains($migrationAnchor)) { throw "Migration self-test insertion point not found." }
+          $selfTests = $selfTests.Replace($migrationAnchor, $migrationTest + $migrationAnchor)
+          [IO.File]::WriteAllText($selfTestPath, $selfTests, [Text.Encoding]::UTF8)
+
+
 
           # Brother brInfoCounter is a binary OCTET STRING, not an integer or text.
           $modelsPath = "$agentRoot\src\Models.cs"
