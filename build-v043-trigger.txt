@@ -27,3 +27,5 @@ Retry migration integration test: stop prior agent before StageLegacyAgentConfig
 Retry: final Inno compile step now inserts StageLegacyAgentConfig and its InitializeSetup call directly into the actual ISS being compiled, with hard assertions.
 
 Retry v0.4.3: preserve Check: ShouldStartAgent() in [Run] so TESTINSTALL does not launch the agent, then verify legacy uninstall, migration config, and uninstall executable.
+
+Retry after removing Program Files DelTree calls from PrepareToInstall to keep the newly created unins000.exe intact; retain user-profile cache cleanup and staged config.
