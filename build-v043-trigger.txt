@@ -3,3 +3,5 @@ Validate complete legacy cleanup, previous-version uninstall, and activation ide
 Requested by user on 2026-11-06.
 
 Re-run after normalizing Inno Setup [Run] and [UninstallRun] sections.
+
+Retry after moving Inno normalization into final compile step.
