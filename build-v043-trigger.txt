@@ -19,3 +19,5 @@ Fix InitializeSetup app-constant checks and use v0.4.2 migration config before d
 Retry with exact InitializeSetup repair and diagnostic-only legacy flag reporting.
 
 Run final InitializeSetup rewrite before validation; remove obsolete premature app-constant guard.
+
+Retry: remove premature guard; validate InitializeSetup after rewriting previous install path checks.
