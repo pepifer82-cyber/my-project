@@ -640,28 +640,6 @@ jobs:
         run: |
           choco install innosetup --yes --no-progress
           if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
-          # Normalize installer run sections to the known-good Inno Setup flags.
-          # This avoids carrying unsupported flags from legacy installer scripts.
-          $issPath = Join-Path $agentRoot "AandTPrinterAgent.iss"
-          $iss = Get-Content $issPath -Raw
-          $runSection = '[Run]' + [Environment]::NewLine +
-            'Filename: "{app}\{#MyAppExeName}"; Parameters: "--background"; Flags: nowait runhidden;' + [Environment]::NewLine
-          $uninstallRunSection = '[UninstallRun]' + [Environment]::NewLine +
-            'Filename: "{sys}\cmd.exe"; Parameters: "/C ""taskkill /IM ATPrinterAgent.exe /T /F >NUL 2>&1 & exit /b 0"""; Flags: runhidden waituntilterminated; RunOnceId: "StopAgent"' + [Environment]::NewLine
-          $runPattern = '(?ms)^\[Run\]\r?\n.*?(?=^\[|\z)'
-          $uninstallRunPattern = '(?ms)^\[UninstallRun\]\r?\n.*?(?=^\[|\z)'
-          if (![regex]::IsMatch($iss, $runPattern)) { throw "No se encontró la sección [Run] para normalizar." }
-          if (![regex]::IsMatch($iss, $uninstallRunPattern)) { throw "No se encontró la sección [UninstallRun] para normalizar." }
-          $iss = [regex]::Replace($iss, $runPattern, $runSection, 1)
-          $iss = [regex]::Replace($iss, $uninstallRunPattern, $uninstallRunSection, 1)
-          [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
-          Write-Host "Normalized [Run] and [UninstallRun] entries:"
-          $showSection = $false
-          foreach ($line in Get-Content $issPath) {
-            if ($line -eq "[Run]" -or $line -eq "[UninstallRun]") { $showSection = $true; Write-Host $line; continue }
-            if ($line.StartsWith("[") -and $showSection) { $showSection = $false }
-            if ($showSection -and $line.Trim()) { Write-Host $line }
-          }
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
 
@@ -684,6 +662,28 @@ jobs:
           $ErrorActionPreference = "Stop"
           $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
           Set-Location $agentRoot
+          # Normalize installer run sections to the known-good Inno Setup flags.
+          # This avoids carrying unsupported flags from legacy installer scripts.
+          $issPath = Join-Path $agentRoot "AandTPrinterAgent.iss"
+          $iss = Get-Content $issPath -Raw
+          $runSection = '[Run]' + [Environment]::NewLine +
+            'Filename: "{app}\{#MyAppExeName}"; Parameters: "--background"; Flags: nowait runhidden;' + [Environment]::NewLine
+          $uninstallRunSection = '[UninstallRun]' + [Environment]::NewLine +
+            'Filename: "{sys}\cmd.exe"; Parameters: "/C ""taskkill /IM ATPrinterAgent.exe /T /F >NUL 2>&1 & exit /b 0"""; Flags: runhidden waituntilterminated; RunOnceId: "StopAgent"' + [Environment]::NewLine
+          $runPattern = '(?ms)^\[Run\]\r?\n.*?(?=^\[|\z)'
+          $uninstallRunPattern = '(?ms)^\[UninstallRun\]\r?\n.*?(?=^\[|\z)'
+          if (![regex]::IsMatch($iss, $runPattern)) { throw "No se encontró la sección [Run] para normalizar." }
+          if (![regex]::IsMatch($iss, $uninstallRunPattern)) { throw "No se encontró la sección [UninstallRun] para normalizar." }
+          $iss = [regex]::Replace($iss, $runPattern, $runSection, 1)
+          $iss = [regex]::Replace($iss, $uninstallRunPattern, $uninstallRunSection, 1)
+          [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
+          Write-Host "Normalized [Run] and [UninstallRun] entries:"
+          $showSection = $false
+          foreach ($line in Get-Content $issPath) {
+            if ($line -eq "[Run]" -or $line -eq "[UninstallRun]") { $showSection = $true; Write-Host $line; continue }
+            if ($line.StartsWith("[") -and $showSection) { $showSection = $false }
+            if ($showSection -and $line.Trim()) { Write-Host $line }
+          }
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           & $iscc "AandTPrinterAgent.iss"
           if ($LASTEXITCODE -ne 0) { throw "Falló Inno Setup al generar el instalador final" }
