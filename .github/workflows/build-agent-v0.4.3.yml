@@ -442,14 +442,8 @@ jobs:
             RegDeleteKeyIncludingSubkeys(HKCU, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\ATPrinterAgent');
             RegDeleteKeyIncludingSubkeys(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\ATPrinterAgent');
 
-            { Dedicated application folders only. The new installer writes files after this callback. }
-            { No expandir la constante de carpeta de destino antes de inicializarla. }
-            DelTree(ExpandConstant('{autopf}\AT Printer Agent'), True, True, True);
-            DelTree(ExpandConstant('{autopf32}\AT Printer Agent'), True, True, True);
-            DelTree(ExpandConstant('{autopf}\ATPrinterAgent'), True, True, True);
-            DelTree(ExpandConstant('{autopf32}\ATPrinterAgent'), True, True, True);
-            DelTree(ExpandConstant('{autopf}\A&T Printer Agent'), True, True, True);
-            DelTree(ExpandConstant('{autopf32}\A&T Printer Agent'), True, True, True);
+            { Do not delete Program Files here: Inno creates unins000.exe before PrepareToInstall. }
+            { The previous uninstaller removes its own application directory. }
 
             { StageLegacyAgentConfig() has already copied serial, InstallId and network settings. }
             DelTree(ExpandConstant('{localappdata}\ATPrinterAgent-v025'), True, True, True);
