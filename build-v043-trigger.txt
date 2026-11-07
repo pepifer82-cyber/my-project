@@ -7,3 +7,5 @@ Re-run after normalizing Inno Setup [Run] and [UninstallRun] sections.
 Retry after moving Inno normalization into final compile step.
 
 Retry without early app constant expansion in PrepareToInstall.
+
+Retry after fixing nested Pascal braces in cleanup comment.
