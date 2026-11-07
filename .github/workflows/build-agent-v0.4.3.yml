@@ -713,7 +713,7 @@ jobs:
           $issPath = Join-Path $agentRoot "AandTPrinterAgent.iss"
           $iss = Get-Content $issPath -Raw
           $runSection = '[Run]' + [Environment]::NewLine +
-            'Filename: "{app}\{#MyAppExeName}"; Parameters: "--background"; Flags: nowait runhidden;' + [Environment]::NewLine
+            'Filename: "{app}\{#MyAppExeName}"; Parameters: "--background"; Flags: nowait runhidden; Check: ShouldStartAgent();' + [Environment]::NewLine
           $uninstallRunSection = '[UninstallRun]' + [Environment]::NewLine +
             'Filename: "{sys}\cmd.exe"; Parameters: "/C ""taskkill /IM ATPrinterAgent.exe /T /F >NUL 2>&1 & exit /b 0"""; Flags: runhidden waituntilterminated; RunOnceId: "StopAgent"' + [Environment]::NewLine
           $runPattern = '(?ms)^\[Run\]\r?\n.*?(?=^\[|\z)'
@@ -976,7 +976,15 @@ jobs:
             $uninstaller = ($uninstallCommand -split '\s+', 2)[0]
           }
           Write-Host "Registered uninstall command: $uninstallCommand"
-          if (!(Test-Path $uninstaller)) { throw "No se encontró el desinstalador registrado: $uninstaller" }
+          if (!(Test-Path $uninstaller)) {
+            Write-Host "Uninstaller path missing: $uninstaller"
+            Write-Host "Install directory: $installDir"
+            if (Test-Path $installDir) { Get-ChildItem -Force $installDir | Format-Table FullName,Length,LastWriteTime | Out-String | Write-Host }
+            $diagExe = Join-Path $installDir "ATPrinterAgent.exe"
+            Write-Host "Agent exe exists: $(Test-Path $diagExe)"
+            Write-Host "Uninstaller exists: $(Test-Path $uninstaller)"
+            throw "No se encontró el desinstalador registrado: $uninstaller"
+          }
           Write-Host "TEST STEP 3: uninstalling v0.4.3 to confirm clean removal."
           $remove = Start-Process -FilePath $uninstaller -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
           if (!$remove.WaitForExit(90000)) {
