@@ -21,3 +21,5 @@ Retry with exact InitializeSetup repair and diagnostic-only legacy flag reportin
 Run final InitializeSetup rewrite before validation; remove obsolete premature app-constant guard.
 
 Retry: remove premature guard; validate InitializeSetup after rewriting previous install path checks.
+
+Retry migration integration test: stop prior agent before StageLegacyAgentConfig; create config fixture after real v0.3.8 install; include setup-log diagnostics.
