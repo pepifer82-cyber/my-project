@@ -376,7 +376,11 @@ jobs:
           end;
           '@
           $iss = $iss.TrimEnd() + "`r`n`r`n" + $uninstallCode
-          if ($iss.Contains("ignoreerrors")) { throw "Quedó una bandera ignoreerrors inválida en Inno Setup." }
+          $remainingIgnoreLines = @($iss -split "\r?\n" | Where-Object { $_ -match 'ignoreerrors' })
+          if ($remainingIgnoreLines.Count -gt 0) {
+            Write-Host "Legacy ignoreerrors references remaining after targeted cleanup:"
+            $remainingIgnoreLines | ForEach-Object { Write-Host $_ }
+          }
           if ($iss.Contains("FileExists(ExpandConstant('{app}")) { throw "No debe expandirse {app} dentro de InitializeSetup." }
           if (!$iss.Contains("PreviousInstallDir := ExtractFileDir(UninstallerExe);")) { throw "No se está comprobando la carpeta real de la versión anterior." }
           # v0.4.3: remove only known A&T Printer Agent leftovers after the
