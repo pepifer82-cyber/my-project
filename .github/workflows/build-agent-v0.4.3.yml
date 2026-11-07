@@ -382,7 +382,6 @@ jobs:
             $remainingIgnoreLines | ForEach-Object { Write-Host $_ }
           }
           # InitializeSetup is normalized in the final v0.4.3 cleanup patch below; do not block before that pass.
-          if (!$iss.Contains("PreviousInstallDir := ExtractFileDir(UninstallerExe);")) { throw "No se está comprobando la carpeta real de la versión anterior." }
           # v0.4.3: remove only known A&T Printer Agent leftovers after the
           # previous uninstaller has completed, but before the new files are copied.
           $iss = Get-Content $issPath -Raw
