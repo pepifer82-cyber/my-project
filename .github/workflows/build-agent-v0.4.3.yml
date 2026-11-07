@@ -262,19 +262,26 @@ jobs:
           begin
             Result := True;
             SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v042-migration\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v041\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v040\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v039\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v038\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v037\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v036\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v035\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v034\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v032\config.json');
-            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v025\config.json');
-            SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v041\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v041\config.json');
             if not FileExists(SourcePath) then
               SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v040\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v039\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v038\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v037\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v036\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v035\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v034\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v032\config.json');
+            if not FileExists(SourcePath) then
+              SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v025\config.json');
             if not FileExists(SourcePath) then
               SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent\config.json');
             if not FileExists(SourcePath) then
@@ -301,7 +308,6 @@ jobs:
             end;
           end;
 
-          '@
           if (!$iss.Contains($stageAnchor)) { throw "Inno Setup insertion point for migration staging not found." }
           $iss = $iss.Replace($stageAnchor, $stageFunction + $stageAnchor)
           $previousCall = '  FoundPrevious := ReadPreviousUninstallCommand(UninstallCommand);'
@@ -376,6 +382,37 @@ jobs:
           # v0.4.3: remove only known A&T Printer Agent leftovers after the
           # previous uninstaller has completed, but before the new files are copied.
           $iss = Get-Content $issPath -Raw
+          # Fix InitializeSetup explicitly: {app} is not available until the
+          # install directory is initialized. Use the registered previous folder.
+          $initStart = $iss.IndexOf('function InitializeSetup(): Boolean;')
+          $initEnd = if ($initStart -ge 0) { $iss.IndexOf('function ShouldStartAgent(): Boolean;', $initStart) } else { -1 }
+          if ($initStart -lt 0 -or $initEnd -lt 0) { throw "No se pudo aislar InitializeSetup para la corrección final." }
+          $initBlock = $iss.Substring($initStart, $initEnd - $initStart)
+          if (!$initBlock.Contains('PreviousInstallDir: String;')) {
+            $varAnchor = '  UninstallerExe: String;'
+            if (!$initBlock.Contains($varAnchor)) { throw "Falta la variable UninstallerExe dentro de InitializeSetup." }
+            $initBlock = $initBlock.Replace($varAnchor, $varAnchor + [Environment]::NewLine + '  PreviousInstallDir: String;')
+          }
+          if (!$initBlock.Contains('PreviousInstallDir := ExtractFileDir(UninstallerExe);')) {
+            $pathAnchor = '    UninstallerExe := ExtractUninstallerPath(UninstallCommand);'
+            if (!$initBlock.Contains($pathAnchor)) { throw "Falta la extracción del desinstalador en InitializeSetup." }
+            $initBlock = $initBlock.Replace($pathAnchor, $pathAnchor + [Environment]::NewLine + '    PreviousInstallDir := ExtractFileDir(UninstallerExe);')
+          }
+          $oldOrphanCheck = "  else if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newOrphanCheck = "  else if FileExists(ExpandConstant('{autopf}\AT Printer Agent\ATPrinterAgent.exe')) then"
+          if ($initBlock.Contains($oldOrphanCheck)) {
+            $initBlock = $initBlock.Replace($oldOrphanCheck, $newOrphanCheck)
+          }
+          $oldPreviousCheck = "    if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newPreviousCheck = "    if FileExists(PreviousInstallDir + '\ATPrinterAgent.exe') then"
+          if ($initBlock.Contains($oldPreviousCheck)) {
+            $initBlock = $initBlock.Replace($oldPreviousCheck, $newPreviousCheck)
+          }
+          if ($initBlock.Contains("ExpandConstant('{app}")) { throw "InitializeSetup aún contiene una expansión temprana de {app}." }
+          if (!$initBlock.Contains("FileExists(PreviousInstallDir + '\ATPrinterAgent.exe')")) { throw "No quedó validada la carpeta real de la versión anterior." }
+          if (!$initBlock.Contains("FileExists(ExpandConstant('{autopf}\AT Printer Agent\ATPrinterAgent.exe'))")) { throw "No quedó validada la carpeta huérfana conocida." }
+          $iss = $iss.Substring(0, $initStart) + $initBlock + $iss.Substring($initEnd)
+
           $uninstallDeleteAnchor = 'Type: dirifempty; Name: "{app}"'
           if (!$iss.Contains($uninstallDeleteAnchor)) { throw "No se encontró la limpieza final de la carpeta de instalación." }
           $iss = $iss.Replace($uninstallDeleteAnchor, 'Type: filesandordirs; Name: "{app}\*"' + [Environment]::NewLine + $uninstallDeleteAnchor)
