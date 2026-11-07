@@ -397,7 +397,7 @@ jobs:
             RegDeleteKeyIncludingSubkeys(HKLM, 'Software\Microsoft\Windows\CurrentVersion\Uninstall\ATPrinterAgent');
 
             { Dedicated application folders only. The new installer writes files after this callback. }
-            { No expandir {app} aquí: PrepareToInstall puede ejecutarse antes de inicializar la carpeta. }
+            { No expandir la constante de carpeta de destino antes de inicializarla. }
             DelTree(ExpandConstant('{autopf}\AT Printer Agent'), True, True, True);
             DelTree(ExpandConstant('{autopf32}\AT Printer Agent'), True, True, True);
             DelTree(ExpandConstant('{autopf}\ATPrinterAgent'), True, True, True);
