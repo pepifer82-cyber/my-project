@@ -722,7 +722,112 @@ jobs:
           if (![regex]::IsMatch($iss, $uninstallRunPattern)) { throw "No se encontró la sección [UninstallRun] para normalizar." }
           $iss = [regex]::Replace($iss, $runPattern, $runSection, 1)
           $iss = [regex]::Replace($iss, $uninstallRunPattern, $uninstallRunSection, 1)
+
+          # Final-authority migration patch: apply it directly to the exact ISS
+          # file that ISCC will compile, then assert both function and call exist.
+          $stageFunction = @'
+          function StageLegacyAgentConfig(): Boolean;
+          var
+            SourcePath, TargetDir, TargetPath: String;
+          begin
+            Result := True;
+            SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v042-migration\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v041\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v040\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v039\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v038\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v037\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v036\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v035\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v034\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v032\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent-v025\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{localappdata}\ATPrinterAgent\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{userappdata}\ATPrinterAgent\config.json');
+            if not FileExists(SourcePath) then SourcePath := ExpandConstant('{commonappdata}\ATPrinterAgent\config.json');
+
+            Log('A&T Printer Agent migration source=' + SourcePath +
+              '; exists=' + IntToStr(Ord(FileExists(SourcePath))));
+            if FileExists(SourcePath) then
+            begin
+              TargetDir := ExpandConstant('{localappdata}\ATPrinterAgent-v043-migration');
+              TargetPath := TargetDir + '\config.json';
+              if not ForceDirectories(TargetDir) then
+              begin
+                Log('A&T Printer Agent migration FAILED creating ' + TargetDir);
+                Result := False;
+                Exit;
+              end;
+              if not FileCopy(SourcePath, TargetPath, True) then
+              begin
+                Log('A&T Printer Agent migration FAILED copying to ' + TargetPath);
+                Result := False;
+                Exit;
+              end;
+              Log('A&T Printer Agent migration copied config to ' + TargetPath);
+            end
+            else
+              Log('A&T Printer Agent migration found no previous config.json.');
+          end;
+
+          '@
+          $stageAnchor = 'function ReadPreviousUninstallCommand(var UninstallCommand: String): Boolean;'
+          if (!$iss.Contains('function StageLegacyAgentConfig(): Boolean;')) {
+            if (!$iss.Contains($stageAnchor)) { throw "No se encontró el lugar para insertar StageLegacyAgentConfig en el ISS final." }
+            $iss = $iss.Replace($stageAnchor, $stageFunction + $stageAnchor)
+          }
+
+          $initStart = $iss.IndexOf('function InitializeSetup(): Boolean;')
+          $initEnd = if ($initStart -ge 0) { $iss.IndexOf('function ShouldStartAgent(): Boolean;', $initStart) } else { -1 }
+          if ($initStart -lt 0 -or $initEnd -lt 0) { throw "No se encontró InitializeSetup en el ISS final." }
+          $initBlock = $iss.Substring($initStart, $initEnd - $initStart)
+
+          if (!$initBlock.Contains('KillCode: Integer;')) {
+            $resultCodeAnchor = '  ResultCode: Integer;'
+            if (!$initBlock.Contains($resultCodeAnchor)) { throw "No se encontró ResultCode en InitializeSetup." }
+            $initBlock = $initBlock.Replace($resultCodeAnchor, $resultCodeAnchor + [Environment]::NewLine + '  KillCode: Integer;')
+          }
+          if (!$initBlock.Contains('PreviousInstallDir: String;')) {
+            $uninstallerVar = '  UninstallerExe: String;'
+            if (!$initBlock.Contains($uninstallerVar)) { throw "No se encontró UninstallerExe en InitializeSetup." }
+            $initBlock = $initBlock.Replace($uninstallerVar, $uninstallerVar + [Environment]::NewLine + '  PreviousInstallDir: String;')
+          }
+          if (!$initBlock.Contains('PreviousInstallDir := ExtractFileDir(UninstallerExe);')) {
+            $uninstallerRead = '    UninstallerExe := ExtractUninstallerPath(UninstallCommand);'
+            if (!$initBlock.Contains($uninstallerRead)) { throw "No se encontró la lectura de UninstallString en InitializeSetup." }
+            $initBlock = $initBlock.Replace($uninstallerRead, $uninstallerRead + [Environment]::NewLine + '    PreviousInstallDir := ExtractFileDir(UninstallerExe);')
+          }
+
+          $oldPreviousCheck = "    if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newPreviousCheck = "    if FileExists(PreviousInstallDir + '\ATPrinterAgent.exe') then"
+          if ($initBlock.Contains($oldPreviousCheck)) { $initBlock = $initBlock.Replace($oldPreviousCheck, $newPreviousCheck) }
+          $oldOrphanCheck = "  else if FileExists(ExpandConstant('{app}\ATPrinterAgent.exe')) then"
+          $newOrphanCheck = "  else if FileExists(ExpandConstant('{autopf}\AT Printer Agent\ATPrinterAgent.exe')) then"
+          if ($initBlock.Contains($oldOrphanCheck)) { $initBlock = $initBlock.Replace($oldOrphanCheck, $newOrphanCheck) }
+
+          $stageCall = "  if not StageLegacyAgentConfig() then"
+          if (!$initBlock.Contains($stageCall)) {
+            $previousCall = '  FoundPrevious := ReadPreviousUninstallCommand(UninstallCommand);'
+            if (!$initBlock.Contains($previousCall)) { throw "No se encontró la consulta de instalación anterior en InitializeSetup." }
+            $migrationCall = "  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ATPrinterAgent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, KillCode);" + [Environment]::NewLine +
+              "  if not StageLegacyAgentConfig() then" + [Environment]::NewLine +
+              "  begin" + [Environment]::NewLine +
+              "    Result := False;" + [Environment]::NewLine +
+              "    Exit;" + [Environment]::NewLine +
+              "  end;" + [Environment]::NewLine +
+              $previousCall
+            $initBlock = $initBlock.Replace($previousCall, $migrationCall)
+          }
+          if ($initBlock.Contains("ExpandConstant('{app}")) { throw "InitializeSetup conserva una expansión prematura de {app}." }
+          if (!$initBlock.Contains('StageLegacyAgentConfig()')) { throw "No quedó la llamada de migración en InitializeSetup." }
+          if (!$initBlock.Contains("FileExists(PreviousInstallDir + '\ATPrinterAgent.exe')")) { throw "No quedó la comprobación de la carpeta anterior." }
+          $iss = $iss.Substring(0, $initStart) + $initBlock + $iss.Substring($initEnd)
+
+          if (!$iss.Contains('function StageLegacyAgentConfig(): Boolean;') -or !$iss.Contains('if not StageLegacyAgentConfig() then')) {
+            throw "El ISS final no incluye íntegra la migración de configuración."
+          }
           [IO.File]::WriteAllText($issPath, $iss, [Text.Encoding]::UTF8)
+          Write-Host "Final installer migration verified: StageLegacyAgentConfig + InitializeSetup call present."
           Write-Host "Normalized [Run] and [UninstallRun] entries:"
           $showSection = $false
           foreach ($line in Get-Content $issPath) {
