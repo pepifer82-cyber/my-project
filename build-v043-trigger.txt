@@ -23,3 +23,5 @@ Run final InitializeSetup rewrite before validation; remove obsolete premature a
 Retry: remove premature guard; validate InitializeSetup after rewriting previous install path checks.
 
 Retry migration integration test: stop prior agent before StageLegacyAgentConfig; create config fixture after real v0.3.8 install; include setup-log diagnostics.
+
+Retry: final Inno compile step now inserts StageLegacyAgentConfig and its InitializeSetup call directly into the actual ISS being compiled, with hard assertions.
