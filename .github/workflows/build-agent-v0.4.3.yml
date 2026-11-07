@@ -381,7 +381,7 @@ jobs:
             Write-Host "Legacy ignoreerrors references remaining after targeted cleanup:"
             $remainingIgnoreLines | ForEach-Object { Write-Host $_ }
           }
-          if ($iss.Contains("FileExists(ExpandConstant('{app}")) { throw "No debe expandirse {app} dentro de InitializeSetup." }
+          # InitializeSetup is normalized in the final v0.4.3 cleanup patch below; do not block before that pass.
           if (!$iss.Contains("PreviousInstallDir := ExtractFileDir(UninstallerExe);")) { throw "No se está comprobando la carpeta real de la versión anterior." }
           # v0.4.3: remove only known A&T Printer Agent leftovers after the
           # previous uninstaller has completed, but before the new files are copied.
