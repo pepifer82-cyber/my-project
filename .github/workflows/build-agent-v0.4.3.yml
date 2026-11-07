@@ -640,19 +640,6 @@ jobs:
         run: |
           choco install innosetup --yes --no-progress
           if ($LASTEXITCODE -ne 0) { throw "Falló la instalación de Inno Setup 6" }
-          Write-Host "---- DEBUG: Inno [Code] section, line-numbered ----"
-          $issLines = Get-Content $issPath
-          $codeStart = [Array]::IndexOf($issLines, "[Code]")
-          if ($codeStart -lt 0) { throw "No se encontró [Code] en el instalador." }
-          for ($lineIndex = $codeStart; $lineIndex -lt $issLines.Count; $lineIndex++) {
-            Write-Host ("ISS {0}: {1}" -f ($lineIndex + 1), $issLines[$lineIndex])
-          }
-          Write-Host "---- DEBUG: All app-constant occurrences in Pascal source ----"
-          for ($lineIndex = $codeStart; $lineIndex -lt $issLines.Count; $lineIndex++) {
-            if ($issLines[$lineIndex] -match '\{app\}|ExpandConstant') {
-              Write-Host ("ISS MATCH {0}: {1}" -f ($lineIndex + 1), $issLines[$lineIndex])
-            }
-          }
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           if (!(Test-Path $iscc)) { throw "No se encontró ISCC.exe: $iscc" }
 
@@ -696,6 +683,19 @@ jobs:
             if ($line -eq "[Run]" -or $line -eq "[UninstallRun]") { $showSection = $true; Write-Host $line; continue }
             if ($line.StartsWith("[") -and $showSection) { $showSection = $false }
             if ($showSection -and $line.Trim()) { Write-Host $line }
+          }
+          Write-Host "---- DEBUG: Inno [Code] section, line-numbered ----"
+          $issLines = Get-Content $issPath
+          $codeStart = [Array]::IndexOf($issLines, "[Code]")
+          if ($codeStart -lt 0) { throw "No se encontró [Code] en el instalador." }
+          for ($lineIndex = $codeStart; $lineIndex -lt $issLines.Count; $lineIndex++) {
+            Write-Host ("ISS {0}: {1}" -f ($lineIndex + 1), $issLines[$lineIndex])
+          }
+          Write-Host "---- DEBUG: All app-constant occurrences in Pascal source ----"
+          for ($lineIndex = $codeStart; $lineIndex -lt $issLines.Count; $lineIndex++) {
+            if ($issLines[$lineIndex] -match '\{app\}|ExpandConstant') {
+              Write-Host ("ISS MATCH {0}: {1}" -f ($lineIndex + 1), $issLines[$lineIndex])
+            }
           }
           $iscc = "C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
           & $iscc "AandTPrinterAgent.iss"
