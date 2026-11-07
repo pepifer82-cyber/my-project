@@ -988,7 +988,16 @@ jobs:
           $remove.Refresh()
           if ($remove.ExitCode -ne 0) { throw "Falló la desinstalación de verificación: $($remove.ExitCode)" }
           if (Test-Path (Join-Path $installDir "ATPrinterAgent.exe")) { throw "Quedó el ejecutable después de desinstalar" }
-          if (Test-Path $installDir) { throw "Quedó la carpeta de instalación después de desinstalar" }
+          for ($attempt = 0; $attempt -lt 10 -and (Test-Path $installDir); $attempt++) {
+            Start-Sleep -Seconds 1
+          }
+          if (Test-Path $installDir) {
+            Write-Host "---- LEFTOVER INSTALL DIRECTORY CONTENTS ----"
+            Get-ChildItem -LiteralPath $installDir -Force -Recurse -ErrorAction SilentlyContinue |
+              Select-Object FullName,Length,Attributes,LastWriteTime |
+              Format-Table -AutoSize | Out-String | Write-Host
+            throw "Quedó la carpeta de instalación después de desinstalar; revisar el listado anterior."
+          }
           if (!(Test-Path $migrationConfigPath)) { throw "La desinstalación eliminó el respaldo que contiene el serial y el InstallId." }
           if ((Get-FileHash $migrationConfigPath -Algorithm SHA256).Hash -ne $configHashBefore) { throw "La configuración respaldada cambió durante la desinstalación." }
           Write-Host "PASS: v0.3.8 se desinstaló antes de instalar v0.4.3."
