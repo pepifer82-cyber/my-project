@@ -29,3 +29,5 @@ Retry: final Inno compile step now inserts StageLegacyAgentConfig and its Initia
 Retry v0.4.3: preserve Check: ShouldStartAgent() in [Run] so TESTINSTALL does not launch the agent, then verify legacy uninstall, migration config, and uninstall executable.
 
 Retry after removing Program Files DelTree calls from PrepareToInstall to keep the newly created unins000.exe intact; retain user-profile cache cleanup and staged config.
+
+Run uninstall residue diagnostics after v0.4.3 removal.
