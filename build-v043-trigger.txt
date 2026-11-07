@@ -11,3 +11,5 @@ Retry without early app constant expansion in PrepareToInstall.
 Retry after fixing nested Pascal braces in cleanup comment.
 
 Run with line-numbered Inno Pascal diagnostics to locate the early app-constant expansion.
+
+Retry with Pascal diagnostic block moved into final compile step.
