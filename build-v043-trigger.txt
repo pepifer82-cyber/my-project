@@ -13,3 +13,5 @@ Retry after fixing nested Pascal braces in cleanup comment.
 Run with line-numbered Inno Pascal diagnostics to locate the early app-constant expansion.
 
 Retry with Pascal diagnostic block moved into final compile step.
+
+Fix InitializeSetup app-constant checks and use v0.4.2 migration config before deleting prior folders.
