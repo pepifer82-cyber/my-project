@@ -1,3 +1,5 @@
 Build A&T Printer Agent v0.4.3 clean-install.
 Validate complete legacy cleanup, previous-version uninstall, and activation identity preservation.
 Requested by user on 2026-11-06.
+
+Re-run after normalizing Inno Setup [Run] and [UninstallRun] sections.
