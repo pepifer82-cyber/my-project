@@ -25,3 +25,5 @@ Retry: remove premature guard; validate InitializeSetup after rewriting previous
 Retry migration integration test: stop prior agent before StageLegacyAgentConfig; create config fixture after real v0.3.8 install; include setup-log diagnostics.
 
 Retry: final Inno compile step now inserts StageLegacyAgentConfig and its InitializeSetup call directly into the actual ISS being compiled, with hard assertions.
+
+Retry v0.4.3: preserve Check: ShouldStartAgent() in [Run] so TESTINSTALL does not launch the agent, then verify legacy uninstall, migration config, and uninstall executable.
