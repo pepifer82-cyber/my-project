@@ -289,6 +289,7 @@ jobs:
             if not FileExists(SourcePath) then
               SourcePath := ExpandConstant('{commonappdata}\ATPrinterAgent\config.json');
 
+            Log('A&T Printer Agent migration source=' + SourcePath + '; exists=' + IntToStr(Ord(FileExists(SourcePath))));
             if FileExists(SourcePath) then
             begin
               TargetDir := ExpandConstant('{localappdata}\ATPrinterAgent-v043-migration');
@@ -301,17 +302,22 @@ jobs:
               end;
               if not FileCopy(SourcePath, TargetPath, True) then
               begin
+                Log('A&T Printer Agent migration FAILED copying to ' + TargetPath);
                 MsgBox('No se pudo conservar el serial de activación y el ID de instalación. La instalación se canceló para no perderlos.', mbError, MB_OK);
                 Result := False;
                 Exit;
               end;
-            end;
+              Log('A&T Printer Agent migration copied config to ' + TargetPath);
+            end
+            else
+              Log('A&T Printer Agent migration found no config.json.');
           end;
 
           if (!$iss.Contains($stageAnchor)) { throw "Inno Setup insertion point for migration staging not found." }
           $iss = $iss.Replace($stageAnchor, $stageFunction + $stageAnchor)
           $previousCall = '  FoundPrevious := ReadPreviousUninstallCommand(UninstallCommand);'
-          $migrationCall = "  if not StageLegacyAgentConfig() then" + [Environment]::NewLine +
+          $migrationCall = "  Exec(ExpandConstant('{sys}\taskkill.exe'), '/IM ATPrinterAgent.exe /T /F', '', SW_HIDE, ewWaitUntilTerminated, KillCode);" + [Environment]::NewLine +
+            "  if not StageLegacyAgentConfig() then" + [Environment]::NewLine +
             "  begin" + [Environment]::NewLine +
             "    Result := False;" + [Environment]::NewLine +
             "    Exit;" + [Environment]::NewLine +
@@ -761,31 +767,7 @@ jobs:
           if (!(Test-Path $legacyExe)) { throw "Falta el instalador de prueba genuino v0.3.8" }
 
           $configDir = Join-Path $env:LOCALAPPDATA "ATPrinterAgent"
-          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
           $configPath = Join-Path $configDir "config.json"
-          $configText = '{"install_id":"upgrade-preservation-test","serial":"AT-TEST-PRESERVE","network_ips":["192.0.2.10"]}'
-          [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
-          $configHashBefore = (Get-FileHash $configPath -Algorithm SHA256).Hash
-
-          $staleAgentDirs = @(
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v032"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v034"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v035"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v036"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v037"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v038"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v039"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v040"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v041"),
-            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v042"),
-            (Join-Path $env:APPDATA "ATPrinterAgent"),
-            (Join-Path $env:ProgramData "ATPrinterAgent")
-          )
-          foreach ($staleDir in $staleAgentDirs) {
-            New-Item -ItemType Directory -Path $staleDir -Force | Out-Null
-            Set-Content -Path (Join-Path $staleDir "stale-agent-cache.marker") -Value "must be removed"
-          }
-          Set-Content -Path (Join-Path $configDir "stale-agent-cache.marker") -Value "must be removed"
 
           Write-Host "TEST STEP 1: installing genuine v0.3.8"
           $oldInstall = Start-Process -FilePath $legacyExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART" -PassThru
@@ -806,6 +788,37 @@ jobs:
           $legacyFileVersion = (Get-Item $legacyInstalledExe).VersionInfo.FileVersion
           if ($legacyFileVersion -notlike "0.3.8*") { throw "El agente previo instalado no es 0.3.8: $legacyFileVersion" }
           $legacyFileHash = (Get-FileHash $legacyInstalledExe -Algorithm SHA256).Hash
+
+          # Seed the activation/config fixture after the genuine 0.3.8 install.
+          # The new installer must stop the previous process before staging it.
+          New-Item -ItemType Directory -Path $configDir -Force | Out-Null
+          $configText = '{"install_id":"upgrade-preservation-test","serial":"AT-TEST-PRESERVE","network_ips":["192.0.2.10"]}'
+          [IO.File]::WriteAllText($configPath, $configText, [Text.Encoding]::UTF8)
+          if (!(Test-Path $configPath)) { throw "No se creó la fixture config.json antes de la actualización." }
+          $configHashBefore = (Get-FileHash $configPath -Algorithm SHA256).Hash
+
+          $staleAgentDirs = @(
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v032"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v034"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v035"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v036"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v037"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v038"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v039"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v040"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v041"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v042"),
+            (Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v042-migration"),
+            (Join-Path $env:APPDATA "ATPrinterAgent"),
+            (Join-Path $env:ProgramData "ATPrinterAgent")
+          )
+          foreach ($staleDir in $staleAgentDirs) {
+            New-Item -ItemType Directory -Path $staleDir -Force | Out-Null
+            Set-Content -Path (Join-Path $staleDir "stale-agent-cache.marker") -Value "must be removed"
+          }
+          Set-Content -Path (Join-Path $configDir "stale-agent-cache.marker") -Value "must be removed"
+          Write-Host "Migration fixture file: $configPath"
+          Write-Host "Migration fixture SHA256: $configHashBefore"
 
           Write-Host "TEST STEP 2: starting v0.4.3 setup; its InitializeSetup must uninstall v0.3.8 first."
           $newInstall = Start-Process -FilePath $newExe -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /TESTINSTALL /LOG=$env:TEMP\ATPrinterAgent-v043-upgrade.log" -PassThru
@@ -836,7 +849,13 @@ jobs:
           $newFileHash = (Get-FileHash $installedExe -Algorithm SHA256).Hash
           if ($newFileHash -eq $legacyFileHash) { throw "El ejecutable v0.4.3 coincide con el binario 0.3.8; no se reemplazó correctamente" }
           $migrationConfigPath = Join-Path $env:LOCALAPPDATA "ATPrinterAgent-v043-migration\config.json"
-          if (!(Test-Path $migrationConfigPath)) { throw "No se conservó la configuración/serial en la carpeta de migración." }
+          if (!(Test-Path $migrationConfigPath)) {
+            $setupLog = Join-Path $env:TEMP "ATPrinterAgent-v043-upgrade.log"
+            if (Test-Path $setupLog) { Write-Host "---- SETUP LOG ----"; Get-Content $setupLog -Tail 140 | Write-Host }
+            Write-Host "Config source exists: $(Test-Path $configPath)"
+            Write-Host "Config target exists: $(Test-Path $migrationConfigPath)"
+            throw "No se conservó la configuración/serial en la carpeta de migración."
+          }
           $configHashAfter = (Get-FileHash $migrationConfigPath -Algorithm SHA256).Hash
           if ($configHashAfter -ne $configHashBefore) { throw "El serial, InstallId o la configuración cambiaron durante la limpieza." }
           foreach ($staleDir in $staleAgentDirs) {
