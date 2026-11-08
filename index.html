@@ -297,6 +297,11 @@ html[data-theme="dark"] .printer-photo-placeholder,html[data-theme="dark"] .prin
 html[data-theme="dark"] .printer-photo-placeholder strong,html[data-theme="dark"] .printer-photo-copy strong{color:#edf7ff}
 html[data-theme="dark"] .printer-photo-copy a{color:#82dfff}
 @media(max-width:650px){.printer-photo-card{grid-template-columns:1fr}.printer-photo-frame{height:200px}}
+.inventory-printer-title{display:flex;align-items:center;gap:8px;min-width:0}
+.printer-inventory-thumb{display:inline-flex;flex:0 0 42px;width:42px;height:34px;align-items:center;justify-content:center;overflow:hidden;border:1px solid #dbe5ef;border-radius:7px;background:#fff;color:#71839a;font-size:20px}
+.printer-inventory-thumb img{display:block;width:100%;height:100%;object-fit:contain;padding:2px}
+.printer-inventory-thumb.is-placeholder{background:#f3f7fb;border-style:dashed}
+html[data-theme="dark"] .printer-inventory-thumb{border-color:#315779;background:#fff}
 
 .printer-detail-section{border:1px solid var(--line);border-radius:15px;padding:16px;margin-top:14px;background:#f9fbff}
 .printer-detail-section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px}
@@ -1595,6 +1600,40 @@ function printerOtherConsumables(value){
 function normalizePrinterPhotoText(value){
   return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
 }
+// Catálogo verificado de fotos y fichas de fabricantes. Los modelos sin URL de foto directa
+// conservan el enlace oficial y usan una imagen alternativa solo si coincide con el modelo.
+const PRINTER_OFFICIAL_IMAGE_CATALOG = Object.freeze([
+  {brand:'HP',brandKey:'hp',aliases:['m127fn'],displayName:'HP LaserJet Pro MFP M127fn',productUrl:'https://www.hp.com/us-en/shop/pdp/hp-laserjet-pro-mfp-m127fn',imageUrl:'https://ssl-product-images.www8.hp.com/digmedialib/prodimg/lowres/c03766698.png?imdensity=1&impolicy=Png_Res'},
+  {brand:'HP',brandKey:'hp',aliases:['m182nw'],displayName:'HP Color LaserJet Pro M182nw',productUrl:'https://support.hp.com/es-es/product/setup-user-guides/hp-color-laserjet-pro-m182-m185-multifunction-printer-series/model/29448700',imageUrl:''},
+  {brand:'HP',brandKey:'hp',aliases:['m428fdw'],displayName:'HP LaserJet Pro MFP M428fdw',productUrl:'https://www.hp.com/us-en/shop/pdp/hp-laserjet-pro-mfp-m428fdw-w1a30a-bgj',imageUrl:'https://hp.widen.net/content/sgniyiwlxa/webp/sgniyiwlxa.png?color=ffffff00&dpi=72&h=430&w=573'},
+  {brand:'HP',brandKey:'hp',aliases:['officejet pro 7740','7740'],displayName:'HP OfficeJet Pro 7740',productUrl:'https://www.hp.com/py-es/products/printers/product-details/7682231',imageUrl:'https://hp.widen.net/content/s2mtmw4nme/webp/s2mtmw4nme.png?color=ffffff00&dpi=72&h=430&w=573'},
+  {brand:'Brother',brandKey:'brother',aliases:['mfc l2720dw'],displayName:'Brother MFC-L2720DW',productUrl:'https://latinamerica.brother.com/products/mfcl2720dw',imageUrl:'https://latinamerica.brother.com/-/media/brother/product-catalog-media/images/2020/04/28/18/23/mfcl2720dw_front.png'},
+  {brand:'Pantum',brandKey:'pantum',aliases:['bm5100fdw'],displayName:'Pantum BM5100FDW',productUrl:'https://global.pantum.com/product-center/1517382546338394114.html',imageUrl:'https://drivers.pantum.com/userfiles/images/product/1_1644227239014.jpg'},
+  {brand:'Ricoh',brandKey:'ricoh',aliases:['mp c306z'],displayName:'Ricoh MP C306Z',productUrl:'https://www.ricoh-americalatina.com/es-co/productos/pd/equipo/impresoras-y-fotocopiadoras/impresoras-multifuncion-fotocopiadoras/mp-c306-impresora-multifuncion-laser-color',imageUrl:''},
+  {brand:'Xerox',brandKey:'xerox',aliases:['workcentre 5335'],displayName:'Xerox WorkCentre 5335',productUrl:'https://www.office.xerox.com/latest/W5BSS-01L.PDF',imageUrl:''}
+]);
+function printerPhotoBrandKey(r){
+  const text=' '+normalizePrinterPhotoText([r?.manufacturer,r?.display_name,r?.printer_name,r?.name].filter(Boolean).join(' '))+' ';
+  if(text.includes(' hp ')||text.includes(' hewlett packard '))return 'hp';
+  if(text.includes(' brother '))return 'brother';
+  if(text.includes(' pantum '))return 'pantum';
+  if(text.includes(' ricoh '))return 'ricoh';
+  if(text.includes(' xerox '))return 'xerox';
+  return '';
+}
+function findOfficialPrinterCatalogEntry(r){
+  const brandKey=printerPhotoBrandKey(r);
+  if(!brandKey)return null;
+  const identity=' '+normalizePrinterPhotoText([r?.manufacturer,r?.model,printerInventoryLabel(r),r?.display_name,r?.printer_name].filter(Boolean).join(' '))+' ';
+  return PRINTER_OFFICIAL_IMAGE_CATALOG
+    .filter(entry=>entry.brandKey===brandKey&&entry.aliases.some(alias=>identity.includes(' '+normalizePrinterPhotoText(alias)+' ')))
+    .sort((a,b)=>Math.max(...b.aliases.map(x=>x.length))-Math.max(...a.aliases.map(x=>x.length)))[0]||null;
+}
+function printerInventoryThumbnail(r){
+  const entry=findOfficialPrinterCatalogEntry(r);
+  if(!entry?.imageUrl)return '<span class="printer-inventory-thumb is-placeholder" aria-hidden="true">🖨</span>';
+  return '<span class="printer-inventory-thumb"><img src="'+escapeHtml(entry.imageUrl)+'" alt="'+escapeHtml(entry.displayName)+'" loading="lazy" referrerpolicy="no-referrer" onerror="this.onerror=null;this.parentNode.classList.add(\'is-placeholder\');this.remove()"></span>';
+}
 function printerPhotoCacheKey(r){
   return normalizePrinterPhotoText([r?.manufacturer,printerInventoryLabel(r)].filter(Boolean).join('|'));
 }
@@ -1723,31 +1762,55 @@ function renderPrinterPhotoMessage(title,message,retry){
 function renderPrinterPhotoResult(photo,r){
   const target=$('printerModelPhoto');
   if(!target)return;
+  const isOfficial=photo.kind==='official';
   const license=[photo.license,photo.licenseVersion].filter(Boolean).join(' ');
   const attribution=[photo.creator,license].filter(Boolean).join(' · ');
+  const links=[];
+  if(photo.sourceUrl){
+    links.push('<a href="'+escapeHtml(photo.sourceUrl)+'" target="_blank" rel="noopener noreferrer">'+(isOfficial?'Ver ficha oficial de '+escapeHtml(photo.provider||'fabricante')+' ↗':'Ver imagen y atribución original ↗')+'</a>');
+  }
+  if(!isOfficial&&photo.officialPage){
+    links.push('<a href="'+escapeHtml(photo.officialPage)+'" target="_blank" rel="noopener noreferrer">Consultar ficha oficial de '+escapeHtml(photo.officialBrand||'fabricante')+' ↗</a>');
+  }
   const licenseLink=photo.licenseUrl?'<a href="'+escapeHtml(photo.licenseUrl)+'" target="_blank" rel="noopener noreferrer">Ver licencia ↗</a>':'';
-  target.innerHTML='<div class="printer-photo-frame"><img src="'+escapeHtml(photo.src)+'" alt="'+escapeHtml('Fotografía de '+(r.manufacturer||'')+' '+printerInventoryLabel(r))+'" loading="lazy" referrerpolicy="no-referrer"></div>'+
-    '<div class="printer-photo-copy"><strong>Foto encontrada para '+escapeHtml(printerInventoryLabel(r))+'</strong>'+
-    '<p>'+escapeHtml(photo.title||printerInventoryLabel(r))+'</p>'+
-    (attribution?'<small>'+escapeHtml(attribution)+'</small>':'<small>Fuente: '+escapeHtml(photo.provider||'Banco de imágenes')+'</small>')+
-    '<small>Verificá la licencia y las condiciones de reutilización en la fuente original.</small>'+
-    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:5px"><a href="'+escapeHtml(photo.sourceUrl)+'" target="_blank" rel="noopener noreferrer">Ver imagen y atribución original ↗</a>'+licenseLink+'</div></div>';
+  target.innerHTML='<div class="printer-photo-frame"><img src="'+escapeHtml(photo.src)+'" alt="'+escapeHtml('Fotografía de '+(r.manufacturer||'')+' '+printerInventoryLabel(r))+'" loading="lazy" referrerpolicy="no-referrer"></div>' +
+    '<div class="printer-photo-copy"><strong>'+(isOfficial?'Imagen del catálogo oficial':'Foto encontrada para')+' '+escapeHtml(printerInventoryLabel(r))+'</strong>' +
+    '<p>'+escapeHtml(photo.title||printerInventoryLabel(r))+'</p>' +
+    (isOfficial?'<small>Imagen enlazada directamente desde el catálogo oficial de '+escapeHtml(photo.provider||'fabricante')+'.</small>':(attribution?'<small>'+escapeHtml(attribution)+'</small>':'<small>Fuente: '+escapeHtml(photo.provider||'Banco de imágenes')+'</small>')) +
+    (!isOfficial?'<small>Revisá las condiciones de reutilización en la fuente original.</small>':'') +
+    '<div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:5px">'+links.join('')+licenseLink+'</div></div>';
   const image=target.querySelector('img');
   if(image)image.addEventListener('error',()=>{
     removePrinterPhotoCache(printerPhotoCacheKey(r));
-    if(currentPrinterDetailId===String(r.printer_id))renderPrinterPhotoMessage('Imagen no disponible','La fuente no permitió cargar esta fotografía. Probá buscar en la otra fuente.',true);
-    const retry=target.querySelector('.printer-photo-retry');
-    if(retry)retry.setAttribute('onclick','retryPrinterModelPhoto(true)');
+    if(isOfficial){
+      if(currentPrinterDetailId===String(r.printer_id))loadPrinterModelPhoto(r,false,true);
+      return;
+    }
+    if(currentPrinterDetailId===String(r.printer_id))renderPrinterPhotoMessage('Imagen no disponible','La fuente no permitió cargar esta fotografía. Podés volver a buscar.',true);
   },{once:true});
 }
-async function loadPrinterModelPhoto(r,commonsOnly=false){
+function renderOfficialPrinterPageMessage(entry,r){
+  const target=$('printerModelPhoto');
+  if(!target)return;
+  const title=entry.displayName||((r.manufacturer||'')+' '+printerInventoryLabel(r));
+  target.innerHTML='<div class="printer-photo-frame"><div class="printer-photo-placeholder"><strong>Imagen oficial no disponible</strong>El fabricante tiene una ficha o documentación oficial, pero no se encontró una imagen directa estable para este modelo. No se mostrará una foto de otro equipo.</div></div>' +
+    '<div class="printer-photo-copy"><strong>'+escapeHtml(title)+'</strong><p>La imagen alternativa exacta no está disponible en este momento.</p><div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:5px"><a href="'+escapeHtml(entry.productUrl)+'" target="_blank" rel="noopener noreferrer">Abrir página oficial de '+escapeHtml(entry.brand)+' ↗</a><button class="printer-photo-retry" type="button" onclick="retryPrinterModelPhoto()">Volver a buscar imagen</button></div></div>';
+}
+async function loadPrinterModelPhoto(r,commonsOnly=false,skipOfficial=false){
   const target=$('printerModelPhoto');
   if(!target||!r)return;
   const searchId=++printerPhotoSearchSequence;
   const printerId=String(r.printer_id||currentPrinterDetailId||'');
   const key=printerPhotoCacheKey(r);
-  renderPrinterPhotoMessage('Buscando foto del modelo','Consultando bancos de imágenes por fabricante y modelo…',false);
-  const cached=commonsOnly?null:readPrinterPhotoCache(key);
+  const officialEntry=findOfficialPrinterCatalogEntry(r);
+  renderPrinterPhotoMessage('Buscando foto del modelo','Primero se consulta el catálogo oficial del fabricante; si no hay imagen directa, se buscan fuentes alternativas con coincidencia de modelo.',false);
+  if(!commonsOnly&&!skipOfficial&&officialEntry?.imageUrl){
+    const officialPhoto={kind:'official',title:officialEntry.displayName,src:officialEntry.imageUrl,sourceUrl:officialEntry.productUrl,provider:officialEntry.brand};
+    savePrinterPhotoCache(key,officialPhoto);
+    if(searchId===printerPhotoSearchSequence&&currentPrinterDetailId===printerId)renderPrinterPhotoResult(officialPhoto,r);
+    return;
+  }
+  const cached=(commonsOnly||skipOfficial)?null:readPrinterPhotoCache(key);
   if(cached){
     if(searchId===printerPhotoSearchSequence&&currentPrinterDetailId===printerId)renderPrinterPhotoResult(cached,r);
     return;
@@ -1759,8 +1822,11 @@ async function loadPrinterModelPhoto(r,commonsOnly=false){
   }
   if(searchId!==printerPhotoSearchSequence||currentPrinterDetailId!==printerId)return;
   if(photo){
+    if(officialEntry?.productUrl){photo.officialPage=officialEntry.productUrl;photo.officialBrand=officialEntry.brand;}
     savePrinterPhotoCache(key,photo);
     renderPrinterPhotoResult(photo,r);
+  }else if(officialEntry?.productUrl){
+    renderOfficialPrinterPageMessage(officialEntry,r);
   }else{
     renderPrinterPhotoMessage('No se encontró una foto confiable','No apareció una imagen con coincidencia suficiente para este fabricante y modelo. La ficha permanece sin una foto que pueda ser de otro equipo.',true);
   }
@@ -2503,7 +2569,7 @@ function renderAll(){
     r.display_name,r.description,r.city,r.manufacturer,r.model,connectionLabel(r),r.ip_address,r.mac_address,r.windows_port,r.usb_port,r.serial_number,r.agent_code,r.machine_name
   ].some(v=>String(v??'').toLowerCase().includes(invTerm))):activeRows;
   if($('inventoryCount'))$('inventoryCount').textContent='Mostrando '+visibleInventory.length+' de '+activeRows.length+' impresoras activas · '+rows.length+' registros en el proyecto';
-  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td>'+escapeHtml(r.manufacturer||'—')+'</td><td><button class="printer-model-link" type="button" onclick="openPrinterDetail('+escapeHtml(JSON.stringify(r.printer_id))+')" title="'+escapeHtml(printerInventoryLabel(r))+' · Abrir ficha completa">'+escapeHtml(printerInventoryLabel(r))+'</button></td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td class="inventory-nowrap"><span class="inventory-single-line '+(staleUpdateInfo(r.last_seen_at).stale?'stale-date':'')+'" title="Último contacto confirmado">'+escapeHtml(staleUpdateInfo(r.last_seen_at).label)+'</span></td><td class="inventory-actions"><div class="inventory-action-group"><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button><button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></div></td></tr>').join(''):'<tr><td colspan="10" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
+  $('inventoryBody').innerHTML=visibleInventory.length?visibleInventory.map(r=>'<tr><td><div class="inventory-printer-title">'+printerInventoryThumbnail(r)+'<span>'+escapeHtml(r.manufacturer||'—')+'</span></div></td><td><button class="printer-model-link" type="button" onclick="openPrinterDetail('+escapeHtml(JSON.stringify(r.printer_id))+')" title="'+escapeHtml(printerInventoryLabel(r))+' · Abrir ficha completa">'+escapeHtml(printerInventoryLabel(r))+'</button></td><td><input class="inline-edit" type="text" maxlength="240" placeholder="¿De dónde es?" value="'+escapeHtml(r.description||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="description" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td><input class="inline-edit" type="text" maxlength="120" placeholder="Ciudad" value="'+escapeHtml(r.city||'')+'" data-printer-id="'+escapeHtml(r.printer_id)+'" data-field="city" onblur="savePrinterInline(this)" onkeydown="if(event.key===&quot;Enter&quot;){event.preventDefault();this.blur();}"></td><td>'+escapeHtml(connectionLabel(r))+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.serial_number||'—')+'</td><td>'+statePill(printerState(r))+'</td><td class="inventory-nowrap"><span class="inventory-single-line '+(staleUpdateInfo(r.last_seen_at).stale?'stale-date':'')+'" title="Último contacto confirmado">'+escapeHtml(staleUpdateInfo(r.last_seen_at).label)+'</span></td><td class="inventory-actions"><div class="inventory-action-group"><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button><button class="icon-btn" type="button" onclick="setRetired('+escapeHtml(JSON.stringify(r.printer_id))+',true)">Retirar</button></div></td></tr>').join(''):'<tr><td colspan="10" class="empty">'+(invTerm?'No hay coincidencias.':'No hay impresoras en control.')+'</td></tr>';
   $('tonerBody').innerHTML=activeRows.length?activeRows.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+pct(r.toner_black_percent)+'</td><td>'+pct(r.toner_cyan_percent)+'</td><td>'+pct(r.toner_magenta_percent)+'</td><td>'+pct(r.toner_yellow_percent)+'</td><td>'+escapeHtml(r.reading_at?r.reading_at.replace('T',' ').replace('Z',' UTC'):'—')+'</td><td>'+escapeHtml(consumablesSummary(r.consumables))+'</td><td>'+escapeHtml(detectionSummary(r))+'</td><td>'+escapeHtml(r.reading_error||r.snmp_error||'—')+'</td></tr>').join(''):'<tr><td colspan="7" class="empty">Sin lecturas de tinta todavía.</td></tr>';
   $('offlineNote').textContent='Conectada solo significa que el agente confirmó respuesta online. Las colas de Windows en estado inactivo, sin respuesta comprobada, figuran como “Sin verificar”.';
   $('offlineBody').innerHTML=offline.length?offline.map(r=>'<tr><td>'+escapeHtml(r.display_name)+'</td><td>'+escapeHtml(r.description||'—')+'</td><td>'+statePill('offline')+'</td><td>'+escapeHtml(lastContact(r.last_seen_at))+'</td><td>'+escapeHtml(r.agent_code||r.machine_name||'—')+'</td><td>'+escapeHtml(printerIpPort(r))+'</td><td>'+escapeHtml(r.city||'—')+'</td><td><button class="icon-btn" type="button" onclick="openPrinterEditor('+escapeHtml(JSON.stringify(r.printer_id))+')">Editar</button></td></tr>').join(''):'<tr><td colspan="8" class="empty">No hay impresoras desconectadas.</td></tr>'; 
