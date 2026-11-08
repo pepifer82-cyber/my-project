@@ -1,0 +1,104 @@
+name: Dump A&T Printer Agent v0.4.3 source for serial diagnosis
+
+on:
+  push:
+    branches: ["agent-v043-serial-debug"]
+    paths:
+      - "dump-v043-source-trigger.txt"
+
+permissions:
+  contents: write
+
+jobs:
+  dump-source:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout exact v0.4.3 source branch
+        uses: actions/checkout@v4
+
+      - name: Reassemble verified source archives and export the C# source for diagnosis
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $parts = Get-ChildItem ".buildsrc/xz" -Filter "part*.b64" | Sort-Object Name
+          if ($parts.Count -ne 23) { throw "Expected 23 base-source chunks; found $($parts.Count)" }
+          $encoded = ($parts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          $bytes = [Convert]::FromBase64String($encoded)
+          $archive = "$PWD\agent-base.tar.xz"
+          [IO.File]::WriteAllBytes($archive, $bytes)
+          $expected = "da000abfadfb44ac7fa29b2e77caf114e3411d259358344ee78829eb24c2cf75"
+          $actual = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLower()
+          if ($actual -ne $expected) { throw "Base source SHA-256 mismatch: $actual" }
+          New-Item -ItemType Directory -Path "$PWD\agent-src" -Force | Out-Null
+          tar -xf $archive -C "$PWD\agent-src"
+          if ($LASTEXITCODE -ne 0) { throw "Could not extract base source" }
+
+          $agentRoot = "$PWD\agent-src\ATPrinterAgent_v0.3.3-TOTAL-GENERAL"
+          $steps = @(
+            @{ File = ".buildsrc\v035direct\apply-patches.ps1"; Extra = @(".buildsrc\v035direct\NetworkHttpProbe.txt", ".buildsrc\v035direct\UpdateManager.cs") },
+            @{ File = ".buildsrc\v036\apply-v036.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v037\apply-v037.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v037-post\apply-post.ps1"; Extra = @() },
+            @{ File = ".buildsrc\v038\apply-v038.ps1"; Extra = @() }
+          )
+          foreach ($step in $steps) {
+            if (!(Test-Path $step.File)) { throw "Missing patch: $($step.File)" }
+            foreach ($item in $step.Extra) { if (!(Test-Path $item)) { throw "Missing patch dependency: $item" } }
+            pwsh -NoProfile -ExecutionPolicy Bypass -File $step.File -AgentRoot $agentRoot
+            if ($LASTEXITCODE -ne 0) { throw "Patch failed: $($step.File)" }
+          }
+
+          $overlayParts = Get-ChildItem ".buildsrc\v039\overlay" -Filter "part*.b64" | Sort-Object Name
+          if ($overlayParts.Count -ne 29) { throw "Expected 29 v0.4.3 overlay chunks; found $($overlayParts.Count)" }
+          $overlayEncoded = ($overlayParts | ForEach-Object { (Get-Content $_.FullName -Raw).Trim() }) -join ""
+          if ($overlayEncoded.Length -ne 90080) { throw "Overlay Base64 length mismatch: $($overlayEncoded.Length)" }
+          $overlayZip = "$PWD\agent-v043-overlay.zip"
+          [IO.File]::WriteAllBytes($overlayZip, [Convert]::FromBase64String($overlayEncoded))
+          $expectedOverlay = "e341abef6baf2f402fbe5ad97830a7675f8ca15270652331182dffdf5375a959"
+          $actualOverlay = (Get-FileHash $overlayZip -Algorithm SHA256).Hash.ToLower()
+          if ($actualOverlay -ne $expectedOverlay) { throw "Overlay SHA-256 mismatch: $actualOverlay" }
+          $overlayDir = "$PWD\agent-v043-overlay"
+          Expand-Archive -Path $overlayZip -DestinationPath $overlayDir -Force
+          $overlayRoot = Join-Path $overlayDir "agent039-overlay"
+          if (!(Test-Path "$overlayRoot\src\SnmpClient.cs")) { throw "SNMP client source missing from overlay" }
+          Copy-Item "$overlayRoot\src\*" "$agentRoot\src" -Recurse -Force
+
+          # Apply the same source-level serial parsing adjustment used in v0.4.3.
+          $scannerPath = "$agentRoot\src\NetworkPrinterScanner.cs"
+          $scanner = Get-Content $scannerPath -Raw
+          $oldStrip = '        decoded = Regex.Replace(decoded, @"<script\b[^>]*>.*?</script>|<style\b[^>]*>.*?</style>", " ", RegexOptions.IgnoreCase | RegexOptions.Singleline);'
+          if ($scanner.Contains($oldStrip)) {
+            $scanner = $scanner.Replace($oldStrip, '        // Keep embedded text/JSON so explicit serial fields in firmware scripts remain searchable.')
+          }
+          $oldSerialPattern = '@"(?:\bserial\s*(?:no\.?|number|#)?|\bs\s*/\s*n\b|\bsn\b|n[úu]mero\s+de\s+serie)\s*[:：=#]?\s*([A-Z0-9][A-Z0-9-]{3,})"'
+          $newSerialPattern = '@"(?:\bserial(?:\s*(?:no\.?|number|#))?|\bs\s*/\s*n\b|\bsn\b|\bn[úu]mero\s+(?:de\s+)?serie)\s*(?:[:：=#]|\s+)\s*([A-Z0-9][A-Z0-9._/-]{3,79})"'
+          if ($scanner.Contains($oldSerialPattern)) { $scanner = $scanner.Replace($oldSerialPattern, $newSerialPattern) }
+          [IO.File]::WriteAllText($scannerPath, $scanner, [Text.Encoding]::UTF8)
+
+          # Copy all agent C# sources and tests as source text only (no keys, binaries or profiles).
+          $diagnosticRoot = "$PWD\agent-diagnostic-source"
+          New-Item -ItemType Directory -Path $diagnosticRoot -Force | Out-Null
+          Get-ChildItem "$agentRoot\src" -File | Where-Object { $_.Extension -in ".cs", ".csproj" } | ForEach-Object {
+            Copy-Item $_.FullName (Join-Path $diagnosticRoot $_.Name) -Force
+          }
+          foreach ($testDir in @("$agentRoot\tests\ATPrinterAgent.Snmp.Tests", "$agentRoot\tests\AgentSelfTests")) {
+            if (Test-Path $testDir) {
+              $dest = Join-Path $diagnosticRoot (Split-Path $testDir -Leaf)
+              New-Item -ItemType Directory -Path $dest -Force | Out-Null
+              Get-ChildItem $testDir -File -Recurse | ForEach-Object {
+                $relative = $_.FullName.Substring($testDir.Length).TrimStart('\')
+                $target = Join-Path $dest $relative
+                New-Item -ItemType Directory -Path (Split-Path $target -Parent) -Force | Out-Null
+                Copy-Item $_.FullName $target -Force
+              }
+            }
+          }
+
+          $files = @(Get-ChildItem $diagnosticRoot -File -Recurse)
+          if ($files.Count -lt 8) { throw "Too few source files exported: $($files.Count)" }
+          Write-Host "Exported $($files.Count) diagnostic source files."
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add agent-diagnostic-source
+          git commit -m "Export v0.4.3 source for Pantum and Ricoh serial diagnosis"
+          git push origin HEAD:agent-v043-serial-debug
