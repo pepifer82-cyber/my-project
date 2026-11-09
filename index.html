@@ -704,7 +704,6 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
         <button id="counterQueryBtn" class="toolbar-btn" type="button">Consultar</button>
         <button id="counterExcelBtn" class="toolbar-btn primary" type="button">▣ Excel</button>
       </div>
-      <div id="counterExcelNote" class="muted hidden" style="font-size:12px;margin:0 0 8px">La exportación a Excel no está incluida en el plan de esta empresa. Un administrador de A&T puede habilitarla desde Planes y licencias.</div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
         <th>Proyecto</th><th>Impresora</th><th>Modelo</th><th>Serie</th><th>IP</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total general de impresión</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
@@ -3722,9 +3721,11 @@ function applyAccountEntitlements(data){
   if(serialesTile)serialesTile.classList.remove('hidden');
   document.querySelectorAll('[data-view="agentes"]').forEach(el=>el.classList.toggle('hidden',!isAdmin));
   const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
-  document.querySelectorAll('#exportExcelBtn,#counterExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
+  document.querySelectorAll('#exportExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
     .forEach(el=>el.classList.toggle('hidden',!enabled('exports')));
-  if($('counterExcelNote'))$('counterExcelNote').classList.toggle('hidden',enabled('exports')||!enabled('counters'));
+  // El reporte de Contadores incluye su exportación: si el cliente ve
+  // Contadores, siempre debe poder bajar el Excel de ese reporte.
+  if($('counterExcelBtn'))$('counterExcelBtn').classList.toggle('hidden',!enabled('counters'));
   if(!enabled('inventory')&&['inventario','tinta','desconectadas','retiradas'].includes(currentView))showView('resumen');
   if(!enabled('counters')&&currentView==='contadores')showView('resumen');
   if(!enabled('remote_control')&&currentView==='control-remoto')showView('resumen');
