@@ -697,6 +697,7 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
         <button id="counterQueryBtn" class="toolbar-btn" type="button">Consultar</button>
         <button id="counterExcelBtn" class="toolbar-btn primary" type="button">▣ Excel</button>
       </div>
+      <div id="counterExcelNote" class="muted hidden" style="font-size:12px;margin:0 0 8px">La exportación a Excel no está incluida en el plan de esta empresa. Un administrador de A&T puede habilitarla desde Planes y licencias.</div>
       <div id="counterMsg" class="muted" style="font-size:12px;margin:2px 0 10px">Elegí un período para consultar.</div>
       <div class="table-wrap"><table><thead><tr>
         <th>Proyecto</th><th>Impresora</th><th>Modelo</th><th>Serie</th><th>IP</th><th>Primera lectura desde</th><th>Última lectura hasta</th><th>Contador impresión desde</th><th>Contador impresión hasta</th><th>Total general de impresión</th><th>Total páginas negro</th><th>Total páginas color</th><th>Contador escáner desde</th><th>Contador escáner hasta</th><th>Total escaneos</th><th>Copias desde</th><th>Copias hasta</th><th>Total copias</th>
@@ -790,12 +791,12 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
         <label class="biz-check"><input id="featCounters" type="checkbox" checked> Contadores</label>
         <label class="biz-check"><input id="featHistory" type="checkbox"> Historial y reportes</label>
         <label class="biz-check"><input id="featAlerts" type="checkbox"> Alertas</label>
-        <label class="biz-check"><input id="featExports" type="checkbox"> Exportación Excel</label>
+        <label class="biz-check"><input id="featExports" type="checkbox" checked> Exportación Excel</label>
         <label class="biz-check"><input id="featAi" type="checkbox"> Asistente IA</label>
         <label class="biz-check"><input id="featMultiuser" type="checkbox"> Varios usuarios</label>
         <label class="biz-check"><input id="featRemoteControl" type="checkbox" checked> Control remoto de agentes</label>
       </div>
-      <div class="biz-actions"><button id="savePlanBtn" class="toolbar-btn primary" type="button">Guardar plan</button><button id="clearPlanBtn" class="toolbar-btn" type="button">Limpiar formulario</button><span id="plansMsg" class="muted"></span></div>
+      <div class="biz-actions"><button id="savePlanBtn" class="toolbar-btn primary" type="button">Guardar plan</button><button id="clearPlanBtn" class="toolbar-btn" type="button">Limpiar formulario</button><button id="enableExcelAllPlansBtn" class="toolbar-btn" type="button" onclick="enableExcelInAllPlans()">✓ Excel en todos los planes</button><span id="plansMsg" class="muted"></span></div>
       <div class="table-wrap"><table><thead><tr><th>Plan</th><th>Precio</th><th>Periodicidad</th><th>Proyectos</th><th>Impresoras</th><th>Funciones</th><th>Estado</th><th></th></tr></thead><tbody id="plansBody"></tbody></table></div>
       <h3 class="biz-section-title">Asignar o renovar licencia</h3>
       <div class="biz-form-grid">
@@ -918,7 +919,7 @@ html[data-theme="dark"] .sidebar-company-filter select{background:#10243b;color:
 const SUPABASE_URL='https://nxpdcwoypvlcgwuvjuro.supabase.co';
 const SUPABASE_KEY='sb_publishable_fwz_qVPsE9lEp0v4XA1b2g_buuMHcin';
 const ACCESS_KEY='atpc_access_token',REFRESH_KEY='atpc_refresh_token';
-let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],projectCompanies=[],sidebarCompanyFilter='all',serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],isAdmin=false,pricing={free_pages:2000,price_per_page:0};
+let currentUser=null,currentProjectId=null,currentView='resumen',projects=[],projectCompanies=[],sidebarCompanyFilter='all',serialByProject=new Map(),rows=[],agentRows=[],projectSearch='',inventorySearch='',retiredSearch='',counterRows=[],counterRowsPeriod=null,counterLastError='',isAdmin=false,pricing={free_pages:2000,price_per_page:0};
 const $=id=>document.getElementById(id);
 // ===== Toasts + diálogo de confirmación (reemplazan alert() y confirm()) =====
 function toastStackEl(){
@@ -1355,6 +1356,7 @@ function openProject(id){
     const aiMessage=$('aiMessage');if(aiMessage)aiMessage.textContent='Asistente limitado al proyecto: '+p.name+'.';
   }
   currentProjectId=id;currentView='resumen';
+  counterRows=[];counterRowsPeriod=null;counterLastError='';
   $('topProjectName').textContent=p.name;$('projectName').textContent=p.name;$('projectMeta').textContent='Proyecto activo · '+id+' · Cargando serial…';clearProjectAgentSerial();
   clearProjectAgentSerial();
   $('archiveProjectBtn').disabled=false;
@@ -3217,6 +3219,8 @@ async function loadCounterHistory(showMessage=true){
     );
     const dayCount=new Set(dailyRows.map(r=>String(r.reading_day))).size;
     counterRows=aggregateCounterPeriodRows(dailyRows);
+    counterRowsPeriod={projectId:String(currentProjectId),from:dates.from,to:dates.to};
+    counterLastError='';
     renderCounterRows();
     if(showMessage){
       msg.textContent=counterRows.length
@@ -3226,6 +3230,8 @@ async function loadCounterHistory(showMessage=true){
     return counterRows;
   }catch(e){
     counterRows=[];
+    counterRowsPeriod=null;
+    counterLastError=String(e?.message||e||'');
     renderCounterRows();
     msg.textContent='No se pudo consultar: '+e.message;
     return [];
@@ -3382,11 +3388,21 @@ function renderCounterRows(){
 }
 
 async function exportCountersExcel(){
-  if(typeof XLSX==='undefined'){atNotify('No se pudo cargar el módulo de Excel.');return}
+  if(typeof XLSX==='undefined'){atNotify('No se pudo cargar el módulo de Excel. Revisá la conexión a Internet y volvé a intentar.','error');return}
+  if(!currentProjectId){atNotify('Seleccioná un proyecto primero.','error');return}
   const dates=validateCounterDates();
   if(!dates)return;
-  const data=await loadCounterHistory(false);
-  if(!data.length){atNotify('No hay lecturas guardadas de impresoras en ese período.');return}
+  // Si la pantalla ya tiene el período consultado, se exporta eso mismo sin
+  // volver a pedirlo. Así el Excel coincide siempre con lo que se ve.
+  const cached=Array.isArray(counterRows)&&counterRows.length&&
+    counterRowsPeriod&&String(counterRowsPeriod.projectId)===String(currentProjectId)&&
+    counterRowsPeriod.from===dates.from&&counterRowsPeriod.to===dates.to;
+  const data=cached?counterRows:await loadCounterHistory(false);
+  if(!data.length){
+    const detail=counterLastError?' Detalle: '+counterLastError:'';
+    atNotify('No hay lecturas guardadas de impresoras en ese período.'+detail,'error');
+    return;
+  }
   const p=projects.find(x=>x.id===currentProjectId);
   const val=v=>v===null||v===undefined||v===''?'':Number(v);
   const dt=v=>v?new Date(v).toLocaleString('es-PY'):'';
@@ -3415,7 +3431,26 @@ async function exportCountersExcel(){
   fitColumns(ws);
   XLSX.utils.book_append_sheet(wb,ws,'Resumen del período');
   const safeName=String(p?.name||'proyecto').replace(/[^a-z0-9áéíóúüñ_-]+/gi,'_').replace(/^_+|_+$/g,'').slice(0,60)||'proyecto';
-  XLSX.writeFile(wb,'AT_Printer_Resumen_Periodo_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx');
+  const filename='AT_Printer_Resumen_Periodo_'+safeName+'_'+dates.from+'_'+dates.to+'.xlsx';
+  // Descarga directa con Blob: funciona también cuando el navegador bloquea
+  // las descargas automáticas de XLSX.writeFile (Safari/iOS, modo privado).
+  try{
+    const buffer=XLSX.write(wb,{bookType:'xlsx',type:'array'});
+    const blob=new Blob([buffer],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'});
+    const url=URL.createObjectURL(blob);
+    const link=document.createElement('a');
+    link.href=url;link.download=filename;link.rel='noopener';link.style.display='none';
+    document.body.appendChild(link);link.click();
+    setTimeout(()=>{try{URL.revokeObjectURL(url)}catch{}link.remove()},2000);
+    atNotify('Excel generado: '+filename,'success');
+  }catch(e){
+    try{
+      XLSX.writeFile(wb,filename);
+      atNotify('Excel generado: '+filename,'success');
+    }catch(e2){
+      atNotify('No se pudo generar el Excel: '+((e2&&e2.message)||(e&&e.message)||e),'error');
+    }
+  }
 }
 
 function exportProjectExcel(){
@@ -3649,7 +3684,15 @@ function applyAccountEntitlements(data){
     }
   }
   const features=data?.features||{};
-  const enabled=name=>isAdmin||(data?features[name]===true:['inventory','counters'].includes(name));
+  // Si el plan no define "exports", la exportación queda habilitada por defecto.
+  // Solo se bloquea cuando el administrador la desmarca explícitamente (false).
+  const featureEnabled=name=>{
+    if(isAdmin)return true;
+    if(!data)return ['inventory','counters','exports'].includes(name);
+    if(name==='exports')return features.exports!==false;
+    return features[name]===true;
+  };
+  const enabled=featureEnabled;
   const canManageCompany=isAdmin||['owner','admin'].includes(data?.role);
   if($('newProjectBtn'))$('newProjectBtn').classList.toggle('hidden',!canManageCompany);
   if($('archiveProjectBtn'))$('archiveProjectBtn').classList.toggle('hidden',!canManageCompany);
@@ -3674,6 +3717,7 @@ function applyAccountEntitlements(data){
   const aiTile=$('assistantTile');if(aiTile)aiTile.classList.toggle('hidden',!enabled('ai'));
   document.querySelectorAll('#exportExcelBtn,#counterExcelBtn,button[onclick*="exportProjectExcel"],button[onclick*="exportCountersExcel"]')
     .forEach(el=>el.classList.toggle('hidden',!enabled('exports')));
+  if($('counterExcelNote'))$('counterExcelNote').classList.toggle('hidden',enabled('exports')||!enabled('counters'));
   if(!enabled('inventory')&&['inventario','tinta','desconectadas','retiradas'].includes(currentView))showView('resumen');
   if(!enabled('counters')&&currentView==='contadores')showView('resumen');
   if(!enabled('remote_control')&&currentView==='control-remoto')showView('resumen');
@@ -3800,7 +3844,7 @@ function clearBusinessPlanForm(){
   $('planEditId').value='';$('planName').value='';$('planCode').value='';$('planAmount').value='0';
   $('planCycle').value='monthly';$('planMaxProjects').value='';$('planMaxPrinters').value='';
   $('featInventory').checked=true;$('featCounters').checked=true;$('featHistory').checked=false;
-  $('featAlerts').checked=false;$('featExports').checked=false;$('featAi').checked=false;$('featMultiuser').checked=false;$('featRemoteControl').checked=true;
+  $('featAlerts').checked=false;$('featExports').checked=true;$('featAi').checked=false;$('featMultiuser').checked=false;$('featRemoteControl').checked=true;
   $('savePlanBtn').textContent='Guardar plan';$('plansMsg').textContent='';
 }
 function renderPlans(){
@@ -3809,6 +3853,28 @@ function renderPlans(){
     const f=p.features||{},features=['Inventario','Contadores',f.history?'Historial':'',f.alerts?'Alertas':'',f.exports?'Excel':'',f.ai?'IA':'',f.multi_user?'Usuarios':'',f.remote_control?'Control remoto':''].filter(Boolean).join(' · ');
     return '<tr><td><strong>'+escapeHtml(p.name)+'</strong><br><small>'+escapeHtml(p.code)+'</small></td><td>'+formatGs(p.amount)+'</td><td>'+escapeHtml(p.billing_cycle)+'</td><td>'+(p.max_projects??'Ilimitado')+'</td><td>'+(p.max_printers??'Ilimitado')+'</td><td>'+escapeHtml(features)+'</td><td>'+(p.active?'Activo':'Inactivo')+'</td><td><button class="icon-btn" type="button" onclick="editBusinessPlan('+JSON.stringify(p.id)+')">Editar</button></td></tr>';
   }).join(''):'<tr><td colspan="8" class="empty">No hay planes.</td></tr>';
+}
+async function enableExcelInAllPlans(){
+  if(!isAdmin)return;
+  const pending=businessPlans.filter(p=>(p.features||{}).exports!==true);
+  if(!pending.length){atNotify('Todos los planes ya incluyen la exportación a Excel.');return}
+  if(!(await askConfirm('¿Incluir la exportación a Excel en '+pending.length+' plan(es)? Se mantienen los demás límites, precios y funciones.')))return;
+  const btn=$('enableExcelAllPlansBtn');if(btn)btn.disabled=true;
+  let ok=0;const failed=[];
+  for(const p of pending){
+    try{
+      await businessAdminRequest({
+        action:'save_plan',id:p.id,name:p.name,code:p.code,
+        amount:p.amount,billing_cycle:p.billing_cycle,
+        max_projects:p.max_projects??null,max_printers:p.max_printers??null,
+        features:Object.assign({},p.features||{},{exports:true})
+      });
+      ok++;
+    }catch(e){failed.push((p.name||p.code||p.id)+': '+e.message)}
+  }
+  if(btn)btn.disabled=false;
+  await loadCommercialWorkspace();
+  atNotify(ok+' plan(es) actualizados.'+(failed.length?' Fallaron: '+failed.join(' | '):''),failed.length?'error':'success');
 }
 async function saveBusinessPlan(){
   const payload={
